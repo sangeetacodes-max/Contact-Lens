@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-scan: scan 4s ease-in-out infinite;
+
+  @keyframes scan {
+    0%, 100% {
+      transform: translateY(0px);
+      opacity: 0.2;
+    }
+    50% {
+      transform: translateY(150px);
+      opacity: 0.8;
+    }
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and active subscription details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "name": { "type": "string", "maxLength": 128 },
+        "workspaceId": { "type": "string", "maxLength": 128 },
+        "isEmailVerified": { "type": "boolean" },
+        "plan": { "type": "string", "enum": ["Free", "Pro", "Business"] },
+        "billingPeriod": { "type": "string", "enum": ["monthly", "yearly"] },
+        "subscriptionActive": { "type": "boolean" },
+        "trialEndsAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "email", "name", "workspaceId"]
+    },
+    "Workspace": {
+      "title": "Workspace",
+      "description": "Information about the business workspace",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 256 },
+        "businessType": { "type": "string", "maxLength": 128 },
+        "url": { "type": "string", "maxLength": 512 },
+        "goal": { "type": "string", "maxLength": 512 },
+        "customDomain": { "type": "string", "maxLength": 256 },
+        "customDomainStatus": { "type": "string", "enum": ["Pending", "Active", "Failed"] }
+      },
+      "required": ["id", "name", "businessType", "url", "goal"]
+    },
+    "Survey": {
+      "title": "Survey",
+      "description": "Survey configurations built in a workspace",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "displayOption": { "type": "string", "maxLength": 128 },
+        "headline": { "type": "string", "maxLength": 512 },
+        "questions": { "type": "array" },
+        "colors": { "type": "object" },
+        "brandingEnabled": { "type": "boolean" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "title", "displayOption", "headline", "active", "createdAt"]
+    },
+    "SurveyResponse": {
+      "title": "Survey Response",
+      "description": "Participant responses collected from surveys",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "surveyId": { "type": "string", "maxLength": 128 },
+        "timestamp": { "type": "string", "maxLength": 64 },
+        "answers": { "type": "array" },
+        "visitorMeta": { "type": "object" }
+      },
+      "required": ["id", "surveyId", "timestamp", "answers"]
+    },
+    "ExitFeedback": {
+      "title": "Exit Feedback",
+      "description": "User feedback gathered upon exit intent survey triggers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "selectedReason": { "type": "string", "maxLength": 256 },
+        "otherReasonText": { "type": "string", "maxLength": 1024 },
+        "timestamp": { "type": "string", "maxLength": 64 },
+        "userId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "selectedReason", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "A user profile"
+    },
+    "workspaces/{workspaceId}": {
+      "schema": "Workspace",
+      "description": "A workspace configuration document"
+    },
+    "workspaces/{workspaceId}/surveys/{surveyId}": {
+      "schema": "Survey",
+      "description": "A survey configuration in a workspace"
+    },
+    "workspaces/{workspaceId}/surveys/{surveyId}/responses/{responseId}": {
+      "schema": "SurveyResponse",
+      "description": "A survey response submission"
+    },
+    "exitFeedbacks/{feedbackId}": {
+      "schema": "ExitFeedback",
+      "description": "Feedback from exit intent survey responses"
+    }
+  }
+}
