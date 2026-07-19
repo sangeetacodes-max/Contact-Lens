@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import LandingPageInfographic from './LandingPageInfographic';
 import { 
   Sprout, 
   Beer, 
@@ -18,6 +19,8 @@ import {
   Clock, 
   BookOpen, 
   ChevronRight, 
+  ChevronLeft,
+  ChevronDown,
   X, 
   Send,
   MessageSquare,
@@ -32,12 +35,19 @@ import {
   Smile,
   User,
   TrendingUp,
-  HelpCircle
+  HelpCircle,
+  Tag,
+  Star,
+  Copy,
+  Check,
+  RefreshCw
 } from 'lucide-react';
 
 interface LandingPageProps {
   onNavigate: (view: 'login' | 'register' | 'forgot' | 'dashboard') => void;
   onLaunchDemo: () => void;
+  onGetStartedFree: () => void;
+  onTriggerAISurvey?: (reason: string) => void;
 }
 
 interface Project {
@@ -52,7 +62,7 @@ interface Project {
   stats?: string;
 }
 
-export default function LandingPage({ onNavigate, onLaunchDemo }: LandingPageProps) {
+export default function LandingPage({ onNavigate, onLaunchDemo, onGetStartedFree, onTriggerAISurvey }: LandingPageProps) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<{ title: string; category: string; content: string; date: string } | null>(null);
   const [emailInput, setEmailInput] = useState('');
@@ -65,12 +75,177 @@ export default function LandingPage({ onNavigate, onLaunchDemo }: LandingPagePro
   const [paypalSimStep, setPaypalSimStep] = useState<'details' | 'login' | 'review' | 'success'>('details');
   const [paypalUserEmail, setPaypalUserEmail] = useState('');
   const [paypalUserPassword, setPaypalUserPassword] = useState('');
+  const [checkoutCouponCode, setCheckoutCouponCode] = useState('');
+  const [checkoutDiscountApplied, setCheckoutDiscountApplied] = useState(false);
+  const [checkoutCouponError, setCheckoutCouponError] = useState('');
+
+  // Auto-detect if user completed the survey and pre-apply 15% discount
+  useEffect(() => {
+    if (activeCheckoutPlan) {
+      const savedCode = localStorage.getItem('cl_survey_completed_code');
+      if (savedCode) {
+        setCheckoutCouponCode(savedCode);
+        setCheckoutDiscountApplied(true);
+        setCheckoutCouponError('');
+      } else {
+        // Reset states on fresh open if no saved code
+        setCheckoutCouponCode('');
+        setCheckoutDiscountApplied(false);
+        setCheckoutCouponError('');
+      }
+    }
+  }, [activeCheckoutPlan]);
 
   // Contact Form State
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactMessage, setContactMessage] = useState('');
   const [contactSuccess, setContactSuccess] = useState(false);
+
+  // Interactive Survey Slides state
+  const [surveySlideIndex, setSurveySlideIndex] = useState(0);
+  const [surveyAnswerOne, setSurveyAnswerOne] = useState<string | null>(null);
+  const [surveyAnswerHear, setSurveyAnswerHear] = useState<string | null>(null);
+  const [surveyEmail, setSurveyEmail] = useState('');
+  const [surveyCopied, setSurveyCopied] = useState(false);
+  const [activeAboutFaq, setActiveAboutFaq] = useState<number | null>(null);
+
+  // New Chat States for Dynamic Survey Follow-up
+  const [chatMessages, setChatMessages] = useState<{ sender: 'ai' | 'user'; text: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatTyping, setIsChatTyping] = useState(false);
+
+  // Custom user input for "Other" options in the interactive survey
+  const [customHearText, setCustomHearText] = useState('');
+  const [customHesitationText, setCustomHesitationText] = useState('');
+
+  // Landing Page Website Analyzer Playground State
+  const [playgroundUrl, setPlaygroundUrl] = useState('');
+  const [playgroundCategory, setPlaygroundCategory] = useState('SaaS');
+  const [playgroundIsAnalyzing, setPlaygroundIsAnalyzing] = useState(false);
+  const [playgroundResult, setPlaygroundResult] = useState<any | null>(null);
+  const [playgroundError, setPlaygroundError] = useState('');
+
+  const handleAnalyzePlayground = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!playgroundUrl.trim()) return;
+    setPlaygroundIsAnalyzing(true);
+    setPlaygroundError('');
+    setPlaygroundResult(null);
+
+    try {
+      const response = await fetch('/api/ai/analyze-website', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          websiteUrl: playgroundUrl,
+          businessType: playgroundCategory,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Analysis failed');
+      }
+
+      const data = await response.json();
+      setPlaygroundResult(data);
+    } catch (err) {
+      console.error(err);
+      setPlaygroundError('Something went wrong during the analysis. Please check the URL and try again.');
+    } finally {
+      setPlaygroundIsAnalyzing(false);
+    }
+  };
+
+  const isCurrentSlideCompleted = () => {
+    if (surveySlideIndex === 0) {
+      return !!surveyAnswerHear && surveyAnswerHear !== "Other? Let us know!";
+    }
+    if (surveySlideIndex === 1) {
+      return !!surveyAnswerOne && surveyAnswerOne !== "other";
+    }
+    if (surveySlideIndex === 2) return chatMessages.some(m => m.sender === 'user');
+    if (surveySlideIndex === 3) return !!surveyEmail.trim() && surveyEmail.includes('@');
+    return true;
+  };
+
+  const handleSelectOption = (optionLabel: string, followUp: string) => {
+    setSurveyAnswerOne(optionLabel);
+    setChatMessages([
+      { sender: 'ai', text: followUp }
+    ]);
+    setSurveySlideIndex(2);
+  };
+
+  useEffect(() => {
+    const isEngaged = !!(
+      selectedProject || 
+      selectedArticle || 
+      activeCheckoutPlan || 
+      playgroundIsAnalyzing || 
+      playgroundResult || 
+      surveySlideIndex > 0 ||
+      contactName ||
+      contactEmail ||
+      contactMessage ||
+      emailInput
+    );
+    (window as any).cl_is_user_actively_engaged = isEngaged;
+  }, [
+    selectedProject, 
+    selectedArticle, 
+    activeCheckoutPlan, 
+    playgroundIsAnalyzing, 
+    playgroundResult, 
+    surveySlideIndex,
+    contactName,
+    contactEmail,
+    contactMessage,
+    emailInput
+  ]);
+
+  const handleSendChatMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || isChatTyping) return;
+
+    const userText = chatInput.trim();
+    setChatInput('');
+    
+    const updatedMessages = [...chatMessages, { sender: 'user' as const, text: userText }];
+    setChatMessages(updatedMessages);
+    setIsChatTyping(true);
+
+    try {
+      const response = await fetch('/api/ai/survey-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          option: surveyAnswerOne,
+          history: updatedMessages,
+          newMessage: userText
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setChatMessages(prev => [...prev, { sender: 'ai', text: data.reply }]);
+      } else {
+        throw new Error('Chat API returned error');
+      }
+    } catch (err) {
+      console.error('Error during survey chat:', err);
+      setChatMessages(prev => [...prev, { 
+        sender: 'ai', 
+        text: "I appreciate you sharing that! CustomerLens is completely committed to helping you understand your visitors. Let me know if there's anything else I can clarify." 
+      }]);
+    } finally {
+      setIsChatTyping(false);
+    }
+  };
 
   const projects: Project[] = [
     {
@@ -257,7 +432,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       
       {/* 1. HERO HEADER SEGMENT (Dark Premium Geometric Grid Background) */}
-      <section className="bg-slate-950 text-white relative overflow-hidden pt-6 pb-28 border-b border-slate-900">
+      <section className="bg-slate-950 text-white relative overflow-hidden pt-10 pb-44 md:pt-14 md:pb-60 min-h-[85vh] flex flex-col justify-between border-b border-slate-900">
         
         {/* Geometric Grid Background */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:24px_24px] opacity-40 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none" />
@@ -277,7 +452,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
         </div>
 
         {/* Top Navbar */}
-        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between relative z-10">
+        <div className="w-full max-w-6xl mx-auto px-6 flex items-center justify-between relative z-10 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-white text-[#111e35] flex items-center justify-center font-extrabold text-xl shadow-lg border border-white/20">
               CL
@@ -309,16 +484,17 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
         </div>
 
         {/* Hero Content */}
-        <div className="max-w-4xl mx-auto px-6 text-center mt-20 relative z-10 space-y-6">
+        <div className="w-full max-w-4xl mx-auto px-6 text-center mt-20 md:mt-28 mb-16 md:mb-24 relative z-10 space-y-8 my-auto flex-grow flex flex-col justify-center">
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
+            className="space-y-4"
           >
-            <span className="inline-block bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase mb-4">
+            <span className="inline-block bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase mb-2">
               ✨ ENGINEERED FOR ENTREPRENEURS TO MAKE SMART DECISIONS
             </span>
-            <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white leading-tight">
+            <h1 className="text-4xl md:text-7.5xl font-extrabold tracking-tight text-white leading-tight">
               CUSTOMER <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-sky-200 to-indigo-300">LENS</span>
             </h1>
           </motion.div>
@@ -327,7 +503,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.6 }}
-            className="text-slate-300 text-sm md:text-base max-w-2xl mx-auto leading-relaxed"
+            className="text-slate-300 text-sm md:text-lg max-w-3xl mx-auto leading-relaxed"
           >
             Engineered for entrepreneurs to make smart decisions. CustomerLens captures precise visitor exit-intent patterns, intercepts bounce traffic, and converts raw visitor behaviors into actionable insights to scale your business.
           </motion.p>
@@ -336,18 +512,18 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.6 }}
-            className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-4"
+            className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-6"
           >
             <a 
               href="#about-lens"
-              className="w-full sm:w-auto bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs px-6 py-3.5 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+              className="w-full sm:w-auto bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs px-7 py-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
             >
               WHAT IS CUSTOMERLENS?
             </a>
             
             <button 
               onClick={onLaunchDemo}
-              className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white font-extrabold text-xs px-6 py-3.5 rounded-xl transition-all shadow-xl shadow-indigo-950/50 flex items-center justify-center gap-2 border border-indigo-400/20"
+              className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white font-extrabold text-xs px-7 py-4 rounded-xl transition-all shadow-xl shadow-indigo-950/50 flex items-center justify-center gap-2 border border-indigo-400/20"
             >
               LAUNCH DEMO
             </button>
@@ -387,101 +563,854 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
         </div>
       </div>
 
-      {/* 3. CORE WHAT IS CUSTOMERLENS SECTION (With Custom Comparative Graphics) */}
-      <section id="about-lens" className="py-24 max-w-6xl mx-auto px-6 border-b border-slate-100">
+      {/* 3. CORE WHAT IS CUSTOMERLENS SECTION (With Interactive Live-Survey Card Slideshow) */}
+      <section id="about-lens" className="pt-24 pb-12 max-w-6xl mx-auto px-6 border-b border-slate-100">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           
-          {/* Left Column: Heading & 3 Explanatory Points */}
-          <div className="lg:col-span-5 space-y-8">
-            <div className="space-y-4">
-              <span className="inline-block bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase font-mono border border-indigo-100">
-                🚀 WHAT IS CUSTOMERLENS?
-              </span>
-              <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
-                CUSTOMER <span className="text-indigo-600">LENS</span>
-              </h2>
-              <div className="w-12 h-1 bg-indigo-600 rounded" />
-              <p className="text-slate-500 text-sm leading-relaxed font-medium">
-                Engineered for entrepreneurs to understand exactly why visitors buy or bounce. CustomerLens aligns customer needs with active store operations.
+          {/* Left Column: Heading & Explanatory Paragraphs */}
+          <div className="lg:col-span-5 space-y-6">
+            <h2 className="font-serif text-4xl sm:text-5xl text-slate-900 leading-[1.15] tracking-tight font-medium">
+              Ask smarter.
+            </h2>
+            
+            {/* ⭐ AI-Triggered Surveys */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 space-y-3.5 shadow-sm text-left">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-500 text-lg">⭐</span>
+                <h3 className="font-bold text-slate-900 text-sm tracking-tight">AI-Triggered Surveys</h3>
+              </div>
+              <p className="text-slate-600 text-xs font-semibold leading-relaxed">
+                Ask at the perfect moment—not on a timer.
               </p>
+              
+              <div className="space-y-1.5 pt-1.5 border-t border-slate-200/60">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">Examples:</span>
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="flex items-start gap-2 text-xs text-slate-700">
+                    <span className="shrink-0 text-slate-500">⏳</span>
+                    <span>Hesitates on pricing for <strong className="font-bold text-slate-900">45+ seconds</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-slate-700">
+                    <span className="shrink-0 text-slate-500">🛒</span>
+                    <span>Adds to cart but doesn't buy</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-slate-700">
+                    <span className="shrink-0 text-slate-500">📄</span>
+                    <span>Visits pricing page <strong className="font-bold text-slate-900">3 times</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-slate-700">
+                    <span className="shrink-0 text-slate-500">🔄</span>
+                    <span>Repeated scrolling</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-slate-700">
+                    <span className="shrink-0 text-slate-500">▶️</span>
+                    <span>Watches <strong className="font-bold text-slate-900">80%</strong> of a demo</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-slate-700">
+                    <span className="shrink-0 text-slate-500">🔁</span>
+                    <span>Uses a feature <strong className="font-bold text-slate-900">5+ times</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-slate-700">
+                    <span className="shrink-0 text-slate-500">👋</span>
+                    <span className="italic text-slate-600">New visitor: "What are you looking for today?"</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-slate-700">
+                    <span className="shrink-0 text-slate-500">🔄</span>
+                    <span className="italic text-slate-600">Returning visitor: "What's stopping you from purchasing?"</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* 3 Short Clear Points */}
-            <div className="space-y-5">
-              <div className="flex gap-4 items-start bg-white p-5 rounded-2xl border border-slate-100/80 shadow-sm hover:shadow-md transition-shadow">
-                <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 font-extrabold font-mono text-sm border border-indigo-100/60">
-                  01
-                </div>
-                <div className="space-y-1">
-                  <h4 className="font-extrabold text-sm text-slate-950 tracking-tight">Profitable Intent Intercepts</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                    It takes surveys at the exact moment the customer has a profitable intent—when they leave, when they buy or they are happy.
-                  </p>
-                </div>
+            {/* DAILY INSIGHTS */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white space-y-3.5 shadow-md text-left">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider font-mono">Daily Insights</span>
+                <span className="text-[9px] bg-indigo-500 text-white font-extrabold px-1.5 py-0.5 rounded uppercase font-mono">Real-Time</span>
               </div>
 
-              <div className="flex gap-4 items-start bg-white p-5 rounded-2xl border border-slate-100/80 shadow-sm hover:shadow-md transition-shadow">
-                <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 font-extrabold font-mono text-sm border border-indigo-100/60">
-                  02
-                </div>
+              <div className="space-y-3">
                 <div className="space-y-1">
-                  <h4 className="font-extrabold text-sm text-slate-950 tracking-tight">AI-Detected Behavior Triggers</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                    When they do something, real-time AI detects it and asks questions that help.
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block font-mono">Example:</span>
+                  <p className="text-xs text-slate-200 leading-normal font-medium italic">
+                    "43 visitors abandoned checkout yesterday because shipping costs appeared too late."
                   </p>
                 </div>
-              </div>
 
-              <div className="flex gap-4 items-start bg-white p-5 rounded-2xl border border-slate-100/80 shadow-sm hover:shadow-md transition-shadow">
-                <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 font-extrabold font-mono text-sm border border-indigo-100/60">
-                  03
-                </div>
-                <div className="space-y-1">
-                  <h4 className="font-extrabold text-sm text-slate-950 tracking-tight">Direct Contextual Questions</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                    Bypasses slow feedback loops with short, clear questions that help.
-                  </p>
+                <div className="pt-2 border-t border-slate-800 space-y-2.5">
+                  <div className="flex items-start gap-2 text-xs">
+                    <span className="text-rose-500 font-bold font-mono">Instead of:</span>
+                    <span className="text-slate-400">"72% said pricing is high."</span>
+                  </div>
+
+                  <div className="flex items-start gap-2 text-xs bg-indigo-950/40 border border-indigo-900/40 rounded-xl p-2.5">
+                    <span className="text-indigo-400 font-bold font-mono shrink-0">AI says:</span>
+                    <span className="text-slate-200 leading-relaxed font-semibold">
+                      "Google Ads visitors think pricing is too high, while organic visitors are confused by missing feature details."
+                    </span>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            <div className="pt-2 text-left">
+              <button
+                onClick={onLaunchDemo}
+                className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 font-extrabold text-sm tracking-wide group transition-all"
+              >
+                Start Free <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
+              </button>
             </div>
           </div>
 
-          {/* Right Column: Dynamic SVG Comparative Visual Scenario Cards */}
-          <div className="lg:col-span-7 space-y-8">
+          {/* Right Column: Premium Slate Background with Interactive Live-Survey Cards */}
+          <div className="lg:col-span-7 bg-gradient-to-br from-slate-900 via-[#111827] to-indigo-950/40 rounded-[2.5rem] p-6 sm:p-12 shadow-2xl border border-slate-800 min-h-[500px] flex flex-col justify-between relative overflow-hidden select-none">
             
-            {/* CARD 1: THE FEEDBACK GAP (WITHOUT) */}
-            <div className="relative bg-[#090e1a] border border-slate-800/80 rounded-3xl p-5 sm:p-6 shadow-xl overflow-hidden flex flex-col justify-between text-white">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/40 pb-3 mb-4">
-                <span className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400 font-mono">SCENARIO A: THE FEEDBACK GAP</span>
-                <span className="text-[9px] w-fit px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 font-bold uppercase tracking-wider">WITHOUT CUSTOMERLENS</span>
-              </div>
+            {/* Subtle mesh light effects inside container */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-sky-500/5 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Live Interactive Card Container */}
+            <div className="w-full max-w-md mx-auto bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col relative z-10">
               
-              <div className="relative flex-1 w-full aspect-[3/2] rounded-2xl overflow-hidden border border-slate-800/60 shadow-inner bg-[#090e1a] select-none">
-                <img 
-                  src="/src/assets/images/scenario_a_clean_1783946720069.jpg" 
-                  alt="Scenario A: The Feedback Gap Diagram" 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
+              {/* Card top banner */}
+              <div className="bg-indigo-600 text-white text-[11px] sm:text-[12px] font-bold py-2.5 px-4 text-center tracking-wide shadow-sm flex items-center justify-center gap-1 select-none">
+                Get 15% off any plan for completing this survey! 🎁
+              </div>
+
+              {/* Card main body */}
+              <div className="p-6 sm:p-8 flex flex-col justify-between flex-grow min-h-[300px]">
+                
+                <AnimatePresence mode="wait">
+                  {surveySlideIndex === 0 && (
+                    <motion.div
+                      key="slide-hear"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-4 text-left"
+                    >
+                      <div className="h-10 w-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                        <HelpCircle size={20} />
+                      </div>
+
+                      <div className="space-y-1">
+                        <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                          How did you hear about <span className="text-indigo-600">CustomerLens?</span>
+                        </h3>
+                        <p className="text-xs text-slate-500 font-medium">
+                          Select an option to help us understand where our audience comes from.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                        {[
+                          { label: "LinkedIn", percent: "28%" },
+                          { label: "Google Search", percent: "35%" },
+                          { label: "Just exploring", percent: "22%" },
+                          { label: "Other? Let us know!", percent: "15%" }
+                        ].map((opt) => {
+                          const isSelected = surveyAnswerHear === opt.label || (opt.label === "Other? Let us know!" && (surveyAnswerHear === "Other? Let us know!" || surveyAnswerHear?.startsWith("Other:")));
+                          const hasSelectedAny = surveyAnswerHear !== null && surveyAnswerHear !== "Other? Let us know!";
+                          
+                          return (
+                            <button
+                              key={opt.label}
+                              type="button"
+                              onClick={() => {
+                                if (hasSelectedAny) return;
+                                if (opt.label === "Other? Let us know!") {
+                                  setSurveyAnswerHear("Other? Let us know!");
+                                } else {
+                                  setSurveyAnswerHear(opt.label);
+                                  setTimeout(() => setSurveySlideIndex(1), 1600);
+                                }
+                              }}
+                              className={`w-full text-left p-3 px-4 rounded-xl border transition-all relative overflow-hidden flex items-center justify-between text-xs sm:text-sm font-semibold ${
+                                isSelected
+                                  ? 'border-indigo-600 bg-indigo-50/30 text-indigo-900 font-bold shadow-sm'
+                                  : hasSelectedAny
+                                    ? 'border-slate-100 bg-white text-slate-400 opacity-60 pointer-events-none'
+                                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/50 cursor-pointer'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 relative z-10">
+                                {hasSelectedAny ? (
+                                  <>
+                                    <span className="text-indigo-600 font-extrabold w-10 text-right shrink-0 transition-all duration-500">
+                                      {opt.percent}
+                                    </span>
+                                    <span className="w-px h-4 bg-slate-200" />
+                                  </>
+                                ) : (
+                                  <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0 mr-1" />
+                                )}
+                                <span>{opt.label}</span>
+                              </div>
+                              
+                              <div 
+                                className="absolute top-0 bottom-0 left-0 bg-indigo-600/5 transition-all duration-1000 ease-out" 
+                                style={{ width: hasSelectedAny ? opt.percent : '0%' }}
+                              />
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {surveyAnswerHear === "Other? Let us know!" && (
+                        <div className="mt-3 space-y-2 animate-fadeIn bg-slate-50 p-3.5 rounded-xl border border-slate-200/60 text-left">
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider font-mono">Tell us how you found us:</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="Type how you heard about us..."
+                              value={customHearText}
+                              onChange={(e) => setCustomHearText(e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500"
+                            />
+                            <button
+                              type="button"
+                              disabled={!customHearText.trim()}
+                              onClick={() => {
+                                setSurveyAnswerHear(`Other: ${customHearText}`);
+                                setSurveySlideIndex(1);
+                              }}
+                              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-sm shrink-0"
+                            >
+                              Submit
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {surveySlideIndex === 1 && (
+                    <motion.div
+                      key="slide-hesitation"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-4 text-left"
+                    >
+                      <div className="h-10 w-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                        <HelpCircle size={20} />
+                      </div>
+
+                      <div className="space-y-1">
+                        <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                          What is your <span className="text-indigo-600">biggest hesitation?</span>
+                        </h3>
+                      </div>
+
+                      <div className="space-y-2 pt-1 max-h-[220px] overflow-y-auto pr-1">
+                        {[
+                          { 
+                            label: "i have trust concerns", 
+                            followUp: "I understand completely! CustomerLens is fully GDPR/CCPA compliant and built with privacy first. What specific trust or security sign does your business look for?" 
+                          },
+                          { 
+                            label: "the price is too high", 
+                            followUp: "I completely understand. We start at just $19/mo and have a robust free tier so you can start risk-free. What target monthly budget fits your business best?" 
+                          },
+                          { 
+                            label: "it doesnt have the features i needed", 
+                            followUp: "Got it! We are actively shipping features like behavioral triggers, custom styles, and integrations. What specific feature or integration do you need?" 
+                          },
+                          { 
+                            label: "other", 
+                            followUp: "Thank you for sharing! We want to make this a perfect fit for your workflow. What specific concern or goal can I help you clarify today?" 
+                          }
+                        ].map((opt) => {
+                          const isSelected = surveyAnswerOne === opt.label || (opt.label === 'other' && (surveyAnswerOne === 'other' || surveyAnswerOne?.startsWith('Other:')));
+                          
+                          return (
+                            <button
+                              key={opt.label}
+                              type="button"
+                              onClick={() => {
+                                if (opt.label === 'other') {
+                                  setSurveyAnswerOne('other');
+                                } else {
+                                  handleSelectOption(opt.label, opt.followUp);
+                                }
+                              }}
+                              className={`w-full text-left p-3.5 px-4.5 rounded-xl border transition-all flex items-center justify-between text-xs sm:text-sm font-semibold leading-relaxed ${
+                                isSelected
+                                  ? 'border-indigo-600 bg-indigo-50/40 text-indigo-900 shadow-sm font-bold'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/50'
+                              }`}
+                            >
+                              <span>{opt.label}</span>
+                              <ChevronRight size={14} className="text-slate-400 shrink-0 ml-2" />
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {surveyAnswerOne === 'other' && (
+                        <div className="mt-3 space-y-2 animate-fadeIn bg-slate-50 p-3.5 rounded-xl border border-slate-200/60 text-left">
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider font-mono">Please describe your hesitation:</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="Type your concern..."
+                              value={customHesitationText}
+                              onChange={(e) => setCustomHesitationText(e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500"
+                            />
+                            <button
+                              type="button"
+                              disabled={!customHesitationText.trim()}
+                              onClick={() => {
+                                const finalReason = `Other: ${customHesitationText}`;
+                                setSurveyAnswerOne(finalReason);
+                                const followUp = `Thank you for sharing that your biggest hesitation is "${customHesitationText}". We want to make CustomerLens a perfect fit for you. What specific concern or goal can I help you clarify today?`;
+                                setChatMessages([
+                                  { sender: 'ai', text: followUp }
+                                ]);
+                                setSurveySlideIndex(2);
+                              }}
+                              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-sm shrink-0"
+                            >
+                              Continue
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {surveySlideIndex === 2 && (
+                    <motion.div
+                      key="slide-chat"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-3 flex flex-col h-full min-h-[300px]"
+                    >
+                      <div className="flex items-center gap-2 border-b border-slate-100 pb-2 flex-shrink-0 text-left">
+                        <div className="h-8 w-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm shrink-0">
+                          <MessageSquare size={16} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">AI Survey Assistant</h4>
+                          <p className="text-[10px] text-emerald-600 font-bold">Online • Resolving Hesitations</p>
+                        </div>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto pr-1 space-y-3 max-h-[190px] text-left py-2 flex flex-col">
+                        {chatMessages.map((msg, i) => (
+                          <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[85%] rounded-2xl p-2.5 px-3.5 text-xs font-medium leading-relaxed shadow-sm ${
+                              msg.sender === 'user'
+                                ? 'bg-indigo-600 text-white rounded-tr-none'
+                                : 'bg-slate-100 text-slate-800 rounded-tl-none'
+                            }`}>
+                              {msg.text}
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {isChatTyping && (
+                          <div className="flex justify-start">
+                            <div className="bg-slate-100 text-slate-400 rounded-2xl p-3 rounded-tl-none text-xs flex items-center gap-1 shadow-sm">
+                              <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <form onSubmit={handleSendChatMessage} className="flex gap-2 flex-shrink-0 mt-auto pt-2 border-t border-slate-100">
+                        <input
+                          type="text"
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          placeholder="Reply to the AI assistant..."
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 font-medium"
+                          disabled={isChatTyping}
+                        />
+                        <button
+                          type="submit"
+                          disabled={!chatInput.trim() || isChatTyping}
+                          className="p-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all disabled:opacity-50 shrink-0 flex items-center justify-center"
+                        >
+                          <Send size={14} />
+                        </button>
+                      </form>
+                      
+                      {chatMessages.some(m => m.sender === 'user') ? (
+                        <button
+                          type="button"
+                          onClick={() => setSurveySlideIndex(3)}
+                          className="text-center text-[11px] font-bold text-indigo-600 hover:text-indigo-700 hover:underline cursor-pointer py-1 block flex-shrink-0 animate-pulse"
+                        >
+                          Satisfied? Let's claim my 15% discount 🎁
+                        </button>
+                      ) : (
+                        <p className="text-center text-[10px] font-semibold text-slate-400 py-1 block flex-shrink-0">
+                          💬 Send a message to the AI Survey Assistant above to unlock the discount!
+                        </p>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {surveySlideIndex === 3 && (
+                    <motion.div
+                      key="slide-email"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-5 text-left"
+                    >
+                      <div className="h-10 w-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                        <Star size={20} className="fill-indigo-600/10 text-indigo-600" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                          Stay in touch with <span className="text-indigo-600">Customer Lens!</span>
+                        </h3>
+                        <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                          Add your email and you'll be kept on top of any changes to Customer Lens.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2 pt-1">
+                        <input
+                          type="email"
+                          value={surveyEmail}
+                          onChange={(e) => setSurveyEmail(e.target.value)}
+                          placeholder="jason@customerlens.com"
+                          className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none text-sm font-medium transition-all shadow-sm"
+                        />
+                        {surveyEmail.trim() === '' ? (
+                          <p className="text-[11px] text-slate-400 font-medium mt-1">
+                            ℹ️ Please enter your email to proceed.
+                          </p>
+                        ) : !surveyEmail.includes('@') ? (
+                          <p className="text-[11px] text-rose-500 font-semibold mt-1">
+                            ✕ Please enter a valid email address (must include '@').
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-emerald-600 font-bold mt-1">
+                            ✓ Looks good! Click "Next" to claim your discount.
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {surveySlideIndex === 4 && (
+                    <motion.div
+                      key="slide-discount"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-5 text-left"
+                    >
+                      <div className="h-10 w-10 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm">
+                        <Check size={20} />
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                          Thanks! 🙏
+                        </h3>
+                        <p className="text-xs sm:text-sm text-slate-500 leading-relaxed font-medium">
+                          This was just an example of what you can do with Customer Lens. Check out our documentation or our examples page for more ideas on how you can use Customer Lens to power your business.
+                        </p>
+                      </div>
+
+                      <div className="text-xs text-slate-400 font-semibold mb-2 block">
+                        Use the code below for 15% off of any Customer Lens plan!
+                      </div>
+
+                      <div className="bg-indigo-50/40 rounded-2xl border border-dashed border-indigo-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-inner">
+                        <div className="flex items-center gap-3">
+                          <span className="p-2 rounded-xl bg-indigo-100 text-indigo-600">
+                            <Tag size={18} />
+                          </span>
+                          <span className="font-extrabold text-sm sm:text-base font-mono tracking-wider text-indigo-900">CUSTOMERLENS15</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText("CUSTOMERLENS15");
+                            setSurveyCopied(true);
+                            setTimeout(() => setSurveyCopied(false), 2000);
+                          }}
+                          className="w-full sm:w-auto px-4 py-2 bg-white hover:bg-slate-50 text-xs font-bold text-indigo-700 rounded-lg border border-slate-200 transition-all flex items-center justify-center gap-1.5 shadow-sm shrink-0"
+                        >
+                          {surveyCopied ? (
+                            <>
+                              <Check size={14} className="text-emerald-600" /> Copied!
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={14} /> Copy
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Card footer controls */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-8 flex-shrink-0">
+                  {surveySlideIndex > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setSurveySlideIndex(surveySlideIndex - 1)}
+                      className="flex items-center gap-1 text-slate-500 hover:text-slate-800 text-xs sm:text-sm font-extrabold transition-all"
+                    >
+                      <ChevronLeft size={16} /> Back
+                    </button>
+                  ) : (
+                    <div className="w-8" />
+                  )}
+
+                  {surveySlideIndex < 4 ? (
+                    <button
+                      type="button"
+                      disabled={!isCurrentSlideCompleted()}
+                      onClick={() => setSurveySlideIndex(surveySlideIndex + 1)}
+                      className={`font-extrabold text-xs sm:text-sm px-6 py-2.5 sm:px-7 sm:py-3 rounded-xl flex items-center gap-1.5 transition-all shadow-md ${
+                        !isCurrentSlideCompleted()
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                          : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300'
+                      }`}
+                    >
+                      Next <ArrowRight size={14} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSurveySlideIndex(0);
+                        setSurveyAnswerOne(null);
+                        setSurveyAnswerHear(null);
+                        setSurveyEmail('');
+                        setChatMessages([]);
+                        setChatInput('');
+                        setCustomHearText('');
+                        setCustomHesitationText('');
+                      }}
+                      className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs sm:text-sm px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl flex items-center gap-1.5 transition-all"
+                    >
+                      Close <X size={14} />
+                    </button>
+                  )}
+                </div>
+
               </div>
             </div>
 
-            {/* CARD 2: THE ALIGNED VALUE (WITH) */}
-            <div className="relative bg-[#090e1a] border border-slate-800/80 rounded-3xl p-5 sm:p-6 shadow-xl overflow-hidden flex flex-col justify-between text-white">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/40 pb-3 mb-4">
-                <span className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400 font-mono">SCENARIO B: THE ALIGNED VALUE</span>
-                <span className="text-[9px] w-fit px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold uppercase tracking-wider">WITH CUSTOMERLENS</span>
+            {/* Slider Dots Navigation inside premium wrapper */}
+            <div className="flex justify-center gap-2.5 pt-6 flex-shrink-0">
+              {[0, 1, 2, 3, 4].map((idx) => {
+                let isDotDisabled = false;
+                if (idx > surveySlideIndex) {
+                  for (let s = surveySlideIndex; s < idx; s++) {
+                    if (s === 0 && !surveyAnswerHear) isDotDisabled = true;
+                    if (s === 1 && !surveyAnswerOne) isDotDisabled = true;
+                    if (s === 2 && !chatMessages.some(m => m.sender === 'user')) isDotDisabled = true;
+                    if (s === 3 && (!surveyEmail.trim() || !surveyEmail.includes('@'))) isDotDisabled = true;
+                  }
+                }
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={isDotDisabled}
+                    onClick={() => {
+                      if (isDotDisabled) return;
+                      setSurveySlideIndex(idx);
+                    }}
+                    className={`h-2.5 rounded-full transition-all duration-300 ${
+                      surveySlideIndex === idx 
+                        ? 'w-8 bg-indigo-500' 
+                        : isDotDisabled
+                          ? 'w-2.5 bg-slate-800/40 cursor-not-allowed'
+                          : 'w-2.5 bg-slate-700 hover:bg-slate-600'
+                    }`}
+                    title={isDotDisabled ? "Answer current question to proceed" : `Go to slide ${idx + 1}`}
+                  />
+                );
+              })}
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* 3.4 CUSTOMERLENS AI BEHAVIORAL INTELLIGENCE ENGINE SECTION */}
+      <section id="ai-behavior-engine" className="py-24 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 text-white relative overflow-hidden border-t border-b border-slate-800">
+        {/* Abstract background grid */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:32px_32px] opacity-20 pointer-events-none" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="max-w-6xl mx-auto px-6 relative z-10 space-y-16">
+          {/* Section Header */}
+          <div className="text-center max-w-3xl mx-auto space-y-4">
+            <span className="inline-flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-400/20 text-indigo-400 px-3.5 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase font-mono">
+              <Sparkles size={12} className="text-indigo-400" /> AI Behavioral Intelligence
+            </span>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+              The more your business grows, the smarter CustomerLens AI
+            </h2>
+            <div className="w-16 h-1 bg-indigo-500 mx-auto rounded" />
+            <p className="text-slate-400 text-sm leading-relaxed">
+              CustomerLens AI analyzes every customer journey across your website or app to understand behavior, intent, and engagement. It learns from every interaction, recognizes meaningful patterns, and delivers the right survey to the right customer at the right moment. Instead of interrupting users with random pop-ups, it asks relevant questions when feedback is most valuable, giving you deeper insights and higher response rates.
+            </p>
+          </div>
+
+          {/* Premium Core AI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            {/* Card 1: SaaS/Product Learning */}
+            <div className="bg-slate-900/50 border border-slate-800 p-8 rounded-3xl space-y-6 relative hover:border-slate-700 transition-all group overflow-hidden">
+              <div className="absolute -right-8 -top-8 w-24 h-24 bg-indigo-500/5 rounded-full group-hover:bg-indigo-500/10 transition-colors" />
+              <div className="h-12 w-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                <Cpu size={24} />
               </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-bold text-white tracking-tight">AI That Learns Your Customers</h3>
+                  <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">Best for SaaS</span>
+                </div>
+                <p className="text-slate-300 text-xs sm:text-sm leading-relaxed font-normal">
+                  CustomerLens AI continuously learns from how visitors interact with your website or app. It understands browsing patterns, hesitation, clicks, navigation, feature usage, purchases, and drop-offs. As it gathers more data, the AI becomes smarter at identifying customer intent and automatically asks the most relevant question at the perfect moment—without interrupting the user experience.
+                </p>
+              </div>
+            </div>
+
+            {/* Card 2: Smarter Over Time */}
+            <div className="bg-slate-900/50 border border-slate-800 p-8 rounded-3xl space-y-6 relative hover:border-slate-700 transition-all group overflow-hidden">
+              <div className="absolute -right-8 -top-8 w-24 h-24 bg-sky-500/5 rounded-full group-hover:bg-sky-500/10 transition-colors" />
+              <div className="h-12 w-12 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+                <TrendingUp size={24} />
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-bold text-white tracking-tight">An AI That Gets Smarter Over Time</h3>
+                  <span className="bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">Premium Model</span>
+                </div>
+                <p className="text-slate-300 text-xs sm:text-sm leading-relaxed font-normal">
+                  Unlike traditional survey tools, CustomerLens AI doesn't rely on fixed rules. It observes customer behavior, understands user journeys, recognizes patterns, and improves with every interaction. The more visitors your website receives, the better the AI becomes at knowing who to ask, when to ask, and what question will generate the most valuable insight.
+                </p>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Checklist & Connection Playground Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+            
+            {/* Checklist Column */}
+            <div className="lg:col-span-5 space-y-6">
+              <div className="space-y-2">
+                <h4 className="text-lg font-bold text-white tracking-tight">Behavioral Intelligence Capabilities</h4>
+                <p className="text-slate-400 text-xs font-medium">Real-time learning model indicators active on connected platforms:</p>
+              </div>
+
+              <ul className="space-y-4">
+                {[
+                  "Learns from real customer behavior",
+                  "Understands clicks, scrolls, pauses, and navigation",
+                  "Detects buying intent and frustration signals",
+                  "Identifies the best moment to ask for feedback",
+                  "Generates relevant, personalized survey questions",
+                  "Continuously improves as more customer interactions are analyzed"
+                ].map((item, index) => (
+                  <li key={index} className="flex items-start gap-3 text-xs text-slate-300">
+                    <span className="p-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0 mt-0.5">
+                      <Check size={12} className="stroke-[3]" />
+                    </span>
+                    <span className="leading-normal font-semibold text-slate-200">{item}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="pt-4 border-t border-slate-800 space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-mono text-emerald-400 tracking-wider uppercase font-bold">LENS_CORE_AI ONLINE v2.4</span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-normal">
+                  Our system is built for complete safety. Script integrations operate as an asynchronous lightweight sandboxed thread, utilizing zero resources and leaving customer page performance completely unaffected.
+                </p>
+              </div>
+            </div>
+
+            {/* Connection Playground Column */}
+            <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-[2rem] p-6 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden">
               
-              <div className="relative flex-1 w-full aspect-[3/2] rounded-2xl overflow-hidden border border-slate-800/60 shadow-inner bg-[#090e1a] select-none">
-                {/* Core illustration image */}
-                <img 
-                  src="/src/assets/images/scenario_b_clean_1783946737629.jpg" 
-                  alt="CustomerLens Scenario B Loop Diagram" 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
+              <div className="absolute -top-12 -right-12 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+              
+              <div className="space-y-2 text-left">
+                <h4 className="text-md sm:text-lg font-bold text-white tracking-tight flex items-center gap-1.5">
+                  <Globe size={18} className="text-indigo-400" /> Connect & Test Your Website Instantly
+                </h4>
+                <p className="text-slate-400 text-xs font-semibold leading-relaxed">
+                  Enter your business website domain below. Our AI model will analyze your digital footprint, predict drop-off vectors, and generate your custom exit-intent survey questions!
+                </p>
               </div>
+
+              <form onSubmit={handleAnalyzePlayground} className="space-y-4 text-left">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-8">
+                    <label className="text-[9px] font-extrabold uppercase font-mono tracking-wider text-slate-400 block mb-1">Website URL</label>
+                    <input 
+                      type="text" 
+                      value={playgroundUrl}
+                      onChange={(e) => setPlaygroundUrl(e.target.value)}
+                      placeholder="e.g. my-ecommerce-shop.com" 
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-200 font-medium"
+                      required
+                    />
+                  </div>
+                  <div className="sm:col-span-4">
+                    <label className="text-[9px] font-extrabold uppercase font-mono tracking-wider text-slate-400 block mb-1">Business Model</label>
+                    <select 
+                      value={playgroundCategory}
+                      onChange={(e) => setPlaygroundCategory(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-300 font-semibold"
+                    >
+                      <option value="SaaS">SaaS / Web App</option>
+                      <option value="E-commerce">E-commerce Shop</option>
+                      <option value="Blog">Blog & Content</option>
+                      <option value="Agency">Agency / Services</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={playgroundIsAnalyzing}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-950/40 flex items-center justify-center gap-2 border border-indigo-400/20 disabled:opacity-60"
+                >
+                  {playgroundIsAnalyzing ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" /> Analyzing UX Intent Vectors...
+                    </>
+                  ) : (
+                    <>
+                      ⚡ Analyze Website & Generate Survey
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Playground Results Panel */}
+              <AnimatePresence mode="wait">
+                {playgroundIsAnalyzing && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="p-5 bg-slate-950/60 border border-slate-800 rounded-2xl text-center space-y-3"
+                  >
+                    <div className="w-12 h-1 bg-indigo-600 rounded-full mx-auto overflow-hidden relative">
+                      <div className="absolute inset-0 bg-sky-400 animate-pulse" />
+                    </div>
+                    <p className="text-[11px] font-mono text-indigo-400 animate-pulse">
+                      Predicting cursor exit velocities and scrolling hesitation signatures...
+                    </p>
+                  </motion.div>
+                )}
+
+                {playgroundError && (
+                  <motion.p 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-xs text-rose-400 bg-rose-950/20 border border-rose-900/40 p-4 rounded-xl font-medium"
+                  >
+                    {playgroundError}
+                  </motion.p>
+                )}
+
+                {playgroundResult && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-5 text-left border-t border-slate-800 pt-5"
+                  >
+                    <div className="bg-indigo-950/30 border border-indigo-500/20 p-4 rounded-2xl space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300 uppercase tracking-wider font-mono">
+                        <Sparkles size={13} /> AI CRO Strategic Review
+                      </div>
+                      <p className="text-[11px] sm:text-xs text-slate-200 leading-relaxed italic">
+                        "{playgroundResult.overallStrategy}"
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Left: Simulated Survey Preview */}
+                      <div className="bg-white text-slate-800 rounded-2xl p-4 border border-slate-200/80 space-y-3 shadow-md">
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                          <span className="text-[9px] font-mono text-indigo-600 font-extrabold uppercase">Generated Exit Survey</span>
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        </div>
+                        <h5 className="text-xs font-black text-slate-900 leading-snug">
+                          {playgroundResult.headline}
+                        </h5>
+                        <div className="space-y-1.5">
+                          {playgroundResult.suggestedQuestions?.[0]?.options?.length > 0 ? (
+                            playgroundResult.suggestedQuestions[0].options.map((opt: string, i: number) => (
+                              <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-lg p-2 text-[10px] font-semibold text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 transition-colors cursor-pointer">
+                                {opt}
+                              </div>
+                            ))
+                          ) : (
+                            <textarea 
+                              placeholder="Visitor types their open feedback here..." 
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] text-slate-700 h-14" 
+                              disabled 
+                            />
+                          )}
+                        </div>
+                        <p className="text-[8px] text-center text-slate-400 font-semibold font-mono uppercase">
+                          ⚡ Powered by CustomerLens AI
+                        </p>
+                      </div>
+
+                      {/* Right: Predicted Behavioral Intelligence */}
+                      <div className="space-y-2.5">
+                        <span className="text-[9px] font-mono text-slate-400 font-extrabold uppercase tracking-wider block">AI Predicted Behavioral Insights</span>
+                        <div className="space-y-2">
+                          {playgroundResult.behavioralInsights?.map((insight: any, i: number) => (
+                            <div key={i} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl space-y-1">
+                              <span className="text-[10px] font-bold text-slate-200 block">{insight.title}</span>
+                              <p className="text-[9px] text-slate-400 leading-relaxed font-semibold">{insight.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-950 border border-slate-800/80 p-3.5 rounded-xl flex items-center justify-between gap-3 text-xs">
+                      <span className="text-slate-400 text-[10px] font-semibold">Love this setup? Create an account to deploy it live!</span>
+                      <button 
+                        onClick={() => onNavigate('register')}
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] px-3.5 py-1.5 rounded-lg transition-all font-mono tracking-wide flex-shrink-0"
+                      >
+                        CLAIM SURVEY
+                      </button>
+                    </div>
+
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
             </div>
 
           </div>
@@ -489,9 +1418,9 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
       </section>
 
       {/* 3.5 PRICING SECTION */}
-      <section id="pricing" className="py-24 max-w-5xl mx-auto px-6">
+      <section id="pricing" className="pt-12 pb-24 max-w-5xl mx-auto px-6">
         {/* Pricing Heading */}
-        <div className="text-center max-w-2xl mx-auto mt-28 mb-12 space-y-4">
+        <div className="text-center max-w-2xl mx-auto mt-4 mb-12 space-y-4">
           <span className="text-[10px] uppercase font-extrabold tracking-widest text-indigo-600 font-mono block">
             Flexible Subscription Options
           </span>
@@ -546,7 +1475,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
 
             <div className="pt-8">
               <button 
-                onClick={() => onNavigate('register')}
+                onClick={onGetStartedFree}
                 className="w-full bg-white hover:bg-slate-100 text-slate-900 font-extrabold text-xs py-3.5 rounded-xl transition-all text-center block shadow-md"
               >
                 Get Started
@@ -684,18 +1613,186 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
         {/* Glowing Ambient Radial Spotlight */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.12),transparent_60%)] pointer-events-none" />
 
-        <div className="max-w-4xl mx-auto px-6 text-center space-y-6 relative z-10">
-          <h2 className="text-3xl md:text-4xl font-black tracking-tight">
-            ABOUT <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-300">CUSTOMER LENS</span>
-          </h2>
-          <div className="w-12 h-1 bg-indigo-500 mx-auto rounded" />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6 relative z-10">
+          {/* Interactive FAQ buttons replacing the main heading */}
+          <div className="max-w-5xl mx-auto text-left space-y-5 mb-10">
+            {[
+              {
+                q: "we can use built in surveys in our website, why do we need to use customer lens?",
+                renderAnswer: () => <LandingPageInfographic />
+              },
+              {
+                q: "How does the interactive AI actually resolve visitor hesitations in real-time?",
+                renderAnswer: () => (
+                  <div className="space-y-6">
+                    <p className="text-slate-300 leading-relaxed text-xs sm:text-sm">
+                      Unlike standard form tools that just collect data, CustomerLens takes immediate action. When a visitor selects a hesitation, our AI immediately addresses their specific concern (such as pricing or security concerns) and can dynamically offer tailored promotions or relevant resources.
+                    </p>
+                    
+                    {/* Visual workflow step-by-step diagram */}
+                    <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-4">
+                      <div className="text-[11px] font-extrabold text-indigo-400 tracking-wider uppercase">
+                        AI Real-Time Intervention Flow
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2 text-left">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-[10px] font-bold text-indigo-400">
+                              1
+                            </span>
+                            <span className="text-xs font-bold text-slate-200">Behavior Trigger</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            User hovers on back button or spends 45s hesitating on the subscription page.
+                          </p>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2 text-left">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-[10px] font-bold text-indigo-400">
+                              2
+                            </span>
+                            <span className="text-xs font-bold text-slate-200">Interactive Selection</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            A non-disruptive card appears. User selects: <span className="text-indigo-300 font-semibold">💰 Pricing too high</span>.
+                          </p>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-500/20 space-y-2 text-left">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[10px] font-bold text-emerald-400">
+                              3
+                            </span>
+                            <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                              AI Intervention
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-300 leading-relaxed">
+                            AI immediately replies: <span className="italic text-slate-100">"Got it! Let me grant you an instant 15% discount code."</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Interactive Visual Preview Box */}
+                      <div className="bg-slate-950/80 rounded-xl border border-slate-800/80 p-3.5">
+                        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-900">
+                          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-[10px] font-mono text-slate-500">Visitor Simulation (Live Experience)</span>
+                        </div>
+                        <div className="space-y-3 text-[11px] sm:text-xs text-left">
+                          <div className="flex justify-end">
+                            <div className="bg-indigo-600 text-white rounded-2xl rounded-tr-none px-3.5 py-2 font-medium max-w-[85%] shadow-sm">
+                              I was looking around, but pricing is too high for my current scale.
+                            </div>
+                          </div>
+                          <div className="flex justify-start items-start gap-2.5">
+                            <div className="w-6 h-6 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-[10px] text-indigo-400 shrink-0 font-bold">
+                              AI
+                            </div>
+                            <div className="bg-slate-900/90 border border-slate-800 text-slate-200 rounded-2xl rounded-tl-none px-3.5 py-2 leading-relaxed max-w-[85%]">
+                              That is totally understandable! I can instantly apply a <strong className="text-emerald-400 font-bold">15% discount</strong> to your account. Enter your email below to receive code <strong className="text-indigo-400 bg-indigo-500/10 px-1 py-0.5 rounded">LENS15</strong>!
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              },
+              {
+                q: "What makes CustomerLens better than standard tools like Hotjar or Typeform?",
+                renderAnswer: () => (
+                  <div className="space-y-6">
+                    <p className="text-slate-300 leading-relaxed text-xs sm:text-sm">
+                      Typeform is static, and Hotjar focuses on passive heatmaps. CustomerLens bridges that gap by running intelligent micro-surveys that open a smart, conversational channel with the visitor at the exact millisecond of abandonment.
+                    </p>
+                    
+                    {/* Comparative Matrix Table */}
+                    <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/20">
+                      <table className="w-full text-left border-collapse min-w-[480px]">
+                        <thead>
+                          <tr className="border-b border-slate-800 bg-slate-900/60">
+                            <th className="p-3 px-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Capabilities</th>
+                            <th className="p-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Typeform</th>
+                            <th className="p-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Hotjar</th>
+                            <th className="p-3 text-[10px] font-black uppercase text-indigo-400 tracking-wider bg-indigo-500/5">CustomerLens</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-850 text-xs text-slate-300">
+                          {[
+                            { feat: "Interactive conversational flow", typeform: "✕", hotjar: "✕", lens: "✓ AI Chat" },
+                            { feat: "Behavioral & exit-intent triggers", typeform: "Limited", hotjar: "✕ Passive", lens: "✓ Real-time" },
+                            { feat: "Dynamic discount / action offers", typeform: "✕", hotjar: "✕", lens: "✓ Auto-incentives" },
+                            { feat: "Immediate user-hesitation response", typeform: "✕", hotjar: "✕", lens: "✓ Direct Chat" },
+                            { feat: "Average campaign response rate", typeform: "3% - 5%", hotjar: "1% - 3%", lens: "50%+" }
+                          ].map((row, i) => (
+                            <tr key={i} className="hover:bg-slate-900/30 transition-colors">
+                              <td className="p-3 px-4 font-semibold text-slate-200">{row.feat}</td>
+                              <td className="p-3 text-slate-500 font-medium">{row.typeform}</td>
+                              <td className="p-3 text-slate-500 font-medium">{row.hotjar}</td>
+                              <td className="p-3 font-extrabold text-indigo-300 bg-indigo-500/5">
+                                <span className={row.lens.includes("50%+") || row.lens.startsWith("✓") ? "text-emerald-400" : "text-indigo-300"}>
+                                  {row.lens}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )
+              }
+            ].map((item, index) => {
+              const isOpen = activeAboutFaq === index;
+              return (
+                <div 
+                  key={index} 
+                  className={`border rounded-2xl transition-all duration-300 overflow-hidden ${
+                    isOpen 
+                      ? 'border-indigo-500/50 bg-indigo-950/30 shadow-[0_0_25px_rgba(99,102,241,0.15)]' 
+                      : 'border-slate-850 bg-slate-900/10 hover:border-slate-700 hover:bg-slate-900/30'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setActiveAboutFaq(isOpen ? null : index)}
+                    className="w-full text-left p-4.5 sm:p-5 flex items-center justify-between gap-4 font-bold text-xs sm:text-sm text-slate-100 hover:text-white transition-colors"
+                  >
+                    <span className="leading-relaxed">{item.q}</span>
+                    <span className={`shrink-0 text-indigo-400 p-1.5 rounded-lg bg-indigo-500/5 border border-indigo-500/10 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
+                      <ChevronDown size={16} />
+                    </span>
+                  </button>
+                  
+                  <AnimatePresence initial={false}>
+                    {isOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                      >
+                        <div className={`border-t border-slate-900/40 bg-slate-950/50 ${index === 0 ? 'p-0' : 'px-5 pb-5 pt-1'}`}>
+                          {item.renderAnswer()}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
           
           <p className="text-indigo-200 text-lg md:text-xl font-bold leading-relaxed max-w-2xl mx-auto">
             When customers feel understood, loyalty follows.
           </p>
           
           <p className="text-slate-300 text-xs md:text-sm leading-relaxed max-w-3xl mx-auto">
-            Every click, every survey response, every review, and every piece of feedback reveals an opportunity to improve. CustomerLens transforms those scattered opinions into clear, AI-powered insights that help businesses make smarter decisions with confidence.
+            Customer Lens is still being shaped with new ideas and your kind feedback.
           </p>
           
           <p className="text-slate-300 text-xs md:text-sm leading-relaxed max-w-3xl mx-auto mt-4">
@@ -808,7 +1905,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               </ul>
 
               <button 
-                onClick={() => onNavigate('register')}
+                onClick={onGetStartedFree}
                 className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition-all text-center block"
               >
                 Get Started
@@ -1207,8 +2304,16 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
                     <span className="text-[9px] uppercase font-bold text-slate-400 font-mono tracking-wider block">YOUR SELECTION</span>
                     <h4 className="text-base font-black text-slate-900 mt-1">{activeCheckoutPlan.name}</h4>
-                    <div className="flex items-baseline gap-1 mt-1.5">
-                      <span className="text-2xl font-black text-slate-900">${activeCheckoutPlan.price}.00</span>
+                    <div className="flex items-baseline gap-1 mt-1.5 font-sans">
+                      {checkoutDiscountApplied ? (
+                        <>
+                          <span className="text-2xl font-black text-slate-900">${(activeCheckoutPlan.price * 0.85).toFixed(2)}</span>
+                          <span className="text-slate-400 text-xs line-through ml-1.5">${activeCheckoutPlan.price}.00</span>
+                          <span className="text-emerald-600 font-mono font-bold text-[10px] ml-1.5 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">15% OFF</span>
+                        </>
+                      ) : (
+                        <span className="text-2xl font-black text-slate-900">${activeCheckoutPlan.price}.00</span>
+                      )}
                       <span className="text-slate-500 text-xs">USD / Month</span>
                     </div>
                     <div className="mt-3 pt-3 border-t border-slate-200/50 text-[10px] text-slate-500 leading-relaxed">
@@ -1217,15 +2322,76 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                     </div>
                   </div>
 
+                  {/* Survey Promo Code Prompt */}
+                  <div className="bg-indigo-50/50 border border-indigo-100/80 p-4 rounded-2xl space-y-2.5">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider font-mono">🎁 CLAIM 15% SURVEY DISCOUNT</span>
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        Did you complete our Exit Intent Survey? Paste your exclusive coupon code below to claim your discount:
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="e.g. LENS15-XXXX"
+                        value={checkoutCouponCode}
+                        onChange={(e) => {
+                          setCheckoutCouponCode(e.target.value);
+                          setCheckoutCouponError('');
+                        }}
+                        disabled={checkoutDiscountApplied}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs uppercase outline-none font-mono focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-500 transition-all"
+                      />
+                      {!checkoutDiscountApplied ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const code = checkoutCouponCode.trim().toUpperCase();
+                            if (code.startsWith('LENS15') || code.includes('LENS15')) {
+                              setCheckoutDiscountApplied(true);
+                              setCheckoutCouponError('');
+                            } else {
+                              setCheckoutCouponError('Invalid code. Complete the survey to get your LENS15 code!');
+                            }
+                          }}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-sm shrink-0"
+                        >
+                          Apply
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCheckoutDiscountApplied(false);
+                            setCheckoutCouponCode('');
+                          }}
+                          className="bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-600 font-bold text-xs px-3.5 py-2 rounded-xl transition-all shrink-0"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    {checkoutDiscountApplied && (
+                      <p className="text-[11px] font-bold text-emerald-600 flex items-center gap-1 font-sans">
+                        ✓ 15% discount code applied successfully!
+                      </p>
+                    )}
+                    {checkoutCouponError && (
+                      <p className="text-[11px] font-semibold text-rose-500 font-sans">
+                        ✕ {checkoutCouponError}
+                      </p>
+                    )}
+                  </div>
+
                   <div className="space-y-3">
                     {/* Live Checkout Option */}
                     <a 
-                      href={`https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=sangeeta.codes@gmail.com&item_name=CustomerLens%20${encodeURIComponent(activeCheckoutPlan.name)}%20Subscription&amount=${activeCheckoutPlan.price}.00&currency_code=USD&no_shipping=1&charset=UTF-8`}
+                      href={`https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=sangeeta.codes@gmail.com&item_name=CustomerLens%20${encodeURIComponent(activeCheckoutPlan.name)}%20Subscription&amount=${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : `${activeCheckoutPlan.price}.00`}&currency_code=USD&no_shipping=1&charset=UTF-8`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full bg-[#ffc439] hover:bg-[#f4b41a] text-[#003087] font-black text-xs py-3.5 rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-sm border border-[#f4b41a]/50"
+                      className="w-full bg-[#ffc439] hover:bg-[#f4b41a] text-[#003087] font-black text-xs py-3.5 rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-sm border border-[#f4b41a]/50 font-sans"
                     >
-                      <span className="font-extrabold">Pay via Real PayPal Account</span>
+                      <span className="font-extrabold">Pay via Real PayPal Account (${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : `${activeCheckoutPlan.price}.00`})</span>
                       <ArrowRight size={14} />
                     </a>
 
@@ -1316,9 +2482,9 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                       <span className="text-slate-800 font-mono font-bold">sangeeta.codes@gmail.com</span>
                     </div>
                     <div className="h-px bg-slate-200/50" />
-                    <div className="flex justify-between font-bold text-slate-900 text-sm">
+                    <div className="flex justify-between font-bold text-slate-900 text-sm font-sans">
                       <span>Total Subscription Charge:</span>
-                      <span>${activeCheckoutPlan.price}.00 USD</span>
+                      <span>${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : `${activeCheckoutPlan.price}.00`} USD</span>
                     </div>
                   </div>
 

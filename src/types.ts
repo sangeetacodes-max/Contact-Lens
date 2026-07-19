@@ -18,6 +18,7 @@ export interface Workspace {
   businessType: BusinessType;
   url: string;
   goal: string;
+  industry?: string;
   customDomain?: string;
   customDomainStatus?: 'Pending' | 'Active' | 'Failed';
   whiteLabel?: {
@@ -60,6 +61,10 @@ export interface Survey {
   active: boolean;
   secondsDelay?: number;
   createdAt: string;
+  allowEdits?: boolean;
+  autoAdvance?: boolean;
+  allowResubmissions?: boolean;
+  notifyOnResponse?: boolean;
 }
 
 export interface SurveyResponse {

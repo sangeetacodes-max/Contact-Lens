@@ -1,6 +1,6 @@
 {
-  "name": "Sandhills Development Suite",
-  "description": "An elegant cosmic-themed software portfolio and SaaS CRO suite inspired by Sandhills Development, featuring interactive exit-intent simulators and AI analytical recommendations.",
+  "name": "Customer Lens",
+  "description": "An elegant customer experience and SaaS CRO suite, featuring interactive exit-intent simulators, premium survey builders, and AI-powered analytical recommendations.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

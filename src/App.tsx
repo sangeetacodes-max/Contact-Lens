@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Mail, 
@@ -20,6 +20,7 @@ import { User, Workspace, Survey } from './types';
 import OnboardingWizard from './components/OnboardingWizard';
 import Dashboard from './components/Dashboard';
 import LandingPage from './components/LandingPage';
+import ExitIntentSurvey from './components/ExitIntentSurvey';
 
 import { 
   onAuthStateChanged, 
@@ -46,6 +47,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [initialSurvey, setInitialSurvey] = useState<Survey | null>(null);
+  const pendingLaunchOnAuthRef = useRef<boolean>(false);
 
   // Authentication state sync & Firebase Firestore validation connection
   useEffect(() => {
@@ -70,40 +72,51 @@ export default function App() {
             const userData = userDoc.data() as User;
             setUser(userData);
             
-            if (userData.workspaceId) {
-              const wsDoc = await getDoc(doc(db, 'workspaces', userData.workspaceId));
-              if (wsDoc.exists()) {
-                const wsData = wsDoc.data() as Workspace;
-                setWorkspace(wsData);
-                
-                // Set default/dummy initialSurvey if none loaded
-                setInitialSurvey({
-                  id: 'srv-init',
-                  title: 'Onboarding Survey',
-                  displayOption: 'Exit Intent Popup',
-                  headline: 'Before you go...',
-                  questions: [],
-                  colors: { background: '#ffffff', text: '#111827', accent: '#6366f1' },
-                  brandingEnabled: false,
-                  active: true,
-                  createdAt: new Date().toISOString()
-                });
+            if (pendingLaunchOnAuthRef.current) {
+              setWorkspace(null);
+              setInitialSurvey(null);
+              pendingLaunchOnAuthRef.current = false;
+              setCurrentView('dashboard');
+              triggerToast('🚀 Welcome! Let\'s begin your 5-step launch process.', 'success');
+            } else {
+              if (userData.workspaceId) {
+                const wsDoc = await getDoc(doc(db, 'workspaces', userData.workspaceId));
+                if (wsDoc.exists()) {
+                  const wsData = wsDoc.data() as Workspace;
+                  setWorkspace(wsData);
+                  
+                  // Set default/dummy initialSurvey if none loaded
+                  setInitialSurvey({
+                    id: 'srv-init',
+                    title: 'Onboarding Survey',
+                    displayOption: 'Exit Intent Popup',
+                    headline: 'Before you go...',
+                    questions: [],
+                    colors: { background: '#ffffff', text: '#111827', accent: '#6366f1' },
+                    brandingEnabled: false,
+                    active: true,
+                    createdAt: new Date().toISOString()
+                  });
+                }
               }
+              setCurrentView('dashboard');
             }
-            setCurrentView('dashboard');
           } else {
             const partialUser: User = {
               id: firebaseUser.uid,
               email: firebaseUser.email || '',
               name: firebaseUser.displayName || 'Valued Partner',
               workspaceId: '',
-              isEmailVerified: firebaseUser.emailVerified,
+              isEmailVerified: true, // Always verify for frictionless demo
               plan: 'Free',
               billingPeriod: 'monthly',
               subscriptionActive: false,
               trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
             };
             setUser(partialUser);
+            setWorkspace(null);
+            setInitialSurvey(null);
+            pendingLaunchOnAuthRef.current = false;
             // Wait for onboarding wizard
             setCurrentView('dashboard');
           }
@@ -156,76 +169,209 @@ export default function App() {
   // Exit Intent Survey states
   const [showExitSurvey, setShowExitSurvey] = useState(false);
   const [exitSurveyTriggered, setExitSurveyTriggered] = useState(false);
-  const [selectedExitReason, setSelectedExitReason] = useState<string>('');
-  const [otherExitReasonText, setOtherExitReasonText] = useState<string>('');
-  const [exitSurveySubmitted, setExitSurveySubmitted] = useState(false);
+  const [exitSurveyViewCount, setExitSurveyViewCount] = useState<number>(0);
+  const [triggerReason, setTriggerReason] = useState<string>('Standard Exit Intent');
+  const [lastActiveTime, setLastActiveTime] = useState<number>(Date.now());
+
+  // Listen for user actions to detect when they are "doing something"
+  useEffect(() => {
+    const updateActivity = () => {
+      setLastActiveTime(Date.now());
+    };
+    document.addEventListener('click', updateActivity);
+    document.addEventListener('keydown', updateActivity);
+    document.addEventListener('submit', updateActivity);
+    return () => {
+      document.removeEventListener('click', updateActivity);
+      document.removeEventListener('keydown', updateActivity);
+      document.removeEventListener('submit', updateActivity);
+    };
+  }, []);
+
+  // Load exit survey view count on startup & reset if months later
+  useEffect(() => {
+    const stored = localStorage.getItem('cl_exit_survey_views');
+    const lastClosed = localStorage.getItem('cl_exit_survey_last_closed');
+
+    if (lastClosed) {
+      const timeSinceClosed = Date.now() - parseInt(lastClosed, 10);
+      const resetThreshold = 30 * 24 * 60 * 60 * 1000; // 30 days (months later)
+      if (timeSinceClosed > resetThreshold) {
+        // Reset view limit and closed state since it is months later
+        localStorage.removeItem('cl_exit_survey_views');
+        localStorage.removeItem('cl_exit_survey_last_closed');
+        setExitSurveyViewCount(0);
+        return;
+      }
+    }
+
+    if (stored) {
+      setExitSurveyViewCount(parseInt(stored, 10));
+    }
+  }, []);
+
+  const triggerSurveyWithReason = (reason: string, isManualSimulation = false) => {
+    const isNew = !user;
+    let currentViews = 0;
+    
+    // Check persisted 8-hour cooldown (if they closed it, don't show for 8 hours)
+    if (!isManualSimulation) {
+      const lastClosed = localStorage.getItem('cl_exit_survey_last_closed');
+      if (lastClosed) {
+        const timeSinceClosed = Date.now() - parseInt(lastClosed, 10);
+        const cooldownMs = 8 * 60 * 60 * 1000; // 8 hours cooldown
+        if (timeSinceClosed < cooldownMs) {
+          console.log(`Exit intent survey within 8-hour cooldown. Skipped.`);
+          return;
+        }
+      }
+    }
+
+    if (isNew) {
+      const stored = localStorage.getItem('cl_exit_survey_views');
+      currentViews = stored ? parseInt(stored, 10) : 0;
+      
+      // Strict 2-times limit for new guest user
+      if (currentViews >= 2 && !isManualSimulation) {
+        console.log('Standard exit intent popup skipped - reached 2-time view limit for new guest user.');
+        return;
+      }
+
+      // Only increment if we are actually opening the survey
+      if (!showExitSurvey) {
+        const nextViews = currentViews + 1;
+        localStorage.setItem('cl_exit_survey_views', String(nextViews));
+        setExitSurveyViewCount(nextViews);
+      }
+    }
+
+    setTriggerReason(reason);
+    setShowExitSurvey(true);
+    setExitSurveyTriggered(true);
+  };
 
   // Listen for Exit Intent (mouse leaving top of viewport)
   useEffect(() => {
     const handleMouseLeave = (e: MouseEvent) => {
-      // Trigger when cursor goes near/above the very top (clientY < 15) and has not triggered in this session yet
-      if (e.clientY < 15 && !exitSurveyTriggered && !showExitSurvey) {
-        setShowExitSurvey(true);
-        setExitSurveyTriggered(true);
+      if (currentView !== 'landing') return;
+      if (exitSurveyTriggered || showExitSurvey) return;
+
+      // DO NOT trigger if user is actively viewing details, checking out or doing actions
+      if ((window as any).cl_is_user_actively_engaged) {
+        console.log('User is actively buying, viewing details or doing something. Skipping exit intent.');
+        return;
+      }
+
+      // DO NOT trigger if user is actively focusing an input field (typing or selecting)
+      const isInputFocused = document.activeElement && (
+        document.activeElement.tagName === 'INPUT' || 
+        document.activeElement.tagName === 'TEXTAREA' || 
+        document.activeElement.tagName === 'SELECT'
+      );
+      if (isInputFocused) {
+        console.log('User is actively focusing an input. Skipping exit intent.');
+        return;
+      }
+
+      // DO NOT trigger if they clicked or typed very recently (within last 20 seconds)
+      const timeSinceLastInteraction = Date.now() - lastActiveTime;
+      if (timeSinceLastInteraction < 20000) {
+        console.log('User is actively doing something on the page. Skipping exit intent.');
+        return;
+      }
+
+      if (e.clientY < 15) {
+        const isNew = !user;
+        const stored = localStorage.getItem('cl_exit_survey_views');
+        const views = stored ? parseInt(stored, 10) : 0;
+
+        if (isNew && views >= 2) {
+          console.log('New user exit-intent limit reached. Skipped.');
+          return;
+        }
+
+        const reason = (isNew && views > 0) ? 'Returning Visitor Hesitation' : 'Standard Exit Intent';
+        triggerSurveyWithReason(reason);
       }
     };
     document.addEventListener('mouseleave', handleMouseLeave);
     return () => {
       document.removeEventListener('mouseleave', handleMouseLeave);
     };
-  }, [exitSurveyTriggered, showExitSurvey]);
+  }, [exitSurveyTriggered, showExitSurvey, user, currentView, lastActiveTime]);
+
+  // AI-Triggered Behavioral Engine: Scrolling confusion pattern detection
+  useEffect(() => {
+    if (currentView !== 'landing' || showExitSurvey) return;
+    let scrollCount = 0;
+    let lastScrollY = window.scrollY;
+    let lastDir = '';
+    
+    const handleScroll = () => {
+      if ((window as any).cl_is_user_actively_engaged) return;
+      const currentScrollY = window.scrollY;
+      const dir = currentScrollY > lastScrollY ? 'down' : 'up';
+      if (dir !== lastDir) {
+        scrollCount++;
+        lastDir = dir;
+        if (scrollCount >= 6) { // 3 rapid scroll direction changes
+          const isInputFocused = document.activeElement && (
+            document.activeElement.tagName === 'INPUT' || 
+            document.activeElement.tagName === 'TEXTAREA'
+          );
+          const timeSinceLastInteraction = Date.now() - lastActiveTime;
+          if (!isInputFocused && timeSinceLastInteraction > 20000 && !(window as any).cl_is_user_actively_engaged) {
+            triggerSurveyWithReason('Scrolled Confused Pattern');
+          }
+          scrollCount = 0;
+        }
+      }
+      lastScrollY = currentScrollY;
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [currentView, showExitSurvey, lastActiveTime]);
+
+  // AI-Triggered Behavioral Engine: Hesitation trigger on page
+  useEffect(() => {
+    if (currentView !== 'landing' || showExitSurvey) return;
+    const timer = setTimeout(() => {
+      if ((window as any).cl_is_user_actively_engaged) return;
+      const isInputFocused = document.activeElement && (
+        document.activeElement.tagName === 'INPUT' || 
+        document.activeElement.tagName === 'TEXTAREA'
+      );
+      const timeSinceLastInteraction = Date.now() - lastActiveTime;
+      if (!isInputFocused && timeSinceLastInteraction > 20000 && !(window as any).cl_is_user_actively_engaged) {
+        triggerSurveyWithReason('Pricing Page Hesitation (45s)');
+      }
+    }, 45000); // 45 seconds stay
+    return () => clearTimeout(timer);
+  }, [currentView, showExitSurvey, lastActiveTime]);
 
   const handleCloseExitSurvey = () => {
     setShowExitSurvey(false);
-    // Reset form states
-    setSelectedExitReason('');
-    setOtherExitReasonText('');
-    setExitSurveySubmitted(false);
-    
-    // In demo/dev mode, let them trigger it again after 1.5s so they can easily test it repeatedly
-    setTimeout(() => {
-      setExitSurveyTriggered(false);
-    }, 1500);
+    // Persist closed state and closed timestamp (no longer reset exitSurveyTriggered so it won't trigger again in the same page-load)
+    localStorage.setItem('cl_exit_survey_last_closed', String(Date.now()));
   };
 
-  const handleSubmitExitSurvey = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedExitReason) {
-      triggerToast('Please select a reason first', 'error');
-      return;
-    }
-    
+  const handleNewExitSurveySubmit = async (feedback: { reason: string; comment: string }) => {
     const feedbackId = `fb-${Date.now()}`;
     const feedbackData = {
       id: feedbackId,
-      selectedReason: selectedExitReason,
-      otherReasonText: selectedExitReason === 'Other' ? otherExitReasonText : '',
+      selectedReason: feedback.reason,
+      otherReasonText: feedback.comment,
       timestamp: new Date().toISOString(),
-      userId: user?.id || 'anonymous'
+      userId: user?.id || 'anonymous',
+      triggerReason: triggerReason
     };
 
     try {
       await setDoc(doc(db, 'exitFeedbacks', feedbackId), feedbackData);
     } catch (err) {
       console.warn('Could not write exit feedback to Firestore:', err);
-      try {
-        handleFirestoreError(err, OperationType.CREATE, `exitFeedbacks/${feedbackId}`);
-      } catch (e) {}
     }
-    
-    setExitSurveySubmitted(true);
-    triggerToast('Thank you! Your feedback has been registered.', 'success');
-    
-    // Auto-close modal after 2.5 seconds
-    setTimeout(() => {
-      setShowExitSurvey(false);
-      setSelectedExitReason('');
-      setOtherExitReasonText('');
-      setExitSurveySubmitted(false);
-      setTimeout(() => {
-        setExitSurveyTriggered(false);
-      }, 1500);
-    }, 2500);
   };
 
   // Persist session changes
@@ -270,7 +416,7 @@ export default function App() {
         email,
         name,
         workspaceId: '',
-        isEmailVerified: false, // Must verify email
+        isEmailVerified: pendingLaunchOnAuthRef.current ? true : false,
         plan: 'Free',
         billingPeriod: 'monthly',
         subscriptionActive: false,
@@ -284,8 +430,16 @@ export default function App() {
       }
 
       setUser(newUser);
-      setCurrentView('verify');
-      triggerToast('Account created! Please verify your email.', 'success');
+      if (pendingLaunchOnAuthRef.current) {
+        setWorkspace(null);
+        setInitialSurvey(null);
+        pendingLaunchOnAuthRef.current = false;
+        setCurrentView('dashboard');
+        triggerToast('🟢 Account registered successfully! Let\'s build your AI survey.', 'success');
+      } else {
+        setCurrentView('verify');
+        triggerToast('Account created! Please verify your email.', 'success');
+      }
     } catch (err: any) {
       triggerToast(err.message || 'Registration failed.', 'error');
     }
@@ -402,77 +556,29 @@ export default function App() {
   };
 
   const handleLaunchDemo = () => {
-    const demoUser: User = {
-      id: 'usr-demo',
-      email: 'guest.partner@sandhillsdev.com',
-      name: 'Guest Partner',
-      workspaceId: 'wsp-demo',
-      isEmailVerified: true,
-      plan: 'Pro',
-      billingPeriod: 'yearly',
-      subscriptionActive: true,
-      trialEndsAt: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString()
-    };
+    if (user) {
+      setWorkspace(null);
+      setInitialSurvey(null);
+      setCurrentView('dashboard');
+      triggerToast('🚀 Let\'s start your 5-step CustomerLens launch process!', 'success');
+    } else {
+      pendingLaunchOnAuthRef.current = true;
+      setCurrentView('register');
+      triggerToast('Please register or sign in to start your 5-step launch process!', 'success');
+    }
+  };
 
-    const demoWorkspace: Workspace = {
-      id: 'wsp-demo',
-      name: 'Sandhills Brew CRO',
-      businessType: 'Ecommerce',
-      url: 'https://sandhillsbrewing.com',
-      goal: 'Track customer bounce patterns and capture exit-intent feedback on wild ales delivery pages.',
-      customDomain: 'cro.sandhillsbrewing.com',
-      customDomainStatus: 'Active',
-      whiteLabel: {
-        logoUrl: '',
-        primaryColor: '#1e3a8a',
-        emailBranding: 'Sandhills Brewing Automated Triggers',
-        removeBranding: true
-      }
-    };
-
-    const demoSurvey: Survey = {
-      id: 'srv-demo',
-      title: 'Exit Intent Brewing Questionnaire',
-      displayOption: 'Exit Intent Popup',
-      headline: 'Before you fly away...',
-      questions: [
-        {
-          id: 'q1',
-          type: 'multiple-choice',
-          questionText: 'What was the primary reason for leaving our wild ales catalog today?',
-          options: [
-            'Shipping rates are too high for cold packs',
-            'I want to purchase a different style (IPAs/Stouts)',
-            'Just browsing the Kansas local headquarters info',
-            'Looking for the physical taproom addresses'
-          ]
-        },
-        {
-          id: 'q2',
-          type: 'rating',
-          questionText: 'How easy was it to navigate our digital bottles list?',
-        },
-        {
-          id: 'q3',
-          type: 'text',
-          questionText: 'What is one wild-fermentation style you would love us to brew next?'
-        }
-      ],
-      colors: {
-        background: '#ffffff',
-        text: '#111827',
-        accent: '#1e3a8a'
-      },
-      brandingEnabled: false,
-      active: true,
-      createdAt: new Date().toISOString()
-    };
-
-    setUser(demoUser);
-    setWorkspace(demoWorkspace);
-    setInitialSurvey(demoSurvey);
-    setCurrentView('dashboard');
-    triggerToast('🟢 Launched secure Sandhills Developer session. Welcome!', 'success');
+  const handleGetStartedFree = () => {
+    if (user) {
+      setWorkspace(null);
+      setInitialSurvey(null);
+      setCurrentView('dashboard');
+      triggerToast('🚀 Let\'s start your 5-step Free Package setup!', 'success');
+    } else {
+      pendingLaunchOnAuthRef.current = true;
+      setCurrentView('register');
+      triggerToast('Please register or sign in to start your 5-step Free Package setup!', 'success');
+    }
   };
 
   const updateUserInfo = (updatedFields: Partial<User>) => {
@@ -514,6 +620,8 @@ export default function App() {
         <LandingPage 
           onNavigate={(view) => setCurrentView(view)} 
           onLaunchDemo={handleLaunchDemo}
+          onGetStartedFree={handleGetStartedFree}
+          onTriggerAISurvey={(reason) => triggerSurveyWithReason(reason, true)}
         />
       )}
 
@@ -571,6 +679,13 @@ export default function App() {
               <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">CustomerLens</h2>
               <p className="text-slate-400 text-xs mt-1">Advanced self-service CRO and exit-intent tracking</p>
             </div>
+
+            {pendingLaunchOnAuthRef.current && (
+              <div className="bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-2xl p-4 text-xs font-medium text-center space-y-1">
+                <p className="font-extrabold text-indigo-900">✨ Secure Sandbox Authorization</p>
+                <p className="text-indigo-600/90 leading-relaxed text-[11px]">Sign up below to instantly launch your personalized, 5-step CustomerLens exit-intent tracking demo!</p>
+              </div>
+            )}
 
             {/* FORGOT PASSWORD FORM */}
             {currentView === 'forgot' ? (
@@ -813,155 +928,13 @@ export default function App() {
       {/* GLOBAL EXIT INTENT SURVEY MODAL */}
       <AnimatePresence>
         {showExitSurvey && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            {/* Backdrop with elegant blur */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={handleCloseExitSurvey}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
-
-            {/* Modal Box */}
-            <motion.div
-              initial={{ scale: 0.9, y: 20, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.9, y: 20, opacity: 0 }}
-              transition={{ type: 'spring', duration: 0.5 }}
-              className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden relative z-[110] flex flex-col p-6 sm:p-8 text-slate-800"
-            >
-              {/* Close Button */}
-              <button
-                onClick={handleCloseExitSurvey}
-                className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-full hover:bg-slate-50"
-              >
-                <X size={18} />
-              </button>
-
-              {!exitSurveySubmitted ? (
-                <form onSubmit={handleSubmitExitSurvey} className="space-y-5">
-                  {/* Icon Accent */}
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-                      <Frown size={20} />
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-lg text-slate-900 tracking-tight">Wait! Before you leave...</h3>
-                      <p className="text-slate-500 text-xs mt-0.5">We'd love to know why you're leaving this site.</p>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-100 my-2" />
-
-                  {/* Question */}
-                  <div className="space-y-1">
-                    <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wide font-mono">Feedback Survey</span>
-                    <p className="font-bold text-sm text-slate-800">Do you have any problem or reason for leaving?</p>
-                  </div>
-
-                  {/* Options List */}
-                  <div className="space-y-2">
-                    {[
-                      "The platform seems too complicated to use",
-                      "The pricing plans are not clear or too high",
-                      "I'm just exploring / researching alternative solutions",
-                      "I encountered a technical issue or bug on the site",
-                      "Other"
-                    ].map((reason) => {
-                      const isSelected = selectedExitReason === reason;
-                      return (
-                        <button
-                          key={reason}
-                          type="button"
-                          onClick={() => {
-                            setSelectedExitReason(reason);
-                            if (reason !== "Other") {
-                              setOtherExitReasonText('');
-                            }
-                          }}
-                          className={`w-full text-left px-4 py-3 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-                            isSelected
-                              ? 'border-indigo-600 bg-indigo-50/40 text-indigo-950 shadow-sm'
-                              : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-slate-50/50'
-                          }`}
-                        >
-                          <span>{reason}</span>
-                          <div className={`h-[18px] w-[18px] rounded-full border flex items-center justify-center transition-all ${
-                            isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'
-                          }`}>
-                            {isSelected && <Check size={10} strokeWidth={3} />}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Dynamic Other Input Textarea */}
-                  <AnimatePresence>
-                    {selectedExitReason === "Other" && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.25 }}
-                        className="overflow-hidden space-y-1.5"
-                      >
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide font-mono mt-1">
-                          Please describe your reason / problem:
-                        </label>
-                        <textarea
-                          rows={2}
-                          required
-                          value={otherExitReasonText}
-                          onChange={(e) => setOtherExitReasonText(e.target.value)}
-                          placeholder="Tell us a bit more about what we can improve..."
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all bg-slate-50 resize-none text-slate-800"
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={handleCloseExitSurvey}
-                      className="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-500 font-bold text-xs py-3 rounded-xl transition-all text-center"
-                    >
-                      Skip & Close
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={!selectedExitReason || (selectedExitReason === "Other" && !otherExitReasonText.trim())}
-                      className="flex-1 bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow-md shadow-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-                    >
-                      Submit Feedback
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="py-8 flex flex-col items-center justify-center text-center space-y-4"
-                >
-                  <div className="h-16 w-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600 text-2xl animate-bounce">
-                    🎉
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="font-extrabold text-lg text-slate-950">Thank you so much!</h3>
-                    <p className="text-slate-500 text-xs max-w-sm px-4">
-                      Your valuable feedback has been recorded. This will help us craft a better experience for you next time.
-                    </p>
-                  </div>
-                  <div className="text-[10px] text-slate-400 font-medium animate-pulse">
-                    Closing in a moment...
-                  </div>
-                </motion.div>
-              )}
-            </motion.div>
-          </div>
+          <ExitIntentSurvey 
+            onClose={handleCloseExitSurvey}
+            onSubmit={handleNewExitSurveySubmit}
+            triggerReason={triggerReason}
+            isNewUser={!user}
+            viewCount={exitSurveyViewCount}
+          />
         )}
       </AnimatePresence>
 

@@ -283,9 +283,138 @@ Keep them short, scannable, and extremely practical. Provide a categorization ty
   }
 });
 
+/**
+ * Endpoint 4: Interactive Live Survey Follow-Up Chat
+ * Keeps asking/answering questions dynamically until the customer is satisfied.
+ */
+app.post('/api/ai/survey-chat', async (req, res) => {
+  const { option, history, newMessage } = req.body;
+
+  if (!newMessage) {
+    return res.status(400).json({ error: 'newMessage is required' });
+  }
+
+  const ai = getGeminiClient();
+
+  if (!ai) {
+    console.log('Gemini API key not configured, returning custom high-quality simulated chat reply');
+    const reply = getSimulatedSurveyReply(option, newMessage, history);
+    return res.json({ reply });
+  }
+
+  try {
+    const historyText = history && Array.isArray(history)
+      ? history.map((m: any) => `${m.sender === 'ai' ? 'AI' : 'User'}: ${m.text}`).join('\n')
+      : '';
+
+    const prompt = `You are a friendly, consultative Customer Experience Specialist for "CustomerLens", a next-generation exit-intent SaaS platform. 
+The user is currently on the Landing Page and is participating in an interactive feedback survey.
+Their initial hesitation was: "${option}".
+
+Conversation history so far:
+${historyText}
+
+User's latest message:
+"${newMessage}"
+
+CRITICAL RULES FOR RESPONDING (STRICTLY FOLLOW THESE GUIDELINES):
+1. NO PREVIOUS CUSTOMER STORIES OR TESTIMONIALS: We are a brand new product and we DO NOT have hundreds of customer stories or reviews yet. Never lie, invent fake reviews, or claim we have case studies. Instead, tell the truth directly and humbly using these options:
+   - Option 1 (Preferred): "We're a new product, so we don't have hundreds of reviews yet. Instead of asking you to trust testimonials, we'd rather let the product prove itself. Try it on your own website and see if it helps you understand your customers better."
+   - Option 2: "You're right to ask. We don't have a long list of reviews because we've just launched. That's why we offer a free trial so you can judge the results yourself."
+   - Option 3: "Every company starts with its first customers. We're focused on building a product that's genuinely useful, and we'd love to earn your trust through results rather than marketing claims."
+   Always mention that we are still being shaped by user feedback.
+
+2. COMPARING WITH COMPETITORS (like Zigpoll, Hotjar, etc.): If the user asks about competitors, comparisons, or specifically "Why choose you over Zigpoll?", respond clearly with true facts about our uniqueness:
+   "Zigpoll is a great product. We're taking a different approach by focusing on AI that decides when to ask questions and uncovers the reasons behind customer behavior, not just collecting more survey responses. We are still being shaped with your feedbacks, ensuring we solve the real, deep issues you face."
+
+3. MONTHLY PRICING ONLY: The pricing for CustomerLens is strictly billed monthly (not yearly). Do not refer to yearly billing.
+
+Your job:
+1. Address their concern directly, politely, and with great empathy using the rules above.
+2. Provide a helpful, constructive, and concise response. Keep it under 2 or 3 short sentences.
+3. Sound human, energetic, empathetic, and highly professional.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: prompt,
+    });
+
+    if (response.text) {
+      return res.json({ reply: response.text.trim() });
+    } else {
+      throw new Error('No content returned from Gemini');
+    }
+  } catch (error: any) {
+    console.error('Gemini Survey Chat Error:', error);
+    const reply = getSimulatedSurveyReply(option, newMessage, history);
+    return res.json({ reply });
+  }
+});
+
 // ----------------------------------------------------
 // BACKUP SIMULATIONS (Used if API Key is missing or failed)
 // ----------------------------------------------------
+
+function getSimulatedSurveyReply(option: string, newMessage: string, history: any[]): string {
+  const text = newMessage.toLowerCase();
+  
+  // Calculate how many messages the AI has sent already
+  const aiMessageCount = history ? history.filter(m => m.sender === 'ai').length : 0;
+
+  // 1. Competitor comparison check first
+  if (text.includes('zigpoll') || text.includes('competitor') || text.includes('hotjar') || text.includes('vs') || text.includes('compare') || text.includes('alternative')) {
+    return "Zigpoll is a great product. We're taking a different approach by focusing on AI that decides when to ask questions and uncovers the reasons behind customer behavior, not just collecting more survey responses. We are still being shaped with your feedbacks, ensuring we solve the real, deep issues you face.";
+  }
+
+  // 2. Testimonials, reviews, customer story check
+  if (text.includes('review') || text.includes('story') || text.includes('testimonial') || text.includes('case study') || text.includes('proof') || text.includes('customer') || text.includes('who uses') || text.includes('prior') || text.includes('trust')) {
+    if (aiMessageCount === 1) {
+      return "You're right to ask. We don't have a long list of reviews because we've just launched. That's why we offer a free trial so you can judge the results yourself. Every company starts with its first customers, and we'd love to earn your trust through results rather than marketing claims.";
+    }
+    return "We're a new product, so we don't have hundreds of reviews yet. Instead of asking you to trust testimonials, we'd rather let the product prove itself. Try it on your own website and see if it helps you understand your customers better. We are still being shaped by your feedback!";
+  }
+
+  // If the conversation is getting long, offer a friendly, decisive resolution instead of repeating questions.
+  if (aiMessageCount >= 2) {
+    return `That makes perfect sense! Since you've shared so much with us, I'd love to offer you a special developer's coupon: use code **LENS15** to save 15% on any of our paid monthly plans, or start on our Free tier today! Is there anything else you'd like to ask?`;
+  }
+
+  if (option?.includes('Trust') || option?.includes('trust') || option?.includes('security')) {
+    if (text.includes('security') || text.includes('privacy') || text.includes('gdpr') || text.includes('compliance')) {
+      return "Privacy is our highest priority! CustomerLens is fully GDPR & CCPA compliant. We run on secure Cloud infrastructures and do not share your users' data.";
+    }
+    return "We're a new product, so we don't have hundreds of reviews yet. Instead of asking you to trust testimonials, we'd rather let the product prove itself. Try it on your own website and see if it helps you understand your customers better. We are still being shaped by your feedback!";
+  }
+  
+  if (option?.includes('expensive') || option?.includes('Expensive') || option?.includes('price') || option?.includes('Price') || option?.includes('budget')) {
+    if (text.includes('competitor') || text.includes('hotjar') || text.includes('price') || text.includes('cost') || text.includes('cheap')) {
+      return "I completely understand. Unlike tools that charge flat fees, our behavior triggers focus only on warm-intent leads, cutting down on spam responses by 60%. Plus, completing this monthly subscription survey unlocks an extra 15% discount!";
+    }
+    if (aiMessageCount === 1) {
+      return "Got it! Since budget is a main focus, you can start on our $0/mo free plan to start collecting responses risk-free. No credit card is required. Shall I show you how to set that up?";
+    }
+    return "We want CustomerLens to be accessible! We offer a solid free tier to let you get started, and paid plans scale with your volume. What target monthly budget would work best for your business?";
+  }
+  
+  if (option?.includes('comparing') || option?.includes('alternatives')) {
+    if (text.includes('which') || text.includes('who') || text.includes('better')) {
+      return "Our key edge is the Conversational AI follow-up, which clarifies user friction instantly. Other platforms just collect static text. Does your team prioritize ease of integration or data analytics depth?";
+    }
+    return "We encourage smart comparisons! CustomerLens features dynamic conversational feedback rather than generic popups. What is the main alternative you are considering?";
+  }
+  
+  if (option?.includes('features') || option?.includes('Features') || option?.includes('wanted')) {
+    if (text.includes('integration') || text.includes('sync') || text.includes('api')) {
+      return "We integrate perfectly with Shopify, HubSpot, Klaviyo, and general Webhooks! If we don't have it, our developer API lets you connect custom triggers in 5 minutes.";
+    }
+    if (aiMessageCount === 1) {
+      return "We also offer a direct custom HTML embed and full CSS injection, allowing you to match your survey theme 100% with your site brand. What kind of feature design or integration are you hoping to set up?";
+    }
+    return "Our engineering team ships fast! We support exit-intent, cursor velocity vectors, custom trigger pages, and visual templates. What specific capability do you need today?";
+  }
+  
+  return "That is excellent feedback! CustomerLens is completely designed to bridge the gap between visitors and store owners in real-time. What else can I clarify for you so you can try it?";
+}
 
 function getSimulatedWizardResponse(businessType: string, goal: string) {
   const isShopify = businessType.toLowerCase().includes('shopify') || businessType.toLowerCase().includes('ecommerce');
@@ -494,6 +623,195 @@ function getSimulatedRecommendations(businessType: string, goal: string) {
       date: new Date().toLocaleDateString(),
     },
   ];
+}
+
+/**
+ * Endpoint 5: AI Website Connection and Analysis
+ * Simulates connecting CustomerLens AI to an external website, analyzes its UX/CRO patterns,
+ * and yields customized behavioral recommendations and survey questions.
+ */
+app.post('/api/ai/analyze-website', async (req, res) => {
+  const { websiteUrl, businessType } = req.body;
+
+  if (!websiteUrl) {
+    return res.status(400).json({ error: 'websiteUrl is required' });
+  }
+
+  const ai = getGeminiClient();
+
+  if (!ai) {
+    console.log('Gemini API key not configured, returning custom high-quality simulated website analysis');
+    return res.json(getSimulatedWebsiteAnalysis(websiteUrl, businessType || 'SaaS'));
+  }
+
+  try {
+    const cleanUrl = websiteUrl.replace(/https?:\/\/(www\.)?/, '');
+    const prompt = `You are CustomerLens Core AI, an advanced SaaS customer behavior & behavioral psychology model.
+A user wants to connect their website to CustomerLens.
+Website URL: ${websiteUrl} (Cleaned domain: ${cleanUrl})
+Business Type / Category: ${businessType || 'General'}
+
+Analyze this website for customer hesitation, user journey friction, drop-off hotspots, and purchase/engagement intent signals.
+Generate:
+1. A captivating headline to ask on exit intent customized for this brand.
+2. Exactly 3 custom, hyper-relevant feedback questions (multiple-choice or text) perfect for their specific audience.
+3. Three AI behavioral tracking insights describing how visitors act on this specific site (pauses, clicks, scroll hesitation).
+4. A 2-sentence conversion rate optimization (CRO) strategic review.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          required: ['headline', 'suggestedQuestions', 'behavioralInsights', 'overallStrategy'],
+          properties: {
+            headline: {
+              type: Type.STRING,
+              description: 'A custom, persuasive exit-intent headline, e.g. "Wait! Before you leave [Cleaned domain]..."',
+            },
+            suggestedQuestions: {
+              type: Type.ARRAY,
+              description: '3 custom survey questions',
+              items: {
+                type: Type.OBJECT,
+                required: ['id', 'type', 'questionText', 'options'],
+                properties: {
+                  id: { type: Type.STRING },
+                  type: { type: Type.STRING, description: '"multiple-choice" or "text"' },
+                  questionText: { type: Type.STRING },
+                  options: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                  },
+                },
+              },
+            },
+            behavioralInsights: {
+              type: Type.ARRAY,
+              description: '3 detailed behavioral observations/predictions',
+              items: {
+                type: Type.OBJECT,
+                required: ['title', 'description'],
+                properties: {
+                  title: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                },
+              },
+            },
+            overallStrategy: {
+              type: Type.STRING,
+              description: 'A 2-sentence overall strategic summary',
+            },
+          },
+        },
+      },
+    });
+
+    if (response.text) {
+      const data = JSON.parse(response.text.trim());
+      return res.json(data);
+    } else {
+      throw new Error('No content returned from Gemini');
+    }
+  } catch (error: any) {
+    console.error('Gemini Analyze Website Error:', error);
+    return res.json(getSimulatedWebsiteAnalysis(websiteUrl, businessType || 'SaaS'));
+  }
+});
+
+function getSimulatedWebsiteAnalysis(websiteUrl: string, businessType: string) {
+  const cleanUrl = websiteUrl.replace(/https?:\/\/(www\.)?/, '').split('/')[0];
+  const domainName = cleanUrl.split('.')[0];
+  const capitalizedName = domainName.charAt(0).toUpperCase() + domainName.slice(1);
+
+  const isEcommerce = businessType.toLowerCase().includes('ecommerce') || 
+                      businessType.toLowerCase().includes('shop') || 
+                      cleanUrl.includes('shop') || 
+                      cleanUrl.includes('store') || 
+                      cleanUrl.includes('cart');
+
+  if (isEcommerce) {
+    return {
+      headline: `Wait! Before you leave ${capitalizedName}... 🛍️`,
+      suggestedQuestions: [
+        {
+          id: 'w-q1',
+          type: 'multiple-choice',
+          questionText: 'What is the main reason you are leaving without checking out today?',
+          options: ['Shipping costs are too high', 'Just comparing prices', 'Need a discount code', 'My preferred payment method is missing']
+        },
+        {
+          id: 'w-q2',
+          type: 'multiple-choice',
+          questionText: 'Is there anything we could do to help you complete your order?',
+          options: ['Offer free shipping', 'Give me 10% off', 'Help me find a size/fit', 'Other (Please specify)']
+        },
+        {
+          id: 'w-q3',
+          type: 'text',
+          questionText: 'What product or collection were you hoping to find today but couldn\'t?',
+          options: []
+        }
+      ],
+      behavioralInsights: [
+        {
+          title: 'Cart Hesitation Signature',
+          description: 'AI model detects average cursor speed slowing by 42% over the "Proceed to Checkout" button, indicating high price hesitation and shipping-cost fear.'
+        },
+        {
+          title: 'Spec Sheet Scroll Reversals',
+          description: 'Visitors repeatedly scroll back and forth over product specs, signaling that critical warranty, materials, or sizing dimensions are difficult to find.'
+        },
+        {
+          title: 'Multi-Tab Price Comparison Path',
+          description: 'AI detects active window blur and quick return within 12 seconds, showing a high probability of external browser-tab price comparison behaviors.'
+        }
+      ],
+      overallStrategy: `CustomerLens AI recommends targeting ${capitalizedName} visitors with a low-friction "Exit Intent Popup" exclusively on product page drop-offs. By answering sizing questions immediately and dynamically offering free shipping thresholds, checkout conversion is estimated to scale by 8-12%.`
+    };
+  }
+
+  // Fallback to SaaS / General
+  return {
+    headline: `Wait! Before you cancel your session on ${capitalizedName}... ⚡`,
+    suggestedQuestions: [
+      {
+        id: 'w-q1',
+        type: 'multiple-choice',
+        questionText: 'What is keeping you from starting your free trial today?',
+        options: ['Pricing is too complex', 'Not sure if it fits my exact workflow', 'Don\'t have time to set it up right now', 'Need more enterprise features']
+      },
+      {
+        id: 'w-q2',
+        type: 'multiple-choice',
+        questionText: 'Which feature of our platform is most critical for your business?',
+        options: ['Automated AI Triggers', 'Behavioral Heatmaps', 'Custom Whitelabel Surveys', 'Integrations & Webhooks']
+      },
+      {
+        id: 'w-q3',
+        type: 'text',
+        questionText: 'What is the number one problem you are hoping to solve with our platform?',
+        options: []
+      }
+    ],
+    behavioralInsights: [
+      {
+        title: 'Pricing Grid Pause Velocity',
+        description: 'AI model monitors an average 38-second cursor pause hovering over the Pro subscription card, indicating high hesitation on subscription commitments.'
+      },
+      {
+        title: 'Integration Docs Exit-Vector',
+        description: 'Visitors exit immediately after scrolling down technical setup documentation, signaling potential overwhelm regarding developer requirements.'
+      },
+      {
+        title: 'Demo Playback Re-engagements',
+        description: 'Returning visitors replay the core product video up to 2.4 times but abandon before clicking CTA, indicating brand trust exists but pricing is a hurdle.'
+      }
+    ],
+    overallStrategy: `To maximize signup conversions for ${capitalizedName}, CustomerLens AI recommends deploying a "Slide In" questionnaire on the pricing page. Proactively addressing billing questions in real-time will dramatically reduce sales friction and capture high-intent accounts.`
+  };
 }
 
 // ----------------------------------------------------
