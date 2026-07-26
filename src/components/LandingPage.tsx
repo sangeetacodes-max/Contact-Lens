@@ -48,6 +48,9 @@ interface LandingPageProps {
   onLaunchDemo: () => void;
   onGetStartedFree: () => void;
   onTriggerAISurvey?: (reason: string) => void;
+  isLoggedIn?: boolean;
+  hasWorkspace?: boolean;
+  userEmail?: string;
 }
 
 interface Project {
@@ -62,7 +65,7 @@ interface Project {
   stats?: string;
 }
 
-export default function LandingPage({ onNavigate, onLaunchDemo, onGetStartedFree, onTriggerAISurvey }: LandingPageProps) {
+export default function LandingPage({ isLoggedIn, hasWorkspace, userEmail, onNavigate, onLaunchDemo, onGetStartedFree, onTriggerAISurvey }: LandingPageProps) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<{ title: string; category: string; content: string; date: string } | null>(null);
   const [emailInput, setEmailInput] = useState('');
@@ -468,18 +471,73 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
           </div>
 
           <div className="flex items-center gap-3">
-            <button 
-              onClick={() => onNavigate('login')}
-              className="text-xs font-bold text-slate-300 hover:text-white px-3 py-2 transition-all"
-            >
-              SIGN IN
-            </button>
-            <button 
-              onClick={() => onNavigate('register')}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-900/30"
-            >
-              FREE TRIAL
-            </button>
+            {isLoggedIn ? (
+              <div className="relative group">
+                <button 
+                  id="btn_landing_google_profile"
+                  onClick={() => onNavigate('dashboard')}
+                  className="relative h-10 w-10 rounded-full bg-gradient-to-tr from-blue-500 via-indigo-500 to-purple-500 p-[1.5px] hover:scale-110 active:scale-95 transition-all shadow-lg flex items-center justify-center cursor-pointer"
+                  title={`Signed in as ${userEmail || 'sangeeta.codes@gmail.com'}`}
+                >
+                  <div className="h-full w-full rounded-full bg-slate-900 flex items-center justify-center text-xs font-black text-white uppercase font-mono tracking-wide">
+                    {(userEmail || 'sangeeta.codes@gmail.com').charAt(0).toUpperCase()}
+                  </div>
+                  {/* Subtle active status indicator */}
+                  <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-slate-950" />
+                </button>
+                
+                {/* Floating tooltip with Gmail account detail */}
+                <div className="absolute right-0 top-12 w-64 bg-slate-950/95 backdrop-blur-md border border-slate-800 p-3.5 rounded-2xl shadow-xl opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 origin-top-right z-50 text-left">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center text-xs font-bold text-white uppercase font-mono">
+                      {(userEmail || 'sangeeta.codes@gmail.com').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-white text-xs font-bold truncate">Google Account</p>
+                      <p className="text-slate-400 text-[10px] font-mono truncate">{userEmail || 'sangeeta.codes@gmail.com'}</p>
+                    </div>
+                  </div>
+                  <div className="mt-2.5 pt-2.5 border-t border-slate-800 flex justify-between items-center">
+                    {hasWorkspace ? (
+                      <>
+                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider font-mono">Website Active</span>
+                        <button 
+                          onClick={() => onNavigate('dashboard')}
+                          className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold transition-colors cursor-pointer"
+                        >
+                          Open Workspace →
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider font-mono">Setup Needed</span>
+                        <button 
+                          onClick={onLaunchDemo}
+                          className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold transition-colors cursor-pointer"
+                        >
+                          Setup Website →
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <button 
+                  onClick={() => onNavigate('login')}
+                  className="text-xs font-bold text-slate-300 hover:text-white px-3 py-2 transition-all"
+                >
+                  SIGN IN
+                </button>
+                <button 
+                  onClick={() => onNavigate('register')}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-900/30"
+                >
+                  FREE TRIAL
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -809,7 +867,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
                         {[
                           { 
                             label: "i have trust concerns", 
-                            followUp: "I understand completely! CustomerLens is fully GDPR/CCPA compliant and built with privacy first. What specific trust or security sign does your business look for?" 
+                            followUp: "We are new, thus we don't have reviews yet! But you can see for yourself the profits and results of this app directly on your own website with our free trial. Try it risk-free and let the performance speak for itself!" 
                           },
                           { 
                             label: "the price is too high", 
@@ -1152,271 +1210,6 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
         </div>
       </section>
 
-      {/* 3.4 CUSTOMERLENS AI BEHAVIORAL INTELLIGENCE ENGINE SECTION */}
-      <section id="ai-behavior-engine" className="py-24 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 text-white relative overflow-hidden border-t border-b border-slate-800">
-        {/* Abstract background grid */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:32px_32px] opacity-20 pointer-events-none" />
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="max-w-6xl mx-auto px-6 relative z-10 space-y-16">
-          {/* Section Header */}
-          <div className="text-center max-w-3xl mx-auto space-y-4">
-            <span className="inline-flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-400/20 text-indigo-400 px-3.5 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase font-mono">
-              <Sparkles size={12} className="text-indigo-400" /> AI Behavioral Intelligence
-            </span>
-            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
-              The more your business grows, the smarter CustomerLens AI
-            </h2>
-            <div className="w-16 h-1 bg-indigo-500 mx-auto rounded" />
-            <p className="text-slate-400 text-sm leading-relaxed">
-              CustomerLens AI analyzes every customer journey across your website or app to understand behavior, intent, and engagement. It learns from every interaction, recognizes meaningful patterns, and delivers the right survey to the right customer at the right moment. Instead of interrupting users with random pop-ups, it asks relevant questions when feedback is most valuable, giving you deeper insights and higher response rates.
-            </p>
-          </div>
-
-          {/* Premium Core AI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            
-            {/* Card 1: SaaS/Product Learning */}
-            <div className="bg-slate-900/50 border border-slate-800 p-8 rounded-3xl space-y-6 relative hover:border-slate-700 transition-all group overflow-hidden">
-              <div className="absolute -right-8 -top-8 w-24 h-24 bg-indigo-500/5 rounded-full group-hover:bg-indigo-500/10 transition-colors" />
-              <div className="h-12 w-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                <Cpu size={24} />
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-bold text-white tracking-tight">AI That Learns Your Customers</h3>
-                  <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">Best for SaaS</span>
-                </div>
-                <p className="text-slate-300 text-xs sm:text-sm leading-relaxed font-normal">
-                  CustomerLens AI continuously learns from how visitors interact with your website or app. It understands browsing patterns, hesitation, clicks, navigation, feature usage, purchases, and drop-offs. As it gathers more data, the AI becomes smarter at identifying customer intent and automatically asks the most relevant question at the perfect moment—without interrupting the user experience.
-                </p>
-              </div>
-            </div>
-
-            {/* Card 2: Smarter Over Time */}
-            <div className="bg-slate-900/50 border border-slate-800 p-8 rounded-3xl space-y-6 relative hover:border-slate-700 transition-all group overflow-hidden">
-              <div className="absolute -right-8 -top-8 w-24 h-24 bg-sky-500/5 rounded-full group-hover:bg-sky-500/10 transition-colors" />
-              <div className="h-12 w-12 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
-                <TrendingUp size={24} />
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-bold text-white tracking-tight">An AI That Gets Smarter Over Time</h3>
-                  <span className="bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">Premium Model</span>
-                </div>
-                <p className="text-slate-300 text-xs sm:text-sm leading-relaxed font-normal">
-                  Unlike traditional survey tools, CustomerLens AI doesn't rely on fixed rules. It observes customer behavior, understands user journeys, recognizes patterns, and improves with every interaction. The more visitors your website receives, the better the AI becomes at knowing who to ask, when to ask, and what question will generate the most valuable insight.
-                </p>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Checklist & Connection Playground Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-            
-            {/* Checklist Column */}
-            <div className="lg:col-span-5 space-y-6">
-              <div className="space-y-2">
-                <h4 className="text-lg font-bold text-white tracking-tight">Behavioral Intelligence Capabilities</h4>
-                <p className="text-slate-400 text-xs font-medium">Real-time learning model indicators active on connected platforms:</p>
-              </div>
-
-              <ul className="space-y-4">
-                {[
-                  "Learns from real customer behavior",
-                  "Understands clicks, scrolls, pauses, and navigation",
-                  "Detects buying intent and frustration signals",
-                  "Identifies the best moment to ask for feedback",
-                  "Generates relevant, personalized survey questions",
-                  "Continuously improves as more customer interactions are analyzed"
-                ].map((item, index) => (
-                  <li key={index} className="flex items-start gap-3 text-xs text-slate-300">
-                    <span className="p-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0 mt-0.5">
-                      <Check size={12} className="stroke-[3]" />
-                    </span>
-                    <span className="leading-normal font-semibold text-slate-200">{item}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="pt-4 border-t border-slate-800 space-y-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] font-mono text-emerald-400 tracking-wider uppercase font-bold">LENS_CORE_AI ONLINE v2.4</span>
-                </div>
-                <p className="text-[11px] text-slate-500 leading-normal">
-                  Our system is built for complete safety. Script integrations operate as an asynchronous lightweight sandboxed thread, utilizing zero resources and leaving customer page performance completely unaffected.
-                </p>
-              </div>
-            </div>
-
-            {/* Connection Playground Column */}
-            <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-[2rem] p-6 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden">
-              
-              <div className="absolute -top-12 -right-12 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
-              
-              <div className="space-y-2 text-left">
-                <h4 className="text-md sm:text-lg font-bold text-white tracking-tight flex items-center gap-1.5">
-                  <Globe size={18} className="text-indigo-400" /> Connect & Test Your Website Instantly
-                </h4>
-                <p className="text-slate-400 text-xs font-semibold leading-relaxed">
-                  Enter your business website domain below. Our AI model will analyze your digital footprint, predict drop-off vectors, and generate your custom exit-intent survey questions!
-                </p>
-              </div>
-
-              <form onSubmit={handleAnalyzePlayground} className="space-y-4 text-left">
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                  <div className="sm:col-span-8">
-                    <label className="text-[9px] font-extrabold uppercase font-mono tracking-wider text-slate-400 block mb-1">Website URL</label>
-                    <input 
-                      type="text" 
-                      value={playgroundUrl}
-                      onChange={(e) => setPlaygroundUrl(e.target.value)}
-                      placeholder="e.g. my-ecommerce-shop.com" 
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-200 font-medium"
-                      required
-                    />
-                  </div>
-                  <div className="sm:col-span-4">
-                    <label className="text-[9px] font-extrabold uppercase font-mono tracking-wider text-slate-400 block mb-1">Business Model</label>
-                    <select 
-                      value={playgroundCategory}
-                      onChange={(e) => setPlaygroundCategory(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-300 font-semibold"
-                    >
-                      <option value="SaaS">SaaS / Web App</option>
-                      <option value="E-commerce">E-commerce Shop</option>
-                      <option value="Blog">Blog & Content</option>
-                      <option value="Agency">Agency / Services</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={playgroundIsAnalyzing}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-950/40 flex items-center justify-center gap-2 border border-indigo-400/20 disabled:opacity-60"
-                >
-                  {playgroundIsAnalyzing ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin" /> Analyzing UX Intent Vectors...
-                    </>
-                  ) : (
-                    <>
-                      ⚡ Analyze Website & Generate Survey
-                    </>
-                  )}
-                </button>
-              </form>
-
-              {/* Playground Results Panel */}
-              <AnimatePresence mode="wait">
-                {playgroundIsAnalyzing && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="p-5 bg-slate-950/60 border border-slate-800 rounded-2xl text-center space-y-3"
-                  >
-                    <div className="w-12 h-1 bg-indigo-600 rounded-full mx-auto overflow-hidden relative">
-                      <div className="absolute inset-0 bg-sky-400 animate-pulse" />
-                    </div>
-                    <p className="text-[11px] font-mono text-indigo-400 animate-pulse">
-                      Predicting cursor exit velocities and scrolling hesitation signatures...
-                    </p>
-                  </motion.div>
-                )}
-
-                {playgroundError && (
-                  <motion.p 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-xs text-rose-400 bg-rose-950/20 border border-rose-900/40 p-4 rounded-xl font-medium"
-                  >
-                    {playgroundError}
-                  </motion.p>
-                )}
-
-                {playgroundResult && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="space-y-5 text-left border-t border-slate-800 pt-5"
-                  >
-                    <div className="bg-indigo-950/30 border border-indigo-500/20 p-4 rounded-2xl space-y-2">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300 uppercase tracking-wider font-mono">
-                        <Sparkles size={13} /> AI CRO Strategic Review
-                      </div>
-                      <p className="text-[11px] sm:text-xs text-slate-200 leading-relaxed italic">
-                        "{playgroundResult.overallStrategy}"
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Left: Simulated Survey Preview */}
-                      <div className="bg-white text-slate-800 rounded-2xl p-4 border border-slate-200/80 space-y-3 shadow-md">
-                        <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-[9px] font-mono text-indigo-600 font-extrabold uppercase">Generated Exit Survey</span>
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                        </div>
-                        <h5 className="text-xs font-black text-slate-900 leading-snug">
-                          {playgroundResult.headline}
-                        </h5>
-                        <div className="space-y-1.5">
-                          {playgroundResult.suggestedQuestions?.[0]?.options?.length > 0 ? (
-                            playgroundResult.suggestedQuestions[0].options.map((opt: string, i: number) => (
-                              <div key={i} className="bg-slate-50 border border-slate-200/60 rounded-lg p-2 text-[10px] font-semibold text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 transition-colors cursor-pointer">
-                                {opt}
-                              </div>
-                            ))
-                          ) : (
-                            <textarea 
-                              placeholder="Visitor types their open feedback here..." 
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] text-slate-700 h-14" 
-                              disabled 
-                            />
-                          )}
-                        </div>
-                        <p className="text-[8px] text-center text-slate-400 font-semibold font-mono uppercase">
-                          ⚡ Powered by CustomerLens AI
-                        </p>
-                      </div>
-
-                      {/* Right: Predicted Behavioral Intelligence */}
-                      <div className="space-y-2.5">
-                        <span className="text-[9px] font-mono text-slate-400 font-extrabold uppercase tracking-wider block">AI Predicted Behavioral Insights</span>
-                        <div className="space-y-2">
-                          {playgroundResult.behavioralInsights?.map((insight: any, i: number) => (
-                            <div key={i} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl space-y-1">
-                              <span className="text-[10px] font-bold text-slate-200 block">{insight.title}</span>
-                              <p className="text-[9px] text-slate-400 leading-relaxed font-semibold">{insight.description}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-950 border border-slate-800/80 p-3.5 rounded-xl flex items-center justify-between gap-3 text-xs">
-                      <span className="text-slate-400 text-[10px] font-semibold">Love this setup? Create an account to deploy it live!</span>
-                      <button 
-                        onClick={() => onNavigate('register')}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] px-3.5 py-1.5 rounded-lg transition-all font-mono tracking-wide flex-shrink-0"
-                      >
-                        CLAIM SURVEY
-                      </button>
-                    </div>
-
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-            </div>
-
-          </div>
-        </div>
-      </section>
-
       {/* 3.5 PRICING SECTION */}
       <section id="pricing" className="pt-12 pb-24 max-w-5xl mx-auto px-6">
         {/* Pricing Heading */}
@@ -1527,7 +1320,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
 
             <div className="pt-8 space-y-2.5">
               <button 
-                onClick={() => onNavigate('register')}
+                onClick={isLoggedIn ? onGetStartedFree : () => onNavigate('register')}
                 className="w-full bg-white hover:bg-slate-100 text-slate-900 font-extrabold text-xs py-3.5 rounded-xl transition-all text-center block shadow-md"
               >
                 Start Free Trial

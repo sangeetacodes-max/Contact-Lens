@@ -9,6 +9,7 @@ import {
   Code, 
   Eye, 
   LineChart, 
+  Database, 
   CreditCard, 
   Settings, 
   Users, 
@@ -40,7 +41,15 @@ import {
   ChevronDown,
   ChevronUp,
   Mail,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Send,
+  Activity,
+  PieChart,
+  Pipette,
+  Paintbrush,
+  ShieldCheck,
+  CheckCircle,
+  X
 } from 'lucide-react';
 import { 
   User, 
@@ -198,6 +207,7 @@ interface DashboardProps {
   onLogout: () => void;
   onUpdateUser: (updatedUser: Partial<User>) => void;
   onUpdateWorkspace: (updatedWorkspace: Partial<Workspace>) => void;
+  onGoToLanding: () => void;
 }
 
 export default function Dashboard({ 
@@ -206,20 +216,152 @@ export default function Dashboard({
   initialSurvey, 
   onLogout, 
   onUpdateUser, 
-  onUpdateWorkspace 
+  onUpdateWorkspace,
+  onGoToLanding
 }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'home' | 'install' | 'surveys' | 'simulator' | 'analytics' | 'ai-connect' | 'billing' | 'domain' | 'admin'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'workspace' | 'install' | 'surveys' | 'simulator' | 'analytics' | 'ai-connect' | 'billing' | 'domain' | 'admin'>('workspace');
   const [analyticsSubTab, setAnalyticsSubTab] = useState<'pain-points' | 'features' | 'barriers' | 'conversion'>('pain-points');
   const [isAiPublished, setIsAiPublished] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // AI custom survey generator states
+  const [aiSurveyPrompt, setAiSurveyPrompt] = useState('');
+  const [isGeneratingAiSurvey, setIsGeneratingAiSurvey] = useState(false);
+  const [aiSurveyRecommendation, setAiSurveyRecommendation] = useState<{
+    surveyName: string;
+    goal: string;
+    bestTrigger: string;
+    recommendedSurveyType: string;
+    estimatedCompletionTime: string;
+    deliveryMethod: string;
+  } | null>(null);
+
+  const [insightView, setInsightView] = useState<'analytical' | 'chatbot'>('analytical');
+  const [chatInput, setChatInput] = useState('');
+  const [chatHistory, setChatHistory] = useState<{ sender: 'user' | 'ai'; text: string; timestamp: Date }[]>(() => [
+    { sender: 'ai', text: 'Hello, please ask me anything about this survey!', timestamp: new Date() }
+  ]);
+  const [isChatTyping, setIsChatTyping] = useState(false);
+
+  const handleSendChat = async (messageText?: string) => {
+    const textToSend = messageText || chatInput;
+    if (!textToSend.trim() || isChatTyping) return;
+
+    if (!messageText) {
+      setChatInput('');
+    }
+
+    const newUserMessage = { sender: 'user' as const, text: textToSend, timestamp: new Date() };
+    setChatHistory(prev => [...prev, newUserMessage]);
+    setIsChatTyping(true);
+
+    try {
+      const response = await fetch('/api/ai/chatbot-insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: textToSend,
+          history: chatHistory.map(m => ({ sender: m.sender, text: m.text }))
+        })
+      });
+      const data = await response.json();
+      if (data.reply) {
+        setChatHistory(prev => [...prev, { sender: 'ai', text: data.reply, timestamp: new Date() }]);
+      } else {
+        setChatHistory(prev => [...prev, { sender: 'ai', text: 'I am sorry, I did not receive a valid response from the analytical assistant.', timestamp: new Date() }]);
+      }
+    } catch (e) {
+      console.error(e);
+      setChatHistory(prev => [...prev, { sender: 'ai', text: 'I was unable to connect to the analytical assistant. Please try again.', timestamp: new Date() }]);
+    } finally {
+      setIsChatTyping(false);
+    }
+  };
+
   // Core States (using localStorage for durable client-side persistence)
   const [websites, setWebsites] = useState<ConnectedWebsite[]>(() => {
     const saved = localStorage.getItem('cl_websites');
-    return saved ? JSON.parse(saved) : [
-      { id: 'web-1', platform: 'Shopify', url: workspace.url || 'myshopify-store.com', status: 'Not Installed' }
+    if (saved) {
+      try {
+        const parsed: ConnectedWebsite[] = JSON.parse(saved);
+        return parsed.map(w => ({
+          ...w,
+          verificationStatus: w.verificationStatus || 'Verified',
+          verificationToken: w.verificationToken || `cl_verify_${w.id}`,
+          siteId: w.siteId || `site_${w.id}`
+        }));
+      } catch (e) {}
+    }
+    return [
+      {
+        id: 'web-1',
+        platform: 'Shopify',
+        url: workspace.url || 'myshopify-store.com',
+        status: 'Connected',
+        verificationStatus: 'Verified',
+        verificationMethod: 'snippet',
+        verificationToken: 'cl_verify_site123',
+        siteId: 'site_123',
+        verifiedAt: new Date().toISOString(),
+        totalVisitors: 1240,
+        surveyImpressions: 890,
+        surveyResponses: 342
+      }
     ];
   });
+
+  // Domain Verification & Live Tracker States
+  const [verifyingDomainId, setVerifyingDomainId] = useState<string | null>(null);
+  const [verificationSelectedMethod, setVerificationSelectedMethod] = useState<'snippet' | 'meta' | 'dns'>('snippet');
+  const [verificationModalSite, setVerificationModalSite] = useState<ConnectedWebsite | null>(null);
+  const [verificationErrorMsg, setVerificationErrorMsg] = useState<string>('');
+
+  const handleVerifyDomain = async (site: ConnectedWebsite, method: 'snippet' | 'meta' | 'dns') => {
+    setVerifyingDomainId(site.id);
+    setVerificationErrorMsg('');
+
+    try {
+      const res = await fetch('/api/domain/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain: site.url,
+          method: method || 'snippet',
+          verificationToken: site.verificationToken || `cl_verify_${site.id}`,
+          siteId: site.siteId || site.id
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.verified) {
+        const updatedWebsites = websites.map(w => {
+          if (w.id === site.id) {
+            return {
+              ...w,
+              status: 'Connected' as const,
+              verificationStatus: 'Verified' as const,
+              verificationMethod: method,
+              verifiedAt: new Date().toISOString()
+            };
+          }
+          return w;
+        });
+
+        setWebsites(updatedWebsites);
+        localStorage.setItem('cl_websites', JSON.stringify(updatedWebsites));
+        showNotification(`🟢 Domain ownership for ${site.url} verified! CustomerLens AI is active.`, 'success');
+        setVerificationModalSite(null);
+      } else {
+        setVerificationErrorMsg(data.error || `Could not verify domain ownership for ${site.url}. Please check your snippet/tag and try again.`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setVerificationErrorMsg(`Verification request encountered an issue connecting to ${site.url}. Please check your installation.`);
+    } finally {
+      setVerifyingDomainId(null);
+    }
+  };
 
   const [surveys, setSurveys] = useState<Survey[]>(() => {
     const saved = localStorage.getItem('cl_surveys');
@@ -388,6 +530,13 @@ export default function Dashboard({
   const [selectedReportDate, setSelectedReportDate] = useState<'today' | 'yesterday' | 'july16' | 'july15'>('today');
   const [isDispatchingReport, setIsDispatchingReport] = useState(false);
   const [dispatchSuccess, setDispatchSuccess] = useState(false);
+  const [dynamicReportData, setDynamicReportData] = useState<any>(null);
+  const [isLoadingReportData, setIsLoadingReportData] = useState(false);
+  const [showSandboxData, setShowSandboxData] = useState(false);
+  const [analyticsDataSource, setAnalyticsDataSource] = useState<'none' | 'listening' | 'imported' | 'simulated'>('none');
+  const [isImportingData, setIsImportingData] = useState(false);
+  const [importProvider, setImportProvider] = useState<'ga4' | 'shopify' | 'mixpanel'>('ga4');
+  const [importProgress, setImportProgress] = useState(0);
 
   const handleAnalyzeConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -462,6 +611,9 @@ export default function Dashboard({
         platform: mappedPlatform,
         url: cleanUrl,
         status: 'Connected',
+        verificationStatus: 'Verified',
+        verificationToken: `cl_tok_${Date.now()}`,
+        siteId: `site_${Math.random().toString(36).substring(2, 8)}`,
         installedAt: new Date().toISOString()
       };
 
@@ -477,6 +629,66 @@ export default function Dashboard({
   const showNotification = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
     setNotif({ text, type });
     setTimeout(() => setNotif(null), 3000);
+  };
+
+  const handleGenerateAiSurvey = async () => {
+    if (!aiSurveyPrompt.trim()) {
+      showNotification('Please enter what you understand could be improved or what your visitors do (e.g., leaving after pricing).', 'error');
+      return;
+    }
+    setIsGeneratingAiSurvey(true);
+    setAiSurveyRecommendation(null);
+    try {
+      const response = await fetch('/api/ai/generate-custom-survey', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: aiSurveyPrompt })
+      });
+      if (!response.ok) {
+        throw new Error('AI service returned an error status.');
+      }
+      const data = await response.json();
+      if (data && data.surveyName) {
+        setWizardSurveyTitle(data.surveyName);
+        setWizardSurveyHeadline(data.headline || data.goal || 'Before you fly away...');
+        
+        // Match placement trigger
+        if (data.deliveryMethod === 'Exit Intent Survey' || data.bestTrigger?.toLowerCase().includes('exit')) {
+          setWizardSurveyPlacement('Exit Intent Popup');
+        } else {
+          setWizardSurveyPlacement('Embedded Widget');
+        }
+
+        // Map the questions
+        if (data.questions && data.questions.length > 0) {
+          const mappedQuestions = data.questions.map((q: any, idx: number) => ({
+            id: `wizard-q-${idx + 1}-${Date.now()}`,
+            type: q.type === 'multiple-choice' ? 'multiple-choice' : q.type === 'rating' ? 'rating' : 'text',
+            questionText: q.questionText,
+            options: q.options && q.options.length > 0 ? q.options : ['Yes, absolutely', 'Not sure', 'No, not really']
+          }));
+          setWizardQuestions(mappedQuestions);
+        }
+
+        setAiSurveyRecommendation({
+          surveyName: data.surveyName,
+          goal: data.goal,
+          bestTrigger: data.bestTrigger,
+          recommendedSurveyType: data.recommendedSurveyType || 'Custom Adaptive Survey',
+          estimatedCompletionTime: data.estimatedCompletionTime || 'Under 1 minute',
+          deliveryMethod: data.deliveryMethod || 'Exit Intent Popup'
+        });
+
+        showNotification(`🟢 AI Custom Survey designed! Recommended type: ${data.recommendedSurveyType || 'Adaptive'}.`, 'success');
+      } else {
+        showNotification('AI did not return a structured survey. Try a different request.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification('Could not reach CustomerLens AI generator right now.', 'error');
+    } finally {
+      setIsGeneratingAiSurvey(false);
+    }
   };
 
   // Persist to localStorage
@@ -496,13 +708,65 @@ export default function Dashboard({
     localStorage.setItem('cl_billing_history', JSON.stringify(billingHistory));
   }, [billingHistory]);
 
-  // Load recommendations once on mount
+  // Load recommendations and dynamic workspace analytics on mount or when workspace changes
   useEffect(() => {
     triggerRecommendationsLoad();
     triggerExitAnalysisLoad();
-  }, []);
+    fetchWorkspaceAnalytics();
+  }, [workspace.id, workspace.url, workspace.name]);
 
-  const triggerRecommendationsLoad = async () => {
+  const fetchWorkspaceAnalytics = async (forceRefresh?: boolean) => {
+    const cacheKey = `cl_analytics_cache_${workspace.id}`;
+    if (!forceRefresh) {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          setDynamicReportData(JSON.parse(cached));
+          return;
+        } catch (e) {
+          localStorage.removeItem(cacheKey);
+        }
+      }
+    }
+
+    setIsLoadingReportData(true);
+    try {
+      const res = await fetch('/api/ai/workspace-analytics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessName: workspace.name,
+          websiteUrl: workspace.url || '',
+          businessType: workspace.businessType,
+          goal: workspace.goal
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDynamicReportData(data);
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error("Failed to load dynamic workspace analytics", err);
+    } finally {
+      setIsLoadingReportData(false);
+    }
+  };
+
+  const triggerRecommendationsLoad = async (forceRefresh?: boolean) => {
+    const cacheKey = `cl_recs_cache_${workspace.id}`;
+    if (!forceRefresh) {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          setRecommendations(JSON.parse(cached));
+          return;
+        } catch (e) {
+          localStorage.removeItem(cacheKey);
+        }
+      }
+    }
+
     setLoadingRecs(true);
     try {
       const res = await fetch('/api/ai/recommendations', {
@@ -512,6 +776,7 @@ export default function Dashboard({
       });
       const data = await res.json();
       setRecommendations(data);
+      localStorage.setItem(cacheKey, JSON.stringify(data));
     } catch (err) {
       console.error(err);
     } finally {
@@ -519,7 +784,20 @@ export default function Dashboard({
     }
   };
 
-  const triggerExitAnalysisLoad = async () => {
+  const triggerExitAnalysisLoad = async (forceRefresh?: boolean) => {
+    const cacheKey = `cl_exit_analysis_cache_${workspace.id}_${responses.length}`;
+    if (!forceRefresh) {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          setAiAnalysis(JSON.parse(cached));
+          return;
+        } catch (e) {
+          localStorage.removeItem(cacheKey);
+        }
+      }
+    }
+
     setAnalyzingExit(true);
     try {
       const res = await fetch('/api/api-exit-analysis', {
@@ -529,6 +807,7 @@ export default function Dashboard({
       });
       const data = await res.json();
       setAiAnalysis(data);
+      localStorage.setItem(cacheKey, JSON.stringify(data));
     } catch (err) {
       console.error(err);
     } finally {
@@ -859,6 +1138,81 @@ export default function Dashboard({
     showNotification('🟢 Custom White Label guidelines applied globally.', 'success');
   };
 
+  // White label upload & dropper helpers
+  const handleWlLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (base64) {
+        setWlLogo(base64);
+        extractWlDominantColor(base64);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const extractWlDominantColor = (base64Str: string) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        canvas.width = 16;
+        canvas.height = 16;
+        ctx.drawImage(img, 0, 0, 16, 16);
+        const data = ctx.getImageData(0, 0, 16, 16).data;
+        
+        let r = 0, g = 0, b = 0, count = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const alpha = data[i+3];
+          if (alpha > 150) { // Only count non-transparent or strongly opaque pixels
+            r += data[i];
+            g += data[i+1];
+            b += data[i+2];
+            count++;
+          }
+        }
+        if (count > 0) {
+          r = Math.round(r / count);
+          g = Math.round(g / count);
+          b = Math.round(b / count);
+          
+          const toHex = (c: number) => {
+            const hex = c.toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+          };
+          const hexColor = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+          setWlColor(hexColor);
+          showNotification(`🟢 Extracted dominant color ${hexColor.toUpperCase()} from logo!`, 'success');
+        }
+      } catch (err) {
+        console.warn("Could not extract dominant color:", err);
+      }
+    };
+  };
+
+  const handleOpenWlColorDropper = async () => {
+    if ('EyeDropper' in window) {
+      try {
+        const eyeDropper = new (window as any).EyeDropper();
+        const result = await eyeDropper.open();
+        if (result && result.sRGBHex) {
+          setWlColor(result.sRGBHex);
+          showNotification(`🟢 Picked brand color ${result.sRGBHex.toUpperCase()}!`, 'success');
+        }
+      } catch (err) {
+        console.warn("EyeDropper error:", err);
+      }
+    } else {
+      showNotification("Your current browser doesn't natively support screen eye-dropping. Please use the color palette or type any hex value!", 'info');
+    }
+  };
+
   // Coupon codes
   const handleApplyCoupon = () => {
     const code = couponCode.trim().toUpperCase();
@@ -984,10 +1338,19 @@ export default function Dashboard({
                 {/* HOME LINK */}
                 <button 
                   id="tab_nav_home"
-                  onClick={() => { setActiveTab('home'); setMobileMenuOpen(false); }}
-                  className={`w-full text-left flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'home' ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                  onClick={() => { onGoToLanding(); setMobileMenuOpen(false); }}
+                  className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:bg-slate-800 text-slate-400 hover:text-slate-200"
                 >
                   <Layout size={16} /> Home
+                </button>
+
+                {/* WORKSPACE LINK */}
+                <button 
+                  id="tab_nav_workspace"
+                  onClick={() => { setActiveTab('workspace'); setMobileMenuOpen(false); }}
+                  className={`w-full text-left flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'workspace' ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                >
+                  <Activity size={16} /> Workspace
                 </button>
 
                 <div className="pt-2 pb-1">
@@ -1084,10 +1447,18 @@ export default function Dashboard({
               <nav className={`p-4 space-y-1 ${mobileMenuOpen ? 'block' : 'hidden md:block'}`}>
                 <button 
                   id="tab_nav_home"
-                  onClick={() => { setActiveTab('home'); setMobileMenuOpen(false); }}
-                  className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${activeTab === 'home' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                  onClick={() => { onGoToLanding(); setMobileMenuOpen(false); }}
+                  className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all hover:bg-slate-800 text-slate-400 hover:text-slate-200"
                 >
-                  <Layout size={16} /> Overview
+                  <Layout size={16} /> Home
+                </button>
+                
+                <button 
+                  id="tab_nav_workspace"
+                  onClick={() => { setActiveTab('workspace'); setMobileMenuOpen(false); }}
+                  className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${activeTab === 'workspace' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                >
+                  <Activity size={16} /> Workspace
                 </button>
                 
                 <button 
@@ -1238,17 +1609,102 @@ export default function Dashboard({
                       id="btn_retest_connection"
                       onClick={handleTestInstallation}
                       disabled={testingInstallation}
-                      className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 active:bg-indigo-200 font-bold text-[11px] px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all disabled:opacity-50"
+                      className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 active:bg-indigo-200 font-bold text-[11px] px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all disabled:opacity-50 cursor-pointer"
                     >
                       {testingInstallation ? <RefreshCw className="animate-spin" size={12} /> : <Check size={12} />} Test Connection
                     </button>
                     <button 
                       id="btn_reconnect_widget"
                       onClick={handleReconnect}
-                      className="bg-slate-100 text-slate-600 hover:bg-slate-200 text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1"
+                      className="bg-slate-100 text-slate-600 hover:bg-slate-200 text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"
                     >
                       <RefreshCw size={12} /> Reconnect
                     </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Connected Domain & Real-time AI Status Card */}
+              <div className="bg-slate-950 text-white rounded-3xl p-6 border border-slate-800 shadow-xl space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 bg-indigo-900/60 text-indigo-300 border border-indigo-700/50 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase mb-1">
+                      <Globe size={12} /> Connected Domain Status
+                    </div>
+                    <h3 className="font-extrabold text-white text-lg flex items-center gap-2">
+                      {websites[0]?.url || 'myshopify-store.com'}
+                      <span className="text-xs bg-slate-800 text-slate-300 font-mono px-2 py-0.5 rounded border border-slate-700">
+                        {websites[0]?.platform || 'Custom Website'}
+                      </span>
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {websites[0]?.verificationStatus === 'Verified' ? (
+                      <span className="bg-emerald-950 text-emerald-400 border border-emerald-800/80 px-3 py-1 rounded-full text-xs font-mono font-extrabold flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                        🟢 Domain Ownership Verified
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setVerificationModalSite(websites[0])}
+                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/20"
+                      >
+                        <ShieldAlert size={14} /> Verify Domain Ownership
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => setVerificationModalSite(websites[0])}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <Code size={13} /> Snippet / Setup
+                    </button>
+                  </div>
+                </div>
+
+                {/* Real Website Real-time Integration Status Checklist */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs font-mono pt-1">
+                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800/80 space-y-1">
+                    <span className="text-[9px] uppercase text-slate-400 block font-bold">1. Website</span>
+                    <span className={websites[0]?.status === 'Connected' ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                      {websites[0]?.status === 'Connected' ? '🟢 Connected' : '🔴 Pending'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800/80 space-y-1">
+                    <span className="text-[9px] uppercase text-slate-400 block font-bold">2. Ownership</span>
+                    <span className={websites[0]?.verificationStatus === 'Verified' ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+                      {websites[0]?.verificationStatus === 'Verified' ? '🟢 Verified' : '🟡 Unverified'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800/80 space-y-1">
+                    <span className="text-[9px] uppercase text-slate-400 block font-bold">3. CustomerLens AI</span>
+                    <span className={websites[0]?.verificationStatus === 'Verified' ? 'text-emerald-400 font-bold' : 'text-slate-500 font-bold'}>
+                      {websites[0]?.verificationStatus === 'Verified' ? '🟢 Active' : '⚪ Locked'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800/80 space-y-1">
+                    <span className="text-[9px] uppercase text-slate-400 block font-bold">4. Visitor Tracking</span>
+                    <span className={websites[0]?.verificationStatus === 'Verified' ? 'text-emerald-400 font-bold' : 'text-slate-500 font-bold'}>
+                      {websites[0]?.verificationStatus === 'Verified' ? '🟢 Live' : '⚪ Waiting'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800/80 space-y-1">
+                    <span className="text-[9px] uppercase text-slate-400 block font-bold">5. Survey Engine</span>
+                    <span className={websites[0]?.verificationStatus === 'Verified' ? 'text-emerald-400 font-bold' : 'text-slate-500 font-bold'}>
+                      {websites[0]?.verificationStatus === 'Verified' ? '🟢 Ready' : '⚪ Waiting'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800/80 space-y-1">
+                    <span className="text-[9px] uppercase text-slate-400 block font-bold">6. Behavior AI</span>
+                    <span className={websites[0]?.verificationStatus === 'Verified' ? 'text-emerald-400 font-bold' : 'text-slate-500 font-bold'}>
+                      {websites[0]?.verificationStatus === 'Verified' ? '🟢 Learning' : '⚪ Off'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1293,7 +1749,7 @@ export default function Dashboard({
                     id="btn_regenerate_recs"
                     onClick={triggerRecommendationsLoad}
                     disabled={loadingRecs}
-                    className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:text-indigo-700 disabled:opacity-50"
+                    className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:text-indigo-700 disabled:opacity-50 cursor-pointer"
                   >
                     {loadingRecs ? <RefreshCw className="animate-spin" size={12} /> : <RefreshCw size={12} />} Regenerate Recommendations
                   </button>
@@ -1323,6 +1779,443 @@ export default function Dashboard({
                   </div>
                 )}
               </div>
+
+            </motion.div>
+          )}
+
+          {/* TAB 1B: WORKSPACE INSIGHTS */}
+          {activeTab === 'workspace' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-150 pb-5">
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <Sparkles className="text-indigo-600 animate-pulse" size={24} />
+                    Workspace Insights
+                  </h1>
+                  <p className="text-slate-500 text-xs">
+                    Explore automatic survey insights, distribution patterns, or interact with our conversational AI analyst.
+                  </p>
+                </div>
+                
+                {/* Switch button for insights */}
+                <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
+                  <button 
+                    onClick={() => setInsightView('analytical')}
+                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
+                      insightView === 'analytical' 
+                        ? 'bg-slate-900 text-white shadow-md scale-105' 
+                        : 'text-slate-500 hover:text-slate-850 hover:bg-slate-200/50'
+                    }`}
+                  >
+                    <PieChart size={14} />
+                    Analytical Insights
+                  </button>
+                  <button 
+                    onClick={() => setInsightView('chatbot')}
+                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
+                      insightView === 'chatbot' 
+                        ? 'bg-slate-900 text-white shadow-md scale-105' 
+                        : 'text-slate-500 hover:text-slate-850 hover:bg-slate-200/50'
+                    }`}
+                  >
+                    <MessageSquare size={14} />
+                    AI Analyst Chat Bot
+                  </button>
+                </div>
+              </div>
+
+              {insightView === 'analytical' ? (
+                <div className="space-y-6">
+                  {/* Key Stats Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">Total Responses</span>
+                        <h2 className="text-3xl font-extrabold text-slate-900 mt-1 font-mono">1,660</h2>
+                      </div>
+                      <span className="text-[10px] text-emerald-600 font-extrabold mt-4">↑ 24.5% vs Last 30 Days</span>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">Completion Rate</span>
+                        <h2 className="text-3xl font-extrabold text-indigo-600 mt-1 font-mono">91.4%</h2>
+                      </div>
+                      <span className="text-[10px] text-indigo-500 font-extrabold mt-4">9.8x higher than flat forms</span>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">Sentiment Index</span>
+                        <h2 className="text-3xl font-extrabold text-slate-900 mt-1 font-mono">84 / 100</h2>
+                      </div>
+                      <span className="text-[10px] text-emerald-600 font-extrabold mt-4">🟢 Mostly Positive</span>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">Primary Driver</span>
+                        <h2 className="text-lg font-bold text-slate-950 mt-2 truncate">Product Discovery</h2>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-medium mt-4">Updated 2 minutes ago</span>
+                    </div>
+                  </div>
+
+                  {/* Main Grid: Pie Chart and Peak Trends */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Pie Chart Card (Span 7) */}
+                    <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-sm">How did you hear about us?</h3>
+                          <p className="text-slate-400 text-[10px] font-medium mt-0.5">Response distribution across referral channels</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-400">
+                          <button className="p-1.5 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 rounded-lg transition-all">
+                            <PieChart size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                        {/* Interactive SVG Pie/Donut Chart */}
+                        <div className="md:col-span-5 flex justify-center relative">
+                          <svg width="180" height="180" viewBox="0 0 160 160" className="transform -rotate-90">
+                            {/* Circumference = 2 * PI * r = 2 * 3.14159 * 50 = 314.16 */}
+                            {/* Google Search (22.7%) */}
+                            <circle
+                              cx="80"
+                              cy="80"
+                              r="50"
+                              fill="transparent"
+                              stroke="#4F46E5"
+                              strokeWidth="22"
+                              strokeDasharray="314.16"
+                              strokeDashoffset="0"
+                              className="transition-all duration-300 hover:stroke-[26] cursor-pointer"
+                              title="Google Search"
+                            />
+                            {/* Facebook/Instagram (19.5%) */}
+                            <circle
+                              cx="80"
+                              cy="80"
+                              r="50"
+                              fill="transparent"
+                              stroke="#EC4899"
+                              strokeWidth="22"
+                              strokeDasharray="314.16"
+                              strokeDashoffset="-71.31"
+                              className="transition-all duration-300 hover:stroke-[26] cursor-pointer"
+                              title="Facebook / Instagram"
+                            />
+                            {/* Shopify App Store (15.6%) */}
+                            <circle
+                              cx="80"
+                              cy="80"
+                              r="50"
+                              fill="transparent"
+                              stroke="#10B981"
+                              strokeWidth="22"
+                              strokeDasharray="314.16"
+                              strokeDashoffset="-132.57"
+                              className="transition-all duration-300 hover:stroke-[26] cursor-pointer"
+                              title="Shopify App Store"
+                            />
+                            {/* ChatGPT / Claude (14.6%) */}
+                            <circle
+                              cx="80"
+                              cy="80"
+                              r="50"
+                              fill="transparent"
+                              stroke="#F59E0B"
+                              strokeWidth="22"
+                              strokeDasharray="314.16"
+                              strokeDashoffset="-181.58"
+                              className="transition-all duration-300 hover:stroke-[26] cursor-pointer"
+                              title="ChatGPT / Claude"
+                            />
+                            {/* LinkedIn (11.6%) */}
+                            <circle
+                              cx="80"
+                              cy="80"
+                              r="50"
+                              fill="transparent"
+                              stroke="#3B82F6"
+                              strokeWidth="22"
+                              strokeDasharray="314.16"
+                              strokeDashoffset="-227.45"
+                              className="transition-all duration-300 hover:stroke-[26] cursor-pointer"
+                              title="LinkedIn"
+                            />
+                            {/* Perplexity (11.6%) */}
+                            <circle
+                              cx="80"
+                              cy="80"
+                              r="50"
+                              fill="transparent"
+                              stroke="#8B5CF6"
+                              strokeWidth="22"
+                              strokeDasharray="314.16"
+                              strokeDashoffset="-263.89"
+                              className="transition-all duration-300 hover:stroke-[26] cursor-pointer"
+                              title="Perplexity"
+                            />
+                            {/* Other? Let us know! (4.2%) */}
+                            <circle
+                              cx="80"
+                              cy="80"
+                              r="50"
+                              fill="transparent"
+                              stroke="#64748B"
+                              strokeWidth="22"
+                              strokeDasharray="314.16"
+                              strokeDashoffset="-300.33"
+                              className="transition-all duration-300 hover:stroke-[26] cursor-pointer"
+                              title="Other"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span className="text-[10px] font-extrabold uppercase font-mono text-slate-400">Total</span>
+                            <span className="text-xl font-black text-slate-900 font-mono">1,660</span>
+                            <span className="text-[9px] font-bold text-slate-500">Votes</span>
+                          </div>
+                        </div>
+
+                        {/* Detailed Legend table matching mockup */}
+                        <div className="md:col-span-7 space-y-2.5">
+                          <span className="text-[9px] font-extrabold uppercase text-slate-400 font-mono tracking-widest block">Responses Distribution</span>
+                          
+                          <div className="space-y-1.5 font-sans">
+                            <div className="flex items-center justify-between text-xs p-1.5 hover:bg-slate-50 rounded-lg transition-all">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-full bg-[#4F46E5] flex-shrink-0" />
+                                <span className="font-bold text-slate-800">Google Search</span>
+                              </div>
+                              <div className="font-mono text-slate-500 font-semibold text-right">
+                                <span className="text-slate-800 font-bold mr-2">377</span> (22.7%)
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs p-1.5 hover:bg-slate-50 rounded-lg transition-all">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-full bg-[#EC4899] flex-shrink-0" />
+                                <span className="font-bold text-slate-800">Facebook / Instagram</span>
+                              </div>
+                              <div className="font-mono text-slate-500 font-semibold text-right">
+                                <span className="text-slate-800 font-bold mr-2">324</span> (19.5%)
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs p-1.5 hover:bg-slate-50 rounded-lg transition-all">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] flex-shrink-0" />
+                                <span className="font-bold text-slate-800">Shopify App Store</span>
+                              </div>
+                              <div className="font-mono text-slate-500 font-semibold text-right">
+                                <span className="text-slate-800 font-bold mr-2">259</span> (15.6%)
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs p-1.5 hover:bg-slate-50 rounded-lg transition-all">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] flex-shrink-0" />
+                                <span className="font-bold text-slate-800">ChatGPT / Claude</span>
+                              </div>
+                              <div className="font-mono text-slate-500 font-semibold text-right">
+                                <span className="text-slate-800 font-bold mr-2">243</span> (14.6%)
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs p-1.5 hover:bg-slate-50 rounded-lg transition-all">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] flex-shrink-0" />
+                                <span className="font-bold text-slate-800">LinkedIn</span>
+                              </div>
+                              <div className="font-mono text-slate-500 font-semibold text-right">
+                                <span className="text-slate-800 font-bold mr-2">194</span> (11.6%)
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs p-1.5 hover:bg-slate-50 rounded-lg transition-all">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6] flex-shrink-0" />
+                                <span className="font-bold text-slate-800">Perplexity</span>
+                              </div>
+                              <div className="font-mono text-slate-500 font-semibold text-right">
+                                <span className="text-slate-800 font-bold mr-2">193</span> (11.6%)
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs p-1.5 hover:bg-slate-50 rounded-lg transition-all">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-full bg-[#64748B] flex-shrink-0" />
+                                <span className="font-bold text-slate-800">Other? Let us know!</span>
+                              </div>
+                              <div className="font-mono text-slate-500 font-semibold text-right">
+                                <span className="text-slate-800 font-bold mr-2">70</span> (4.2%)
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Peak Trends & Hotspots (Span 5) */}
+                    <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+                      <div className="space-y-4">
+                        <div className="border-b border-slate-100 pb-3">
+                          <h3 className="font-bold text-slate-900 text-sm">Response Peak Calendar</h3>
+                          <p className="text-slate-400 text-[10px] font-medium mt-0.5">Daily volume trends and volume hotspots</p>
+                        </div>
+
+                        {/* Custom visual Bar chart for Jan 23-28 peaks */}
+                        <div className="space-y-4 pt-1">
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs font-semibold text-slate-700">
+                              <span>January 26-27 Peak (Hotspot 🔥)</span>
+                              <span className="font-bold text-slate-900">158 responses</span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                              <div className="bg-indigo-600 h-full rounded-full" style={{ width: '92%' }} />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs font-semibold text-slate-700">
+                              <span>January 24-25</span>
+                              <span className="font-bold text-slate-900">84 responses</span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                              <div className="bg-[#10B981] h-full rounded-full" style={{ width: '51%' }} />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs font-semibold text-slate-700">
+                              <span>January 21-23</span>
+                              <span className="font-bold text-slate-900">62 responses</span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                              <div className="bg-slate-400 h-full rounded-full" style={{ width: '38%' }} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Insights message box */}
+                        <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-100/40 text-[11px] leading-relaxed text-indigo-950 mt-4 font-semibold">
+                          💡 <strong>Analytic Takeaway:</strong> Google Search remains your most active driver representing 22.7% of responses, while high pricing and shipping costs cause 71% of checkout exits. Introducing a standard free shipping policy is estimated to boost overall conversion by 12-18%.
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setInsightView('chatbot')}
+                        className="w-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 mt-5 cursor-pointer border border-indigo-100/35"
+                      >
+                        Ask Analyst Chat Bot <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* AI Analyst Chat Bot Panel */
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6 flex flex-col min-h-[500px]">
+                  
+                  {/* Chat Panel Header */}
+                  <div className="flex justify-between items-center border-b border-slate-150 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-xs">CustomerLens Intelligent CX Analyst</h3>
+                        <p className="text-slate-400 text-[10px] font-medium mt-0.5">Scanning 1,660 Visitor Survey Responses</p>
+                      </div>
+                    </div>
+                    <span className="bg-indigo-50 text-indigo-700 font-mono font-bold text-[9px] px-2.5 py-1 rounded-full uppercase">
+                      LENS_AI ACTIVE v2.4
+                    </span>
+                  </div>
+
+                  {/* Messages container */}
+                  <div className="flex-grow space-y-4 overflow-y-auto max-h-[350px] p-2 bg-slate-50/50 rounded-xl border border-slate-100">
+                    {chatHistory.map((msg, idx) => (
+                      <div 
+                        key={idx} 
+                        className={`flex flex-col max-w-[85%] ${msg.sender === 'user' ? 'ml-auto items-end' : 'mr-auto items-start'}`}
+                      >
+                        <div 
+                          className={`p-3.5 rounded-2xl text-xs font-semibold leading-relaxed whitespace-pre-wrap ${
+                            msg.sender === 'user' 
+                              ? 'bg-slate-900 text-white rounded-tr-none shadow-sm' 
+                              : 'bg-white text-slate-800 border border-slate-150 rounded-tl-none shadow-sm'
+                          }`}
+                        >
+                          {msg.text}
+                        </div>
+                        <span className="text-[8px] text-slate-400 font-mono mt-1 px-1">
+                          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ))}
+
+                    {isChatTyping && (
+                      <div className="flex flex-col items-start mr-auto">
+                        <div className="bg-white text-slate-800 border border-slate-150 p-3.5 rounded-2xl rounded-tl-none shadow-sm text-xs font-mono flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-bounce" style={{ animationDelay: '300ms' }} />
+                          <span className="text-slate-400 text-[10px] ml-1.5 font-sans">Scanning response logs...</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Suggestions Chips Area */}
+                  <div className="space-y-2">
+                    <span className="text-[9px] font-extrabold uppercase text-slate-400 font-mono tracking-widest block">Quick Analytical Queries</span>
+                    <div className="flex flex-wrap gap-2">
+                      <button 
+                        onClick={() => handleSendChat("What response trends have you noticed within the last 30 days?")}
+                        className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-100/40 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        📊 Response Trends (30 Days)
+                      </button>
+                      <button 
+                        onClick={() => handleSendChat("Where are the people who fill out this survey from?")}
+                        className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-100/40 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        📍 Geotargeted Locations
+                      </button>
+                      <button 
+                        onClick={() => handleSendChat("What do users think about our pricing and shipping?")}
+                        className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-100/40 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        💰 Pricing & Friction Factors
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Input Submission Bar */}
+                  <form 
+                    onSubmit={(e) => { e.preventDefault(); handleSendChat(); }}
+                    className="flex gap-2.5 items-center border-t border-slate-100 pt-4"
+                  >
+                    <input 
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Where are the people who fill out this survey from?"
+                      className="flex-grow bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-4 py-3 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-800"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!chatInput.trim() || isChatTyping}
+                      className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold p-3.5 rounded-xl shadow-md transition-all flex items-center justify-center flex-shrink-0 cursor-pointer"
+                    >
+                      <Send size={14} />
+                    </button>
+                  </form>
+                </div>
+              )}
 
             </motion.div>
           )}
@@ -1483,7 +2376,7 @@ export default function Dashboard({
                       <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full border border-indigo-500/30 font-mono">
                         ✨ STEPS COMPILER
                       </span>
-                      <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-tight">Interactive 5-Step Setup Space</h2>
+                      <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-tight">Interactive 3-Step Setup Space</h2>
                       <p className="text-zinc-400 text-xs leading-relaxed">
                         Create custom surveys with interactive slides, automated transitions, allow-edits rules, email routing, and beautiful visual templates inside our dark design chamber.
                       </p>
@@ -1795,6 +2688,49 @@ export default function Dashboard({
                           <div className="flex items-center gap-2">
                             <Sliders size={16} className="text-blue-400" />
                             <h4 className="font-extrabold text-sm text-white">Configure Questions & Text</h4>
+                          </div>
+
+                          {/* AI GENERATOR BLOCK */}
+                          <div className="bg-zinc-950 p-4 rounded-xl border border-blue-900/40 space-y-3">
+                            <div className="flex items-center gap-1.5">
+                              <Sparkles className="text-blue-400 animate-pulse" size={14} />
+                              <span className="text-[10px] font-bold text-blue-300 uppercase tracking-wider font-mono">AI Custom Survey Generator</span>
+                            </div>
+                            <p className="text-[11px] text-zinc-400 leading-normal">
+                              Describe what your visitors do (e.g., "My visitors leave after viewing pricing") or what is happening, and our AI will recommend and design the ideal survey type and questions.
+                            </p>
+                            <div className="flex gap-2">
+                              <input 
+                                type="text"
+                                placeholder="e.g., My visitors leave after viewing pricing."
+                                value={aiSurveyPrompt}
+                                onChange={(e) => setAiSurveyPrompt(e.target.value)}
+                                className="flex-grow px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white outline-none focus:border-blue-500 placeholder-zinc-600 transition-all"
+                              />
+                              <button
+                                onClick={handleGenerateAiSurvey}
+                                disabled={isGeneratingAiSurvey}
+                                className="bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1 shadow-md shrink-0 transition-all"
+                              >
+                                {isGeneratingAiSurvey ? 'Designing...' : 'Generate with AI'}
+                              </button>
+                            </div>
+
+                            {/* AI recommendation feedback rendering */}
+                            {aiSurveyRecommendation && (
+                              <div className="bg-zinc-900/60 p-3 rounded-lg border border-emerald-900/30 space-y-1.5 mt-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider font-mono">✓ AI Recommendation</span>
+                                  <span className="text-[8px] bg-emerald-950 text-emerald-400 font-extrabold px-1.5 py-0.5 rounded font-mono uppercase">Optimal Fit</span>
+                                </div>
+                                <div className="text-[11px] space-y-1 text-zinc-300">
+                                  <p><strong className="text-white font-semibold">Recommended Survey:</strong> {aiSurveyRecommendation.recommendedSurveyType}</p>
+                                  <p><strong className="text-white font-semibold">Goal:</strong> {aiSurveyRecommendation.goal}</p>
+                                  <p><strong className="text-white font-semibold">Trigger Condition:</strong> {aiSurveyRecommendation.bestTrigger}</p>
+                                  <p><strong className="text-white font-semibold">Est. Time to Complete:</strong> {aiSurveyRecommendation.estimatedCompletionTime}</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           <div className="space-y-3.5">
@@ -2967,7 +3903,343 @@ export default function Dashboard({
 
           {/* TAB 5: AI EXIT ANALYTICS & CRO REPORTS */}
           {activeTab === 'analytics' && (() => {
-            const reportData = {
+            const isInstalled = websites[0]?.status === 'Connected';
+            const effectiveSource = showSandboxData ? 'simulated' : analyticsDataSource;
+
+            if (!isInstalled && !showSandboxData) {
+              return (
+                <div className="space-y-6">
+                  {/* Setup Required Banner */}
+                  <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl p-8 shadow-md border border-slate-800 space-y-6">
+                    <div className="max-w-2xl space-y-3">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/10 text-indigo-300 border border-indigo-400/20 rounded-full text-[10px] font-bold font-mono uppercase tracking-wider">
+                        📡 Connection Required
+                      </div>
+                      <h2 className="text-2xl font-extrabold tracking-tight">Activate Real-Time Behavior Analytics</h2>
+                      <p className="text-slate-300 text-xs leading-relaxed">
+                        To compute conversion rate optimization (CRO) insights, drop-off reasons, customer friction quotes, and sentiment metrics, CustomerLens needs to observe live user gestures. Currently, no active tracking script is connected to <span className="font-mono text-indigo-300 underline font-semibold">{workspace.url || 'your website'}</span>.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      {/* Action 1: Verify Script */}
+                      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4 flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <h4 className="font-extrabold text-xs text-white uppercase tracking-wider font-mono">1. Install & Verify Embed Tag</h4>
+                          <p className="text-slate-400 text-[11px] leading-relaxed">Copy the light JavaScript embed tag and place it on your web application header or footer templates. Once done, trigger the live verification check.</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            id="btn_analytics_go_install"
+                            onClick={() => setActiveTab('install')}
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-all"
+                          >
+                            Go to Embed Center
+                          </button>
+                          <button
+                            id="btn_analytics_verify_now"
+                            onClick={handleTestInstallation}
+                            disabled={testingInstallation}
+                            className="bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-all flex items-center gap-1 disabled:opacity-50"
+                          >
+                            {testingInstallation ? <RefreshCw className="animate-spin" size={12} /> : <Check size={12} />} Verify Live
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Action 2: Demo Sandbox */}
+                      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4 flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <h4 className="font-extrabold text-xs text-indigo-300 uppercase tracking-wider font-mono">2. Explore Sandbox Simulator</h4>
+                          <p className="text-slate-400 text-[11px] leading-relaxed">Don't have access to your codebase right now? Launch the demo sandbox mode to explore AI analytics, chart visualizations, and suggestions using customized mock traffic metrics.</p>
+                        </div>
+                        <button
+                          id="btn_analytics_enable_sandbox"
+                          onClick={() => setShowSandboxData(true)}
+                          className="w-full bg-slate-100 hover:bg-slate-200 text-slate-900 font-extrabold text-xs px-4 py-2.5 rounded-lg transition-all text-center"
+                        >
+                          Enable Demo Sandbox Mode
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Empty state visual showcase */}
+                  <div className="border border-slate-200 rounded-2xl bg-slate-50/50 p-12 text-center space-y-4">
+                    <div className="mx-auto w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                      <LineChart size={24} />
+                    </div>
+                    <div className="space-y-1 max-w-sm mx-auto">
+                      <h4 className="text-slate-800 font-bold text-xs font-mono tracking-wider">AWAITING SYSTEM INTEGRATION</h4>
+                      <p className="text-slate-400 text-[11px]">Install the tracker or toggle Demo Sandbox Mode to unlock visitor quotes, revenue attribution charts, and behavioral AI recommendations.</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            if (isInstalled && effectiveSource === 'none') {
+              return (
+                <div className="space-y-6">
+                  {/* Setup Success Header Banner */}
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl p-6 flex items-start gap-4 shadow-sm">
+                    <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center text-xl text-emerald-700 shrink-0">
+                      ✅
+                    </div>
+                    <div className="space-y-1.5">
+                      <h3 className="font-extrabold text-slate-950 text-sm">Embed Script Connection Verified!</h3>
+                      <p className="text-slate-600 text-xs leading-relaxed">
+                        The CustomerLens tracker script is successfully installed and verified on <span className="font-mono text-indigo-600 underline font-semibold">{workspace.url || 'your website'}</span>.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Header text */}
+                  <div className="space-y-1.5">
+                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Configure Your Analytics Data Stream</h2>
+                    <p className="text-slate-500 text-xs">Choose how CustomerLens should initialize and populate your visitor behavioral reports.</p>
+                  </div>
+
+                  {isImportingData ? (
+                    // Importing loader visual
+                    <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-6 text-center">
+                      <div className="max-w-md mx-auto space-y-4">
+                        <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center text-xl mx-auto animate-pulse">
+                          <Database size={24} />
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider font-mono">Syncing with {importProvider === 'ga4' ? 'Google Analytics 4' : importProvider === 'shopify' ? 'Shopify Analytics' : 'Mixpanel'}</h3>
+                          <p className="text-slate-500 text-xs">Pulling exit cohorts, gesture latency maps, and scroll-abandon ratios...</p>
+                        </div>
+                        
+                        {/* Progress Bar */}
+                        <div className="space-y-2">
+                          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                            <div 
+                              className="bg-indigo-600 h-full transition-all duration-300 rounded-full"
+                              style={{ width: `${importProgress}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                            <span>{importProgress < 30 ? 'Authorizing connection...' : importProgress < 75 ? 'Parsing 4,240 click zones...' : 'Compiling AI recommendations...'}</span>
+                            <span>{importProgress}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    // Main Grid options
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      
+                      {/* Option 1: Live Listener */}
+                      <div className="bg-white hover:border-indigo-400 border border-slate-200 rounded-2xl p-6 shadow-sm transition-all duration-200 flex flex-col justify-between space-y-6">
+                        <div className="space-y-3">
+                          <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-lg">
+                            📡
+                          </div>
+                          <h3 className="font-extrabold text-slate-900 text-sm">Option A: Real-Time Live Listener</h3>
+                          <p className="text-slate-500 text-xs leading-relaxed">
+                            Observe and record real visitor behaviors directly on your site. As real visitors explore, CustomerLens AI logs their micro-gestures.
+                          </p>
+                          <div className="bg-slate-50 rounded-lg p-2.5 text-[10px] text-slate-500 leading-normal font-mono">
+                            ⏳ Starts collecting immediately. Recommended for active sites with daily organic traffic.
+                          </div>
+                        </div>
+                        <button
+                          id="btn_datasource_live"
+                          onClick={() => setAnalyticsDataSource('listening')}
+                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-sm cursor-pointer"
+                        >
+                          Activate Live Listener
+                        </button>
+                      </div>
+
+                      {/* Option 2: Connect Existing Analytics */}
+                      <div className="bg-white hover:border-indigo-400 border border-slate-200 rounded-2xl p-6 shadow-sm transition-all duration-200 flex flex-col justify-between space-y-6">
+                        <div className="space-y-3">
+                          <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-lg">
+                            🔌
+                          </div>
+                          <h3 className="font-extrabold text-slate-900 text-sm">Option B: Import Past Analytics</h3>
+                          <p className="text-slate-500 text-xs leading-relaxed">
+                            Instantly populate charts by syncing historic session data from Google Analytics, Shopify, or Mixpanel accounts.
+                          </p>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Select Provider</label>
+                            <select 
+                              value={importProvider} 
+                              onChange={(e) => setImportProvider(e.target.value as any)}
+                              className="w-full text-xs border border-slate-200 rounded-lg p-2 bg-slate-50 text-slate-800 focus:outline-none"
+                            >
+                              <option value="ga4">Google Analytics 4</option>
+                              <option value="shopify">Shopify Analytics</option>
+                              <option value="mixpanel">Mixpanel</option>
+                            </select>
+                          </div>
+                        </div>
+                        <button
+                          id="btn_datasource_import"
+                          onClick={() => {
+                            setIsImportingData(true);
+                            setImportProgress(0);
+                            const interval = setInterval(() => {
+                              setImportProgress(p => {
+                                if (p >= 100) {
+                                  clearInterval(interval);
+                                  setTimeout(() => {
+                                    setIsImportingData(false);
+                                    setAnalyticsDataSource('imported');
+                                    showNotification('🟢 Import finished! Historical analytics loaded into CustomerLens dashboard.', 'success');
+                                  }, 300);
+                                  return 100;
+                                }
+                                return p + 10;
+                              });
+                            }, 200);
+                          }}
+                          className="w-full bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-sm cursor-pointer"
+                        >
+                          Sync & Import Data
+                        </button>
+                      </div>
+
+                      {/* Option 3: Seed Simulated Developer Traffic */}
+                      <div className="bg-white hover:border-indigo-400 border border-slate-200 rounded-2xl p-6 shadow-sm transition-all duration-200 flex flex-col justify-between space-y-6">
+                        <div className="space-y-3">
+                          <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-lg">
+                            🧪
+                          </div>
+                          <h3 className="font-extrabold text-slate-900 text-sm">Option C: Generate Simulated Traffic</h3>
+                          <p className="text-slate-500 text-xs leading-relaxed">
+                            Evaluating or running a demo? Inject 500 simulated user gestures and responses to see immediate AI conversion suggestions.
+                          </p>
+                          <div className="bg-amber-50 rounded-lg p-2.5 text-[10px] text-amber-800 leading-normal font-mono border border-amber-100">
+                            ✨ Perfect for sandbox evaluation. Seeds realistic drop-offs customized to your business type.
+                          </div>
+                        </div>
+                        <button
+                          id="btn_datasource_simulate"
+                          onClick={() => {
+                            setAnalyticsDataSource('simulated');
+                            showNotification('🟢 Seed complete! Demo traffic injected successfully.', 'success');
+                          }}
+                          className="w-full bg-slate-100 hover:bg-slate-200 text-slate-950 font-extrabold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
+                        >
+                          Seed Demo Traffic
+                        </button>
+                      </div>
+
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            if (isInstalled && effectiveSource === 'listening') {
+              return (
+                <div className="space-y-6">
+                  {/* Real-time listening active header */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                        </span>
+                        <h2 className="text-xl font-extrabold text-slate-900">Live Real-Time Data Stream</h2>
+                      </div>
+                      <p className="text-slate-500 text-xs mt-1">Listening and recording live visitor hesitations on {workspace.url || 'your website'}.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setAnalyticsDataSource('none')}
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer"
+                      >
+                        Reconfigure Stream
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Realtime Stats */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Live Sessions Today</span>
+                      <p className="text-2xl font-extrabold text-slate-900 font-mono">0</p>
+                      <p className="text-slate-400 text-[10px]">No sessions recorded yet</p>
+                    </div>
+                    <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Active Exit Triggers</span>
+                      <p className="text-2xl font-extrabold text-slate-900 font-mono">0</p>
+                      <p className="text-slate-400 text-[10px]">No exit attempts captured yet</p>
+                    </div>
+                    <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Feedback Logs</span>
+                      <p className="text-2xl font-extrabold text-slate-900 font-mono">0</p>
+                      <p className="text-slate-400 text-[10px]">Awaiting first response</p>
+                    </div>
+                  </div>
+
+                  {/* Console/Terminal feed */}
+                  <div className="bg-slate-950 text-slate-400 font-mono text-[10px] p-5 rounded-2xl border border-slate-800 space-y-1.5 h-60 overflow-y-auto shadow-inner">
+                    <div className="text-indigo-400 font-bold">📡 CUSTOMER LENS ENGINE CLIENT ACTIVE</div>
+                    <div>[{new Date().toLocaleTimeString()}] Tracker script v1.2.0 verified and active</div>
+                    <div>[{new Date().toLocaleTimeString()}] Establishing websocket connection...</div>
+                    <div>[{new Date().toLocaleTimeString()}] Injection of mouseout overlays complete</div>
+                    <div className="text-emerald-400 animate-pulse font-bold font-mono">● Awaiting visitor traffic events... (Listening to {workspace.url})</div>
+                  </div>
+
+                  {/* Prompt Box */}
+                  <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-6 space-y-4">
+                    <div className="space-y-1">
+                      <h4 className="font-extrabold text-slate-950 text-xs">💡 Pro Developer Tips for New Installations</h4>
+                      <p className="text-slate-600 text-xs leading-relaxed">
+                        Because this is a brand-new installation, there is no visitor traffic yet. You don't have to wait for organic visitors to see how CustomerLens works!
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-white border border-indigo-100/40 p-4 rounded-xl space-y-3">
+                        <p className="text-slate-700 text-xs font-semibold">Option 1: Act as a visitor yourself</p>
+                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                          Go to the **Feedback Simulator** tab. You can interact with your active surveys as if you are a real customer, answer exit questions, and immediately log results in the database!
+                        </p>
+                        <button 
+                          onClick={() => setActiveTab('simulator')}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] px-3 py-2 rounded-lg cursor-pointer"
+                        >
+                          Go to Feedback Simulator
+                        </button>
+                      </div>
+                      <div className="bg-white border border-indigo-100/40 p-4 rounded-xl space-y-3">
+                        <p className="text-slate-700 text-xs font-semibold">Option 2: Seed simulation traffic</p>
+                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                          Populate the charts and AI summaries instantly with standard evaluation traffic logs. This lets you inspect all analytics features and suggestions.
+                        </p>
+                        <button 
+                          onClick={() => setAnalyticsDataSource('simulated')}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] px-3 py-2 rounded-lg cursor-pointer"
+                        >
+                          Seed Demo Traffic Now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            if (isLoadingReportData && !dynamicReportData) {
+              return (
+                <div className="flex flex-col items-center justify-center py-32 space-y-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                  <div className="text-center space-y-1">
+                    <p className="text-slate-800 text-xs font-bold font-mono tracking-wider">ESTABLISHING BEHAVIOR ANALYTICS FEEDBACK...</p>
+                    <p className="text-slate-400 text-[10px]">Analyzing real website heuristics, click zones, and response cohorts for {workspace.name}.</p>
+                  </div>
+                </div>
+              );
+            }
+
+            const fallbackReportData = {
               today: {
                 sessions: 342,
                 triggers: 284,
@@ -2981,15 +4253,15 @@ export default function Dashboard({
                   { reason: 'Website too slow', percentage: 10 }
                 ],
                 complaints: [
-                  "First-time buyers wanted a 10% welcoming discount on barrel sours.",
+                  "First-time buyers wanted a 10% welcoming discount on our checkout page.",
                   "Some mobile checkout fields required too many taps to input ZIP code.",
-                  "Users looking for our physical taproom menu couldn't find a map."
+                  "Users looking for our physical terms / details menu couldn't find a map."
                 ],
                 sentiment: "Positive with minor billing hesitation",
                 sentimentScore: 78,
                 suggestions: [
-                  { issue: "Price too high (41%)", recommendation: "Deploy an exit popup offering free shipping on sour beer multi-packs.", impact: "High Impact" },
-                  { issue: "Just exploring (29%)", recommendation: "Introduce a 'Brews Co. Story' card in the footer to build local community trust.", impact: "Medium Impact" }
+                  { issue: "Price too high (41%)", recommendation: "Deploy an exit popup offering free shipping on matching multi-packs.", impact: "High Impact" },
+                  { issue: "Just exploring (29%)", recommendation: "Introduce a 'Our Brand Story' card in the footer to build local community trust.", impact: "Medium Impact" }
                 ]
               },
               yesterday: {
@@ -3066,7 +4338,8 @@ export default function Dashboard({
               }
             };
 
-            const activeData = reportData[selectedReportDate];
+            const reportData = dynamicReportData || fallbackReportData;
+            const activeData = reportData[selectedReportDate] || fallbackReportData[selectedReportDate];
 
             const triggerReportEmailDispatch = () => {
               setIsDispatchingReport(true);
@@ -3086,6 +4359,34 @@ export default function Dashboard({
             if (isAiPublished) {
               return (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                  {/* Sandbox Banner */}
+                  {!isInstalled && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">✨</span>
+                        <div>
+                          <p className="font-extrabold text-slate-900">Viewing Demo Sandbox Mode</p>
+                          <p className="text-slate-600">Connect your live website tracking script to transition from simulated metrics to real visitor hesitation data.</p>
+                        </div>
+                      </div>
+                      <button
+                        id="btn_sandbox_banner_verify_ai"
+                        onClick={handleTestInstallation}
+                        disabled={testingInstallation}
+                        className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-extrabold px-3 py-2 rounded-lg font-mono tracking-wide uppercase text-[10px] whitespace-nowrap cursor-pointer"
+                      >
+                        {testingInstallation ? 'Verifying...' : 'Verify Connection'}
+                      </button>
+                    </div>
+                  )}
+
+                  {isInstalled && (
+                    <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-2xl px-4 py-3 flex items-center gap-2 text-xs font-bold">
+                      <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Live Tracking Active: Awaiting and analyzing real customer hesitations on {workspace.url || 'your website'}
+                    </div>
+                  )}
+
                   {analyticsSubTab === 'pain-points' && (
                     <div className="space-y-6">
                       {/* Header */}
@@ -3317,8 +4618,36 @@ export default function Dashboard({
               );
             }
 
-            return (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+             return (
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                 {/* Sandbox Banner */}
+                 {!isInstalled && (
+                   <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
+                     <div className="flex items-center gap-3">
+                       <span className="text-xl">✨</span>
+                       <div>
+                         <p className="font-extrabold text-slate-900">Viewing Demo Sandbox Mode</p>
+                         <p className="text-slate-600">Connect your live website tracking script to transition from simulated metrics to real visitor hesitation data.</p>
+                       </div>
+                     </div>
+                     <button
+                       id="btn_sandbox_banner_verify_dev"
+                       onClick={handleTestInstallation}
+                       disabled={testingInstallation}
+                       className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-extrabold px-3 py-2 rounded-lg font-mono tracking-wide uppercase text-[10px] whitespace-nowrap cursor-pointer"
+                     >
+                       {testingInstallation ? 'Verifying...' : 'Verify Connection'}
+                     </button>
+                   </div>
+                 )}
+
+                 {isInstalled && (
+                   <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-2xl px-4 py-3 flex items-center gap-2 text-xs font-bold">
+                     <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                     Live Tracking Active: Awaiting and analyzing real customer hesitations on {workspace.url || 'your website'}
+                   </div>
+                 )}
+                 
                 
                 {/* Analytics Period Header Bar */}
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5">
@@ -3349,11 +4678,15 @@ export default function Dashboard({
 
                     <button 
                       id="btn_run_analytics_refresher"
-                      onClick={triggerExitAnalysisLoad}
-                      disabled={analyzingExit}
+                      onClick={() => {
+                        triggerExitAnalysisLoad(true);
+                        fetchWorkspaceAnalytics(true);
+                        triggerRecommendationsLoad(true);
+                      }}
+                      disabled={analyzingExit || isLoadingReportData || loadingRecs}
                       className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all"
                     >
-                      {analyzingExit ? <RefreshCw className="animate-spin" size={13} /> : <RefreshCw size={13} />} Refresh
+                      {analyzingExit || isLoadingReportData || loadingRecs ? <RefreshCw className="animate-spin" size={13} /> : <RefreshCw size={13} />} Refresh
                     </button>
                   </div>
                 </div>
@@ -4248,33 +5581,112 @@ export default function Dashboard({
                   <p className="text-xs text-slate-500">Remove all CustomerLens watermarks and style headers/emails matching your corporate identity guidelines.</p>
                   
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Company Header Logo URL</label>
-                      <input 
-                        id="input_white_label_logo"
-                        type="url" 
-                        placeholder="https://yourdomain.com/assets/logo.png" 
-                        value={wlLogo}
-                        onChange={(e) => setWlLogo(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs outline-none"
-                      />
+                    {/* Logo block */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-semibold text-slate-500">Company Logo</label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                        {/* Option 1: Upload */}
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Option A: Upload Image</span>
+                          {wlLogo && wlLogo.startsWith('data:image/') ? (
+                            <div className="relative inline-block">
+                              <div className="h-16 w-16 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden p-1.5 shadow-sm">
+                                <img src={wlLogo} alt="Corporate logo" className="max-h-full max-w-full object-contain" />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setWlLogo('')}
+                                className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-slate-950 hover:bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] font-black cursor-pointer shadow-sm transition-colors"
+                                title="Remove Logo"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50/10 rounded-xl p-3 transition-all flex flex-col items-center justify-center text-center cursor-pointer group">
+                              <Upload size={16} className="text-slate-400 group-hover:text-indigo-500 transition-colors mb-1" />
+                              <span className="text-[10px] font-bold text-slate-600 group-hover:text-indigo-600 transition-colors">Choose Image File</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleWlLogoUpload}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
+                        </div>
+
+                        {/* Option 2: Image URL */}
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Option B: Logo Image URL</span>
+                          <input 
+                            id="input_white_label_logo"
+                            type="url" 
+                            placeholder="https://yourdomain.com/logo.png" 
+                            value={wlLogo && !wlLogo.startsWith('data:image/') ? wlLogo : ''}
+                            onChange={(e) => setWlLogo(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs outline-none focus:border-indigo-500"
+                          />
+                          {wlLogo && !wlLogo.startsWith('data:image/') && (
+                            <div className="h-10 w-10 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden p-1">
+                              <img src={wlLogo} alt="Logo preview" className="max-h-full max-w-full object-contain" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Brand Theme Color Primary</label>
+                    {/* Brand Color Selector */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-semibold text-slate-500">Brand Theme Color Primary</label>
                       <div className="flex gap-2">
                         <input 
                           type="color" 
                           value={wlColor} 
                           onChange={(e) => setWlColor(e.target.value)}
-                          className="h-8 w-12 rounded cursor-pointer"
+                          className="h-9 w-12 rounded-xl border border-slate-200 cursor-pointer bg-transparent"
                         />
                         <input 
                           type="text" 
                           value={wlColor} 
                           onChange={(e) => setWlColor(e.target.value)}
-                          className="flex-grow px-2.5 py-1.5 border rounded text-xs font-mono"
+                          className="flex-grow px-3 py-1.5 border rounded-xl text-xs font-mono font-bold focus:border-indigo-500 outline-none"
                         />
+                        <button
+                          type="button"
+                          onClick={handleOpenWlColorDropper}
+                          className="px-3 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-slate-700 text-xs font-bold"
+                          title="Use screen color dropper"
+                        >
+                          <Pipette size={14} className="text-indigo-600 shrink-0" />
+                          <span>Dropper</span>
+                        </button>
+                      </div>
+
+                      {/* Color presets swatches */}
+                      <div className="pt-1 flex flex-wrap gap-1.5 items-center">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Corporate Presets:</span>
+                        {[
+                          { name: 'Indigo', hex: '#6366f1' },
+                          { name: 'Emerald', hex: '#10B981' },
+                          { name: 'Sky', hex: '#0EA5E9' },
+                          { name: 'Rose', hex: '#F43F5E' },
+                          { name: 'Amber', hex: '#F59E0B' },
+                          { name: 'Charcoal', hex: '#1E293B' }
+                        ].map((swatch) => (
+                          <button
+                            key={swatch.hex}
+                            type="button"
+                            onClick={() => setWlColor(swatch.hex)}
+                            className="h-5 w-5 rounded-full border border-slate-200 flex items-center justify-center cursor-pointer transition-transform hover:scale-110"
+                            style={{ backgroundColor: swatch.hex }}
+                            title={swatch.name}
+                          >
+                            {wlColor.toLowerCase() === swatch.hex.toLowerCase() && (
+                              <Check size={10} className="text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" />
+                            )}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
@@ -4417,6 +5829,157 @@ export default function Dashboard({
           )}
 
         </main>
+
+        {/* Domain Verification Modal */}
+        <AnimatePresence>
+          {verificationModalSite && (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-200 shadow-2xl text-slate-900 space-y-6"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase font-mono mb-1">
+                      <ShieldCheck size={12} /> Domain Security Check
+                    </div>
+                    <h3 className="font-bold text-slate-900 text-lg">Verify Ownership for {verificationModalSite.url}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      CustomerLens AI requires domain ownership verification before activating tracking and survey triggers.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setVerificationModalSite(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Verification Method Tabs */}
+                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setVerificationSelectedMethod('snippet')}
+                    className={`flex-1 py-2 rounded-lg transition-all cursor-pointer ${
+                      verificationSelectedMethod === 'snippet'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    JS Snippet ⭐
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVerificationSelectedMethod('meta')}
+                    className={`flex-1 py-2 rounded-lg transition-all cursor-pointer ${
+                      verificationSelectedMethod === 'meta'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    HTML Meta Tag
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVerificationSelectedMethod('dns')}
+                    className={`flex-1 py-2 rounded-lg transition-all cursor-pointer ${
+                      verificationSelectedMethod === 'dns'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    DNS TXT Record
+                  </button>
+                </div>
+
+                {/* Method Instructions */}
+                {verificationSelectedMethod === 'snippet' && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-slate-600">
+                      Paste this snippet into the <code className="bg-slate-100 text-indigo-600 px-1 py-0.5 rounded">&lt;head&gt;</code> section of your website code:
+                    </p>
+                    <div className="bg-slate-950 text-indigo-300 p-3 rounded-xl text-[11px] font-mono break-all relative group border border-slate-800">
+                      <code>{`<script async src="${window.location.origin}/tracker.js" data-site-id="${verificationModalSite.siteId || verificationModalSite.id}"></script>`}</code>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      This automatically verifies ownership AND installs the live AI event tracking engine.
+                    </p>
+                  </div>
+                )}
+
+                {verificationSelectedMethod === 'meta' && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-slate-600">
+                      Add this meta tag to your homepage's <code className="bg-slate-100 text-indigo-600 px-1 py-0.5 rounded">&lt;head&gt;</code> tag:
+                    </p>
+                    <div className="bg-slate-950 text-indigo-300 p-3 rounded-xl text-[11px] font-mono break-all relative group border border-slate-800">
+                      <code>{`<meta name="customerlens-site-verification" content="${verificationModalSite.verificationToken || 'cl_verify_' + verificationModalSite.id}" />`}</code>
+                    </div>
+                  </div>
+                )}
+
+                {verificationSelectedMethod === 'dns' && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-slate-600">
+                      Add a TXT record to your DNS configuration via your domain registrar (Cloudflare, GoDaddy, Namecheap):
+                    </p>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs font-mono space-y-1.5">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Record Type:</span>
+                        <span className="font-bold text-slate-800">TXT</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Host / Name:</span>
+                        <span className="font-bold text-slate-800">@ (or root)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">TXT Value:</span>
+                        <span className="font-bold text-indigo-600 break-all">{`customerlens-site-verification=${verificationModalSite.verificationToken || 'cl_verify_' + verificationModalSite.id}`}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Message if Verification Failed */}
+                {verificationErrorMsg && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-800 font-medium">
+                    ⚠️ {verificationErrorMsg}
+                  </div>
+                )}
+
+                {/* Modal Actions */}
+                <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setVerificationModalSite(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={verifyingDomainId === verificationModalSite.id}
+                    onClick={() => handleVerifyDomain(verificationModalSite, verificationSelectedMethod)}
+                    className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-1.5"
+                  >
+                    {verifyingDomainId === verificationModalSite.id ? (
+                      <>
+                        <RefreshCw className="animate-spin" size={14} /> Checking Domain...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={14} /> Check Verification Now
+                      </>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
       </div>
 

@@ -53,11 +53,9 @@ export default function App() {
   useEffect(() => {
     async function testConnection() {
       try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
+        await getDoc(doc(db, 'test', 'connection'));
       } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration.");
-        }
+        // Silently handle connection check when offline
       }
     }
     testConnection();
@@ -77,29 +75,46 @@ export default function App() {
               setInitialSurvey(null);
               pendingLaunchOnAuthRef.current = false;
               setCurrentView('dashboard');
-              triggerToast('🚀 Welcome! Let\'s begin your 5-step launch process.', 'success');
+              triggerToast('🚀 Welcome! Let\'s begin setting up your website.', 'success');
             } else {
+              let hasWorkspaceSetup = false;
               if (userData.workspaceId) {
-                const wsDoc = await getDoc(doc(db, 'workspaces', userData.workspaceId));
-                if (wsDoc.exists()) {
-                  const wsData = wsDoc.data() as Workspace;
-                  setWorkspace(wsData);
-                  
-                  // Set default/dummy initialSurvey if none loaded
-                  setInitialSurvey({
-                    id: 'srv-init',
-                    title: 'Onboarding Survey',
-                    displayOption: 'Exit Intent Popup',
-                    headline: 'Before you go...',
-                    questions: [],
-                    colors: { background: '#ffffff', text: '#111827', accent: '#6366f1' },
-                    brandingEnabled: false,
-                    active: true,
-                    createdAt: new Date().toISOString()
-                  });
+                try {
+                  const wsDoc = await getDoc(doc(db, 'workspaces', userData.workspaceId));
+                  if (wsDoc.exists()) {
+                    const wsData = wsDoc.data() as Workspace;
+                    setWorkspace(wsData);
+                    hasWorkspaceSetup = true;
+                    
+                    // Set default/dummy initialSurvey if none loaded
+                    setInitialSurvey({
+                      id: 'srv-init',
+                      title: 'Onboarding Survey',
+                      displayOption: 'Exit Intent Popup',
+                      headline: 'Before you go...',
+                      questions: [],
+                      colors: { background: '#ffffff', text: '#111827', accent: '#6366f1' },
+                      brandingEnabled: false,
+                      active: true,
+                      createdAt: new Date().toISOString()
+                    });
+                  }
+                } catch (wsErr) {
+                  console.warn('Could not load workspace from Firestore, checking local storage:', wsErr);
+                  const savedWorkspace = localStorage.getItem('cl_workspace');
+                  if (savedWorkspace) {
+                    setWorkspace(JSON.parse(savedWorkspace));
+                    hasWorkspaceSetup = true;
+                  }
                 }
               }
-              setCurrentView('dashboard');
+
+              // Opens with workshop ONLY when user is signed in AND has setuped website
+              if (hasWorkspaceSetup) {
+                setCurrentView('dashboard');
+              } else {
+                setCurrentView('landing');
+              }
             }
           } else {
             const partialUser: User = {
@@ -117,11 +132,32 @@ export default function App() {
             setWorkspace(null);
             setInitialSurvey(null);
             pendingLaunchOnAuthRef.current = false;
-            // Wait for onboarding wizard
-            setCurrentView('dashboard');
+            // No website setup yet -> Start on landing page
+            setCurrentView('landing');
           }
         } catch (error) {
-          console.error('Error fetching data from Firestore:', error);
+          console.warn('Firestore offline or fetch failed, falling back to cached session:', error);
+          const savedUser = localStorage.getItem('cl_user');
+          if (savedUser) {
+            setUser(JSON.parse(savedUser));
+            const savedWorkspace = localStorage.getItem('cl_workspace');
+            if (savedWorkspace) setWorkspace(JSON.parse(savedWorkspace));
+            const savedSurvey = localStorage.getItem('cl_initial_survey');
+            if (savedSurvey) setInitialSurvey(JSON.parse(savedSurvey));
+          } else {
+            const partialUser: User = {
+              id: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              name: firebaseUser.displayName || 'Valued Partner',
+              workspaceId: '',
+              isEmailVerified: true,
+              plan: 'Free',
+              billingPeriod: 'monthly',
+              subscriptionActive: false,
+              trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
+            };
+            setUser(partialUser);
+          }
         }
       } else {
         const savedUser = localStorage.getItem('cl_user');
@@ -560,11 +596,11 @@ export default function App() {
       setWorkspace(null);
       setInitialSurvey(null);
       setCurrentView('dashboard');
-      triggerToast('🚀 Let\'s start your 5-step CustomerLens launch process!', 'success');
+      triggerToast('🚀 Let\'s start your 3-step CustomerLens launch process!', 'success');
     } else {
       pendingLaunchOnAuthRef.current = true;
       setCurrentView('register');
-      triggerToast('Please register or sign in to start your 5-step launch process!', 'success');
+      triggerToast('Please register or sign in to start your 3-step launch process!', 'success');
     }
   };
 
@@ -573,11 +609,11 @@ export default function App() {
       setWorkspace(null);
       setInitialSurvey(null);
       setCurrentView('dashboard');
-      triggerToast('🚀 Let\'s start your 5-step Free Package setup!', 'success');
+      triggerToast('🚀 Let\'s start your 3-step Free Package setup!', 'success');
     } else {
       pendingLaunchOnAuthRef.current = true;
       setCurrentView('register');
-      triggerToast('Please register or sign in to start your 5-step Free Package setup!', 'success');
+      triggerToast('Please register or sign in to start your 3-step Free Package setup!', 'success');
     }
   };
 
@@ -618,6 +654,9 @@ export default function App() {
       {/* 0. BEAUTIFUL LANDING PAGE INSPIRED BY SANDHILLS */}
       {currentView === 'landing' && (
         <LandingPage 
+          isLoggedIn={!!user}
+          hasWorkspace={!!workspace}
+          userEmail={user?.email}
           onNavigate={(view) => setCurrentView(view)} 
           onLaunchDemo={handleLaunchDemo}
           onGetStartedFree={handleGetStartedFree}
@@ -683,7 +722,7 @@ export default function App() {
             {pendingLaunchOnAuthRef.current && (
               <div className="bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-2xl p-4 text-xs font-medium text-center space-y-1">
                 <p className="font-extrabold text-indigo-900">✨ Secure Sandbox Authorization</p>
-                <p className="text-indigo-600/90 leading-relaxed text-[11px]">Sign up below to instantly launch your personalized, 5-step CustomerLens exit-intent tracking demo!</p>
+                <p className="text-indigo-600/90 leading-relaxed text-[11px]">Sign up below to instantly launch your personalized, 3-step CustomerLens exit-intent tracking demo!</p>
               </div>
             )}
 
@@ -842,7 +881,7 @@ export default function App() {
       )}
 
       {/* 4. MAIN CUSTOMERLENS DASHBOARD */}
-      {user && user.isEmailVerified && workspace && initialSurvey && (
+      {user && user.isEmailVerified && workspace && initialSurvey && currentView === 'dashboard' && (
         <div id="dashboard_stage">
           <Dashboard 
             user={user} 
@@ -851,6 +890,7 @@ export default function App() {
             onLogout={handleLogout} 
             onUpdateUser={updateUserInfo}
             onUpdateWorkspace={updateWorkspaceInfo}
+            onGoToLanding={() => setCurrentView('landing')}
           />
 
           {/* DYNAMIC WALKTHROUGH INTRO GUIDES */}

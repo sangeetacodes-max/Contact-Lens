@@ -87,8 +87,16 @@ export interface ConnectedWebsite {
   platform: 'Shopify' | 'WooCommerce' | 'WordPress' | 'Webflow' | 'Wix' | 'Squarespace' | 'Custom Website';
   url: string;
   status: 'Connected' | 'Not Installed';
+  verificationStatus: 'Verified' | 'Unverified' | 'Pending';
+  verificationMethod?: 'snippet' | 'meta' | 'dns';
+  verificationToken: string;
+  siteId: string;
+  verifiedAt?: string;
   apiKey?: string;
   installedAt?: string;
+  totalVisitors?: number;
+  surveyImpressions?: number;
+  surveyResponses?: number;
 }
 
 export interface AIRecommendation {

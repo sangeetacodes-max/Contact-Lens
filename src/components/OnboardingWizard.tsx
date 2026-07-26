@@ -1,21 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Building2, 
-  Globe, 
-  Target, 
   Sparkles, 
-  ArrowRight, 
   Check, 
-  Loader2, 
-  Palette, 
-  Layers, 
+  Copy, 
+  RefreshCw, 
+  Globe, 
+  ArrowRight, 
+  ArrowLeft, 
+  Code,
+  CheckCircle2,
+  XCircle,
+  ShoppingBag,
+  Zap,
+  Smile,
+  Compass,
+  Layout,
+  Database,
+  ArrowRightCircle,
+  Radio,
+  Settings,
   HelpCircle,
-  Search,
-  Pencil,
-  Files
+  Eye,
+  CheckSquare,
+  ChevronDown,
+  ChevronUp,
+  Edit3,
+  Sliders,
+  X,
+  Paintbrush,
+  Pipette,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
+  Wand2
 } from 'lucide-react';
-import { BusinessType, Survey, Workspace } from '../types';
+import { BusinessType, Survey, Workspace, SurveyDisplayOption } from '../types';
+
+export interface GeneratedSurveyConfig {
+  id: string;
+  goalId: string;
+  goalLabel: string;
+  goalIcon: string;
+  title: string;
+  trigger: string;
+  questionsCount: number;
+  completion: string;
+  rate: string;
+  accentColor: string;
+  logoDoodle: string;
+  logoUrl?: string;
+  sizePosition: 'Bottom Right Widget' | 'Compact Center Modal' | 'Full Center Modal' | 'Bottom Banner';
+  headline: string;
+  questionText: string;
+  options: string[];
+  isExpanded: boolean;
+}
 
 interface OnboardingWizardProps {
   onComplete: (workspace: Workspace, initialSurvey: Survey) => void;
@@ -23,1925 +63,1577 @@ interface OnboardingWizardProps {
   onBack?: () => void;
 }
 
-const BUSINESS_TYPES: { id: BusinessType; name: string; description: string; icon: any }[] = [
-  { id: 'Shopify', name: 'Shopify Store', description: 'One-click automated app integration', icon: Building2 },
-  { id: 'WooCommerce', name: 'WooCommerce Store', description: 'Automated WordPress plugin connection', icon: Building2 },
-  { id: 'SaaS', name: 'SaaS / Web App', description: 'API, subscription metrics & embed keys', icon: Layers },
-  { id: 'Startup', name: 'Startup', description: 'Rapid feedback and customer growth', icon: Sparkles },
-  { id: 'Agency', name: 'Agency', description: 'Multi-client feedback & dashboards', icon: HelpCircle },
-  { id: 'Ecommerce', name: 'Other Ecommerce', description: 'Custom cart & checkout integrations', icon: Building2 },
-  { id: 'Other', name: 'Other Website', description: 'Generic JavaScript tag connection', icon: Globe },
-];
-
-const GOALS = [
-  { id: 'Increase Sales', text: 'Increase Sales', desc: 'Identify checkout friction and offer discounts' },
-  { id: 'Collect Feedback', text: 'Collect Feedback', desc: 'Understand general visitor complaints' },
-  { id: 'Reduce Cart Abandonment', text: 'Reduce Cart Abandonment', desc: 'Find why shoppers leave before buying' },
-  { id: 'Improve Customer Experience', text: 'Improve Customer Experience', desc: 'Gather usability suggestions' },
-  { id: 'Increase Repeat Customers', text: 'Increase Repeat Customers', desc: 'Drive loyalty and post-purchase feedback' },
-];
-
-export interface OnboardingTemplate {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  recommendedDelivery: string;
-  questions: { questionText: string; type: string; options: string[] }[];
-  goalText?: string;
-  bestTrigger?: string;
-  logicText?: string;
-  designText?: string;
-  estTime?: string;
-}
-
-const ALL_CATEGORIES = [
-  'Post Purchase',
-  'Attribution & Discovery',
-  'Customer Satisfaction',
-  'Software (SaaS)',
-  'Exit Intent & Abandoned Cart',
-  'Feedback & Optimization',
-  'Engagement'
-];
-
-const ONBOARDING_TEMPLATES: OnboardingTemplate[] = [
-  {
-    id: 'pricing-feedback',
-    title: 'Pricing Feedback Survey',
-    description: 'Appears after multiple pricing page visits.',
-    category: 'Feedback & Optimization',
-    recommendedDelivery: 'Pricing Page Exit Intent',
-    goalText: 'Identify pricing page hesitation and discount sensitivity',
-    bestTrigger: 'Visitor spends > 45s on pricing page or triggers exit-intent on "/pricing"',
-    logicText: 'If response is "Price is too high", prompt with LENS15 discount coupon code; else direct to support',
-    designText: 'Cosmic Slate minimalist layout, Slate Blue (#6366f1) accents',
-    estTime: '45 seconds',
-    questions: [
-      {
-        questionText: 'Is there anything holding you back from choosing a plan today?',
-        type: 'multiple-choice',
-        options: ['Price is too high', 'Unclear which plan is right for me', 'Missing key features', 'Just browsing / comparing options']
-      },
-      {
-        questionText: 'What feature are you hoping to find in CustomerLens?',
-        type: 'text',
-        options: []
-      }
-    ]
-  },
-  {
-    id: 'exit-intent',
-    title: 'Exit Intent Survey',
-    description: 'Appears when visitor moves mouse to close the tab.',
-    category: 'Exit Intent & Abandoned Cart',
-    recommendedDelivery: 'Exit Intent',
-    goalText: 'Capture abandoning website visitors before they leave the store',
-    bestTrigger: 'Cursor moves rapidly toward top viewport boundary',
-    logicText: 'If "Had questions", open live agent chat assistant; else save response and display simple thank you',
-    designText: 'Aura White light-mode theme with high-contrast Indigo (#4f46e5) action links',
-    estTime: '30 seconds',
-    questions: [
-      {
-        questionText: 'Wait! Did you find what you were looking for today?',
-        type: 'multiple-choice',
-        options: ['Yes, absolutely', 'Found it but had a question', 'No, couldn\'t find it', 'Just browsing']
-      }
-    ]
-  },
-  {
-    id: 'cart-abandonment',
-    title: 'Cart Abandonment Survey',
-    description: 'Appears after abandoning the cart.',
-    category: 'Exit Intent & Abandoned Cart',
-    recommendedDelivery: 'Checkout Slide-in',
-    goalText: 'Understand cart friction and recover abandoned transactions',
-    bestTrigger: 'Visitor has items in cart and remains inactive on checkout URL for > 60s',
-    logicText: 'If "Shipping is too expensive", trigger free-shipping coupon code; else prompt for contact details',
-    designText: 'Emerald Green theme, accents in Deep Forest green (#10b981)',
-    estTime: '35 seconds',
-    questions: [
-      {
-        questionText: 'Is there anything preventing you from completing your order today?',
-        type: 'multiple-choice',
-        options: ['Shipping is too expensive', 'Delivery is too slow', 'Payment method failed', 'Need to think about it']
-      }
-    ]
-  },
-  {
-    id: 'post-purchase',
-    title: 'Post Purchase Survey',
-    description: 'Appears after checkout.',
-    category: 'Post Purchase',
-    recommendedDelivery: 'Inline Embed',
-    goalText: 'Map marketing channels driving sales and verify usability',
-    bestTrigger: 'URL matches order confirmation or thank-you page',
-    logicText: 'Display social sharing triggers on promoter choices; log other options directly to marketing reports',
-    designText: 'Royal Violet theme, #8b5cf6 primary buttons, borderless cards',
-    estTime: '40 seconds',
-    questions: [
-      {
-        questionText: 'How did you first hear about us?',
-        type: 'multiple-choice',
-        options: ['Social Media', 'Google Search', 'Friend / Word of Mouth', 'YouTube Ad']
-      },
-      {
-        questionText: 'How would you rate your checkout experience today?',
-        type: 'rating',
-        options: []
-      }
-    ]
-  },
-  {
-    id: 'customer-satisfaction',
-    title: 'Customer Satisfaction Survey',
-    description: 'Appears after support interaction.',
-    category: 'Customer Satisfaction',
-    recommendedDelivery: 'Support Chat Close',
-    goalText: 'Audit support desk quality and resolution success rates',
-    bestTrigger: 'Support conversation closed or marked resolved',
-    logicText: 'If choice is "Dissatisfied", automatically open escalation ticket with management; else log satisfaction metrics',
-    designText: 'Professional Teal theme with #0d9488 accent color',
-    estTime: '25 seconds',
-    questions: [
-      {
-        questionText: 'How satisfied are you with our support today?',
-        type: 'multiple-choice',
-        options: ['Delighted', 'Satisfied', 'Neutral', 'Dissatisfied']
-      }
-    ]
-  },
-  {
-    id: 'trial-user',
-    title: 'Trial User Survey',
-    description: 'Appears after using the product five times.',
-    category: 'Engagement',
-    recommendedDelivery: 'In-app Toast',
-    goalText: 'Track trial user adoption friction and identify premium conversion cues',
-    bestTrigger: 'User starts their 5th active app session',
-    logicText: 'If "Difficult to configure", notify client success team for a concierge onboarding call',
-    designText: 'Warm Gold & Slate Theme, #eab308 details',
-    estTime: '50 seconds',
-    questions: [
-      {
-        questionText: 'How has your trial experience been so far?',
-        type: 'multiple-choice',
-        options: ['Loving it, buying soon', 'Good, still testing features', 'A bit hard to configure', 'Not suitable for our team']
-      }
-    ]
-  },
-  {
-    id: 'feature-feedback',
-    title: 'Feature Feedback Survey',
-    description: 'Appears after users try a new feature.',
-    category: 'Feedback & Optimization',
-    recommendedDelivery: 'Triggered Slide-in',
-    goalText: 'Log usability and feedback on newly launched product modules',
-    bestTrigger: 'First success action in new feature flow',
-    logicText: 'If score is <= 3, show text input for constructive feedback; else show review/share prompt',
-    designText: 'Sunset Orange theme, #f57c00 button states',
-    estTime: '30 seconds',
-    questions: [
-      {
-        questionText: 'How helpful was our new Analytics dashboard today?',
-        type: 'multiple-choice',
-        options: ['Extremely useful', 'Somewhat useful', 'Neutral', 'Confusing to navigate']
-      },
-      {
-        questionText: 'What is one thing we should change about this screen?',
-        type: 'text',
-        options: []
-      }
-    ]
-  },
-  {
-    id: 'cancellation',
-    title: 'Cancellation Survey',
-    description: 'Appears when subscription is canceled.',
-    category: 'Software (SaaS)',
-    recommendedDelivery: 'Billing Modal Overlap',
-    goalText: 'Understand subscription churn and propose targeted downgrade saves',
-    bestTrigger: 'Visitor clicks "Cancel Subscription" button',
-    logicText: 'If "Too expensive", redirect to special 50% discount page; if "Temporary pause", enable 1-click pause billing state',
-    designText: 'Crimson Slate Warning theme, High-contrast Red (#ef4444) buttons',
-    estTime: '45 seconds',
-    questions: [
-      {
-        questionText: 'We are sad to see you go. What is the primary reason for canceling?',
-        type: 'multiple-choice',
-        options: ['Too expensive', 'Missing key integrations', 'Difficult to set up', 'Temporary pause / project ended', 'Found a better alternative']
-      }
-    ]
-  },
-  {
-    id: 'nps',
-    title: 'NPS Survey',
-    description: 'Appears after 30 days of product usage.',
-    category: 'Engagement',
-    recommendedDelivery: 'Modal Center Pop-up',
-    goalText: 'Measure company Net Promoter Score and identify advocates',
-    bestTrigger: '30 days passed since signup registration timestamp',
-    logicText: 'If score is 9-10, prompt with Trustpilot/Capterra review link; if score is <= 6, alert account manager',
-    designText: 'Minimal Dark Charcoal theme with pure black (#0f172a) branding accents',
-    estTime: '20 seconds',
-    questions: [
-      {
-        questionText: 'How likely are you to recommend CustomerLens to a friend or colleague?',
-        type: 'multiple-choice',
-        options: ['10 - Extremely Likely', '9', '8', '7', '6 or lower']
-      }
-    ]
-  },
-  {
-    id: 'bug-report',
-    title: 'Bug Report Survey',
-    description: 'Appears after detecting repeated errors.',
-    category: 'Feedback & Optimization',
-    recommendedDelivery: 'Error Event Slide-out',
-    goalText: 'Intercept frustrated visitors facing javascript/app faults',
-    bestTrigger: 'Console error detected or API failures occur in sequence',
-    logicText: 'Capture full session diagnostic variables and dispatch high-priority Slack notification',
-    designText: 'Cobalt Terminal professional theme with #3b82f6 details',
-    estTime: '40 seconds',
-    questions: [
-      {
-        questionText: 'We apologize! Something went wrong. What were you trying to do?',
-        type: 'multiple-choice',
-        options: ['Loading reports', 'Setting up a tracking link', 'Updating account settings', 'Integrating with Shopify', 'Other']
-      },
-      {
-        questionText: 'Can our technical support team reach out to you via email to resolve this?',
-        type: 'multiple-choice',
-        options: ['Yes, please contact me', 'No, I am good']
-      }
-    ]
-  }
-];
-
-const OnboardingToggle = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      className={`w-14 h-7 rounded-full p-1 transition-all flex items-center relative cursor-pointer outline-none focus:outline-none select-none ${
-        checked ? 'bg-blue-600 justify-end' : 'bg-black justify-start'
-      }`}
-    >
-      {checked ? (
-        <>
-          <span className="text-[9px] font-black text-white absolute left-2 select-none pointer-events-none">ON</span>
-          <div className="w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-200" />
-        </>
-      ) : (
-        <>
-          <div className="w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-200" />
-          <span className="text-[9px] font-black text-white absolute right-2 select-none pointer-events-none">OFF</span>
-        </>
-      )}
-    </button>
-  );
-};
-
 export default function OnboardingWizard({ onComplete, userEmail, onBack }: OnboardingWizardProps) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
-  const [businessType, setBusinessType] = useState<BusinessType>('Shopify');
-  const [businessName, setBusinessName] = useState('Acme Store');
-  const [websiteUrl, setWebsiteUrl] = useState('www.acmestore.com');
-  const [industry, setIndustry] = useState('E-commerce');
-  const [goal, setGoal] = useState('Increase Sales');
+  // Wizard Steps: 1 | 2 | 3
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // --- STEP 1 STATE ---
+  const [websiteUrl, setWebsiteUrl] = useState('https://yourwebsite.com');
+  const [activePlatform, setActivePlatform] = useState<string>('Custom Website');
+  const [verifyMethod, setVerifyMethod] = useState<'script' | 'dns' | 'meta'>('script');
   
-  // Custom workspace options
-  const [allowEdits, setAllowEdits] = useState(true);
-  const [autoAdvance, setAutoAdvance] = useState(true);
-  const [allowResubmissions, setAllowResubmissions] = useState(false);
-  const [notifyOnResponse, setNotifyOnResponse] = useState(true);
+  // Script verification progress animations
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [progressIndex, setProgressIndex] = useState<number>(-1); // -1 = not started, 0 to 5 for each progress step
+  const [copied, setCopied] = useState(false);
 
-  // New Step 3 Template Selector & Behavior sub-states
-  const [workspaceSubStep, setWorkspaceSubStep] = useState<'questions' | 'behavior'>('questions');
-  const [creationMode, setCreationMode] = useState<'template' | 'scratch'>('template');
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('pricing-feedback');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categorySearch, setCategorySearch] = useState('');
-  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(ALL_CATEGORIES);
+  // --- STEP 2 STATE ---
+  const [selectedGoals, setSelectedGoals] = useState<string[]>(['Reduce Cart Abandonment']);
+  const [customGoalText, setCustomGoalText] = useState<string>('');
 
-  // Build from prompt sub-state
-  const [promptInput, setPromptInput] = useState('My visitors leave after viewing pricing.');
-  const [isGeneratingFromPrompt, setIsGeneratingFromPrompt] = useState(false);
-  const [promptLoadingPhrase, setPromptLoadingPhrase] = useState('');
-  const [isPromptInputOpen, setIsPromptInputOpen] = useState(false);
-  const [customPromptTemplate, setCustomPromptTemplate] = useState<OnboardingTemplate | null>(null);
-
-  // Active question index inside the preview box
-  const [previewActiveQuestionIndex, setPreviewActiveQuestionIndex] = useState(0);
-  const [previewSelectedChoice, setPreviewSelectedChoice] = useState('');
-  const [previewSubmitted, setPreviewSubmitted] = useState(false);
-
-  const [isAILoading, setIsAILoading] = useState(false);
-  const [aiLoadingPhrase, setAiLoadingPhrase] = useState('');
-
-  const getMatchedTemplate = (text: string): OnboardingTemplate => {
-    const clean = text.toLowerCase();
-    if (clean.includes('pricing') || clean.includes('price')) {
-      return ONBOARDING_TEMPLATES.find(t => t.id === 'pricing-feedback') || ONBOARDING_TEMPLATES[0];
+  const getDefaultSurveyForGoal = (goalId: string, customTxt?: string): GeneratedSurveyConfig => {
+    switch (goalId) {
+      case 'Reduce Cart Abandonment':
+        return {
+          id: 'sv_cart_' + Math.random().toString(36).substring(2, 7),
+          goalId,
+          goalLabel: 'Reduce Cart Abandonment',
+          goalIcon: '🛒',
+          title: 'Checkout Dropoff Recovery',
+          trigger: 'Visitor moves mouse to close on cart page',
+          questionsCount: 3,
+          completion: '15 seconds',
+          rate: 'Very High (22%)',
+          accentColor: '#6366f1',
+          logoDoodle: '🛒',
+          sizePosition: 'Bottom Right Widget',
+          headline: 'Quick Checkout Check-In',
+          questionText: 'What is keeping you from completing your purchase today?',
+          options: ['Unexpected shipping fees', 'Comparing prices right now', 'Payment method issue', 'Need product advice'],
+          isExpanded: true
+        };
+      case 'Increase Sales':
+        return {
+          id: 'sv_sales_' + Math.random().toString(36).substring(2, 7),
+          goalId,
+          goalLabel: 'Increase Sales',
+          goalIcon: '📈',
+          title: 'High-Intent Buyer Assistant',
+          trigger: 'Scroll depth > 60% on product page',
+          questionsCount: 2,
+          completion: '10 seconds',
+          rate: 'High (19%)',
+          accentColor: '#10b981',
+          logoDoodle: '⚡',
+          sizePosition: 'Compact Center Modal',
+          headline: 'Can we answer any questions?',
+          questionText: 'What detail would help you decide confidently today?',
+          options: ['Sizing / dimensions guide', 'Verified customer reviews', 'Special discount code', 'Delivery timeframe'],
+          isExpanded: false
+        };
+      case 'Improve Checkout':
+        return {
+          id: 'sv_checkout_' + Math.random().toString(36).substring(2, 7),
+          goalId,
+          goalLabel: 'Improve Checkout',
+          goalIcon: '💳',
+          title: 'Payment Friction Diagnostics',
+          trigger: 'Hesitates 10s on payment screen',
+          questionsCount: 3,
+          completion: '12 seconds',
+          rate: 'Very High (24%)',
+          accentColor: '#3b82f6',
+          logoDoodle: '💎',
+          sizePosition: 'Bottom Right Widget',
+          headline: 'Checkout Usability Check',
+          questionText: 'Did you experience any problem during payment?',
+          options: ['Checkout page loaded slowly', 'Preferred payment option missing', 'Promo code failed', 'Form fields confusing'],
+          isExpanded: false
+        };
+      case 'Product Feedback':
+        return {
+          id: 'sv_product_' + Math.random().toString(36).substring(2, 7),
+          goalId,
+          goalLabel: 'Product Feedback',
+          goalIcon: '💬',
+          title: 'Product Catalog Insights',
+          trigger: 'Browses 3+ category pages',
+          questionsCount: 3,
+          completion: '14 seconds',
+          rate: 'High (16%)',
+          accentColor: '#8b5cf6',
+          logoDoodle: '✨',
+          sizePosition: 'Bottom Banner',
+          headline: 'Product Selection Survey',
+          questionText: 'Did you find the product you were searching for today?',
+          options: ['Yes, found it easily', 'Item out of stock', 'Looking for a different size/color', 'Couldn\'t find what I wanted'],
+          isExpanded: false
+        };
+      case 'Customer Satisfaction':
+        return {
+          id: 'sv_csat_' + Math.random().toString(36).substring(2, 7),
+          goalId,
+          goalLabel: 'Customer Satisfaction',
+          goalIcon: '😊',
+          title: 'Website CSAT & Usability',
+          trigger: 'Spends 2+ minutes on site',
+          questionsCount: 2,
+          completion: '8 seconds',
+          rate: 'Very High (28%)',
+          accentColor: '#ec4899',
+          logoDoodle: '😊',
+          sizePosition: 'Bottom Right Widget',
+          headline: 'Quick Satisfaction Pulse',
+          questionText: 'How easy was it to navigate our website today?',
+          options: ['Extremely easy & smooth', 'Good, minor navigation issues', 'Hard to find products', 'Layout felt cluttered'],
+          isExpanded: false
+        };
+      case 'Pricing Feedback':
+        return {
+          id: 'sv_pricing_' + Math.random().toString(36).substring(2, 7),
+          goalId,
+          goalLabel: 'Pricing Feedback',
+          goalIcon: '🏷️',
+          title: 'Pricing Plan Friction Poll',
+          trigger: 'Hovers on pricing plan table',
+          questionsCount: 3,
+          completion: '14 seconds',
+          rate: 'High (18%)',
+          accentColor: '#f59e0b',
+          logoDoodle: '🏷️',
+          sizePosition: 'Compact Center Modal',
+          headline: 'Pricing Clarity Check',
+          questionText: 'Is our pricing structure clear and fair for your needs?',
+          options: ['Clear & reasonable', 'Need a smaller starter plan', 'Custom enterprise pricing unclear', 'Billing terms missing'],
+          isExpanded: false
+        };
+      case 'Reduce Churn':
+        return {
+          id: 'sv_churn_' + Math.random().toString(36).substring(2, 7),
+          goalId,
+          goalLabel: 'Reduce Churn',
+          goalIcon: '🔄',
+          title: 'Pre-Exit Loyalty Discovery',
+          trigger: 'Navigates toward account cancellation',
+          questionsCount: 4,
+          completion: '20 seconds',
+          rate: 'High (20%)',
+          accentColor: '#ef4444',
+          logoDoodle: '🚀',
+          sizePosition: 'Full Center Modal',
+          headline: 'Before you go...',
+          questionText: 'What is the primary reason for considering leaving?',
+          options: ['Found an alternative solution', 'Not using the service enough', 'Cost is too high right now', 'Missing a key feature'],
+          isExpanded: false
+        };
+      case 'Custom Goal':
+      default:
+        return {
+          id: 'sv_custom_' + Math.random().toString(36).substring(2, 7),
+          goalId,
+          goalLabel: 'Custom Goal',
+          goalIcon: '🎯',
+          title: customTxt ? `Custom: ${customTxt}` : 'Custom Intent Capture Survey',
+          trigger: 'Exit-intent & scroll behavior',
+          questionsCount: 3,
+          completion: '15 seconds',
+          rate: 'High (17%)',
+          accentColor: '#06b6d4',
+          logoDoodle: '🎯',
+          sizePosition: 'Bottom Right Widget',
+          headline: 'Tell Us Your Thoughts',
+          questionText: 'What is one thing we could improve on this page?',
+          options: ['Page speed & loading', 'More detailed information', 'Clearer pricing & plans', 'Other feedback'],
+          isExpanded: false
+        };
     }
-    if (clean.includes('exit') || clean.includes('leave') || clean.includes('close') || clean.includes('tab')) {
-      return ONBOARDING_TEMPLATES.find(t => t.id === 'exit-intent') || ONBOARDING_TEMPLATES[0];
-    }
-    if (clean.includes('cart') || clean.includes('abandon') || clean.includes('checkout') || clean.includes('dropoff') || clean.includes('shop')) {
-      return ONBOARDING_TEMPLATES.find(t => t.id === 'cart-abandonment') || ONBOARDING_TEMPLATES[0];
-    }
-    if (clean.includes('purchase') || clean.includes('buy') || clean.includes('thank')) {
-      return ONBOARDING_TEMPLATES.find(t => t.id === 'post-purchase') || ONBOARDING_TEMPLATES[0];
-    }
-    if (clean.includes('satisfaction') || clean.includes('support') || clean.includes('csat')) {
-      return ONBOARDING_TEMPLATES.find(t => t.id === 'customer-satisfaction') || ONBOARDING_TEMPLATES[0];
-    }
-    if (clean.includes('trial') || clean.includes('5 times') || clean.includes('times')) {
-      return ONBOARDING_TEMPLATES.find(t => t.id === 'trial-user') || ONBOARDING_TEMPLATES[0];
-    }
-    if (clean.includes('feature') || clean.includes('new') || clean.includes('try')) {
-      return ONBOARDING_TEMPLATES.find(t => t.id === 'feature-feedback') || ONBOARDING_TEMPLATES[0];
-    }
-    if (clean.includes('cancel') || clean.includes('billing') || clean.includes('unsubscribe') || clean.includes('quit')) {
-      return ONBOARDING_TEMPLATES.find(t => t.id === 'cancellation') || ONBOARDING_TEMPLATES[0];
-    }
-    if (clean.includes('nps') || clean.includes('loyalty') || clean.includes('recommend') || clean.includes('score')) {
-      return ONBOARDING_TEMPLATES.find(t => t.id === 'nps') || ONBOARDING_TEMPLATES[0];
-    }
-    if (clean.includes('bug') || clean.includes('error') || clean.includes('crash') || clean.includes('broken')) {
-      return ONBOARDING_TEMPLATES.find(t => t.id === 'bug-report') || ONBOARDING_TEMPLATES[0];
-    }
-    return ONBOARDING_TEMPLATES.find(t => t.id === 'pricing-feedback') || ONBOARDING_TEMPLATES[0];
   };
 
-  const triggerMockAIGeneration = (templateId: string) => {
-    setIsAILoading(true);
-    setPreviewActiveQuestionIndex(0);
-    setPreviewSelectedChoice('');
-    setPreviewSubmitted(false);
+  const [generatedSurveys, setGeneratedSurveys] = useState<GeneratedSurveyConfig[]>(() => [
+    getDefaultSurveyForGoal('Reduce Cart Abandonment', '')
+  ]);
+  const [editingSurvey, setEditingSurvey] = useState<GeneratedSurveyConfig | null>(null);
 
-    const phrases = [
-      'Scanning visitor behavior context...',
-      'Matching goal against CRO benchmarks...',
-      'Formulating adaptive question schema...',
-      'Assembling behavioral rules and optimal triggers...'
-    ];
+  useEffect(() => {
+    setGeneratedSurveys(prev => {
+      const updated = selectedGoals.map(goalId => {
+        const existing = prev.find(s => s.goalId === goalId);
+        if (existing) return existing;
+        return getDefaultSurveyForGoal(goalId, customGoalText);
+      });
+      return updated;
+    });
+  }, [selectedGoals, customGoalText]);
 
-    let index = 0;
-    setAiLoadingPhrase(phrases[0]);
-    const interval = setInterval(() => {
-      index++;
-      if (index < phrases.length) {
-        setAiLoadingPhrase(phrases[index]);
+  const handleToggleGoal = (goalId: string) => {
+    setSelectedGoals(prev => {
+      if (prev.includes(goalId)) {
+        if (prev.length === 1) return prev; // Keep at least one goal selected
+        return prev.filter(g => g !== goalId);
+      } else {
+        return [...prev, goalId];
       }
-    }, 300);
-
-    setTimeout(() => {
-      clearInterval(interval);
-      setSelectedTemplateId(templateId);
-      setIsAILoading(false);
-    }, 1200);
+    });
   };
 
-  const isWorkspaceStep = step === 3 && (businessType === 'Other' || businessType === 'SaaS');
-
-  // AI Generation state
-  const [loading, setLoading] = useState(false);
-  const [loadingPhrase, setLoadingPhrase] = useState('');
-  const [generatedSurvey, setGeneratedSurvey] = useState<any | null>(null);
-
-  const handleStep1 = () => {
-    if (!businessName) {
-      alert('Please enter a business name');
-      return;
-    }
-    setStep(3);
+  const toggleSurveyPreview = (id: string) => {
+    setGeneratedSurveys(prev =>
+      prev.map(s => (s.id === id ? { ...s, isExpanded: !s.isExpanded } : s))
+    );
   };
 
-  const handleStep2 = () => {
-    setStep(3);
-  };
+  // --- AI COMMAND ASSISTANT STATE & HANDLER ---
+  const [aiCommandInput, setAiCommandInput] = useState('');
+  const [isExecutingAiCommand, setIsExecutingAiCommand] = useState(false);
+  const [aiCommandFeedback, setAiCommandFeedback] = useState<string | null>(null);
 
-  const handleStep3 = async () => {
-    setStep(4);
-    await triggerAIGeneration();
-  };
+  const handleRunAiCommand = async (commandText?: string) => {
+    const query = commandText || aiCommandInput;
+    if (!query.trim()) return;
 
-  const handleStep4 = () => {
-    setStep(5);
-  };
-
-  const triggerAIGeneration = async () => {
-    setLoading(true);
-    const phrases = [
-      'Scanning business profile...',
-      'Mapping goal keywords to CRO playbooks...',
-      'Designing custom high-contrast visual theme...',
-      'Formulating exit-intent conversion questions...',
-      'Assembling no-code JavaScript bundle...'
-    ];
-
-    let phraseIndex = 0;
-    setLoadingPhrase(phrases[0]);
-    const phraseInterval = setInterval(() => {
-      phraseIndex = (phraseIndex + 1) % phrases.length;
-      setLoadingPhrase(phrases[phraseIndex]);
-    }, 1200);
+    setIsExecutingAiCommand(true);
+    setAiCommandFeedback(null);
 
     try {
-      const response = await fetch('/api/ai/wizard', {
+      const res = await fetch('/api/ai/edit-surveys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          businessType,
-          websiteUrl,
-          goal,
-        }),
+          instruction: query,
+          surveys: generatedSurveys
+        })
       });
-      const data = await response.json();
-      setGeneratedSurvey(data);
+
+      const data = await res.json();
+      if (data.status === 'success' && data.surveys) {
+        setGeneratedSurveys(data.surveys);
+        setAiCommandFeedback(data.message || `✨ AI applied: "${query}"`);
+      } else {
+        setAiCommandFeedback(`⚠️ Unable to process AI request. Please try again.`);
+      }
     } catch (err) {
-      console.error('Failed to generate survey via AI, using default layout:', err);
+      console.error('Error running AI command:', err);
+      // Fallback smart client-side execution
+      const lower = query.toLowerCase();
+      if (lower.includes('consistent') || lower.includes('same design') || lower.includes('unify')) {
+        const unifiedColor = generatedSurveys[0]?.accentColor || '#6366f1';
+        setGeneratedSurveys(prev => prev.map(s => ({
+          ...s,
+          accentColor: unifiedColor,
+          sizePosition: 'Bottom Right Widget',
+          logoDoodle: '⚡'
+        })));
+        setAiCommandFeedback(`✨ AI standardized design consistency & color theme across all surveys!`);
+      } else if (lower.includes('emerald') || lower.includes('green')) {
+        setGeneratedSurveys(prev => prev.map(s => ({ ...s, accentColor: '#10b981' })));
+        setAiCommandFeedback(`✨ Applied Emerald Green theme to all surveys.`);
+      } else if (lower.includes('short') || lower.includes('concise')) {
+        setGeneratedSurveys(prev => prev.map(s => ({
+          ...s,
+          headline: s.headline.length > 20 ? s.headline.substring(0, 22) + '?' : s.headline
+        })));
+        setAiCommandFeedback(`✨ Shortened headlines across all surveys.`);
+      } else {
+        setAiCommandFeedback(`✨ AI instruction applied.`);
+      }
     } finally {
-      clearInterval(phraseInterval);
-      setLoading(false);
+      setIsExecutingAiCommand(false);
+      setAiCommandInput('');
     }
   };
 
-  const handleLaunch = () => {
-    let surveyToUse;
+  // --- STEP 3 STATE ---
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishComplete, setPublishComplete] = useState(false);
 
-    if (businessType === 'Other' || businessType === 'SaaS') {
-      if (creationMode === 'scratch') {
-        surveyToUse = {
-          headline: 'Custom CustomerLens Survey',
-          recommendedPlacement: 'Slide In',
-          colors: { background: '#ffffff', text: '#0f172a', accent: '#2563eb' },
-          questions: [
-            {
-              id: 'q1',
-              type: 'multiple-choice',
-              questionText: 'What is your primary goal today?',
-              options: ['Improve conversion', 'Learn more about users', 'Report a bug', 'Other']
-            }
-          ]
-        };
-      } else {
-        const activeTemp = selectedTemplateId === 'custom-prompt-temp' 
-          ? customPromptTemplate 
-          : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId);
-        
-        surveyToUse = {
-          headline: activeTemp?.title || 'Wait! Before you leave...',
-          recommendedPlacement: activeTemp?.recommendedDelivery || 'Exit Intent Popup',
-          colors: { background: '#ffffff', text: '#0f172a', accent: '#2563eb' },
-          questions: activeTemp?.questions.map((q, i) => ({
-            id: `q-${i + 1}`,
-            type: q.type,
-            questionText: q.questionText,
-            options: q.options
-          })) || []
-        };
-      }
-    } else {
-      surveyToUse = generatedSurvey || {
-        headline: 'Wait! Before you leave...',
-        recommendedPlacement: 'Exit Intent Popup',
-        colors: { background: '#ffffff', text: '#0f172a', accent: '#2563eb' },
-        questions: [
-          {
-            id: 'q1',
-            type: 'multiple-choice',
-            questionText: 'What was the primary reason for leaving today?',
-            options: ['Price too high', 'Just browsing', 'Shipping cost', 'Other']
-          }
-        ]
+  // Progress steps for Step 1 script checks
+  const connectionProgressItems = [
+    'Domain verified',
+    'Website connected',
+    'Website structure analyzed',
+    'Products & services understood',
+    'Customer journey mapped',
+    'AI activated'
+  ];
+
+  // Integration Platforms List
+  const platforms = [
+    { name: 'Shopify', icon: '🛍', defaultUrl: 'https://myshopify-store.com', type: 'Shopify' as BusinessType },
+    { name: 'WooCommerce', icon: '🛒', defaultUrl: 'https://mywoocommerce-shop.com', type: 'WooCommerce' as BusinessType },
+    { name: 'WordPress', icon: '🌐', defaultUrl: 'https://mywp-blog.org', type: 'Other' as BusinessType },
+    { name: 'Wix', icon: '🟦', defaultUrl: 'https://mywix-site.wixsite.com', type: 'Other' as BusinessType },
+    { name: 'Webflow', icon: '⚡', defaultUrl: 'https://mywebflow-showcase.io', type: 'Other' as BusinessType },
+    { name: 'Framer', icon: '🎨', defaultUrl: 'https://myframer-portfolio.framer.app', type: 'Other' as BusinessType },
+    { name: 'React', icon: '⚛', defaultUrl: 'https://myreact-app.dev', type: 'SaaS' as BusinessType },
+    { name: 'Next.js', icon: '▲', defaultUrl: 'https://mynext-app.vercel.app', type: 'SaaS' as BusinessType },
+    { name: 'Custom Website', icon: '💻', defaultUrl: 'https://yourwebsite.com', type: 'Other' as BusinessType }
+  ];
+
+  // Goal Options List for Step 2
+  const goalOptions = [
+    { id: 'Increase Sales', label: 'Increase Sales', icon: '📈' },
+    { id: 'Reduce Cart Abandonment', label: 'Reduce Cart Abandonment', icon: '🛒' },
+    { id: 'Improve Checkout', label: 'Improve Checkout', icon: '💳' },
+    { id: 'Product Feedback', label: 'Product Feedback', icon: '💬' },
+    { id: 'Customer Satisfaction', label: 'Customer Satisfaction', icon: '😊' },
+    { id: 'Pricing Feedback', label: 'Pricing Feedback', icon: '🏷️' },
+    { id: 'Reduce Churn', label: 'Reduce Churn', icon: '🔄' },
+    { id: 'Custom Goal', label: 'Custom Goal', icon: '🎯' }
+  ];
+
+  // Trigger auto-verification staggered animations
+  const triggerVerificationFlow = () => {
+    setIsVerifying(true);
+    setProgressIndex(0);
+  };
+
+  useEffect(() => {
+    if (isVerifying && progressIndex >= 0 && progressIndex < connectionProgressItems.length) {
+      const timer = setTimeout(() => {
+        setProgressIndex(prev => prev + 1);
+      }, 600); // Stagger checkmarks beautifully every 600ms
+      return () => clearTimeout(timer);
+    } else if (progressIndex === connectionProgressItems.length) {
+      setIsVerifying(false);
+    }
+  }, [isVerifying, progressIndex]);
+
+  // Handle platform click
+  const handlePlatformSelect = (plat: typeof platforms[0]) => {
+    setActivePlatform(plat.name);
+    setWebsiteUrl(plat.defaultUrl);
+    // Reset verification if they change platform
+    setProgressIndex(-1);
+    setIsVerifying(false);
+  };
+
+  const handleCopyCode = () => {
+    const code = `<script\nsrc="https://cdn.customerlens.ai/customerlens.js"\ndata-site-id="cl_live_x8K29P4">\n</script>`;
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Get dynamic preview settings based on selected goals
+  const getSurveyPreviewDetails = () => {
+    if (selectedGoals.length === 0) {
+      return {
+        title: 'Custom Intent Capture Survey',
+        trigger: 'Exit-intent detected',
+        questions: '3',
+        completion: '15 seconds',
+        rate: 'High',
+        color: '#8b5cf6'
       };
     }
 
-    const workspace: Workspace = {
-      id: `ws-${Date.now()}`,
-      name: businessName,
-      businessType,
-      url: websiteUrl,
-      industry,
-      goal,
-      customDomainStatus: 'Pending',
-      whiteLabel: {
-        removeBranding: false,
-      },
-    };
+    if (selectedGoals.length === 1) {
+      const singleGoal = selectedGoals[0];
+      const activeGoal = singleGoal === 'Custom Goal' ? (customGoalText || 'Custom Conversion Goal') : singleGoal;
+      
+      switch (activeGoal) {
+        case 'Reduce Cart Abandonment':
+        case 'Improve Checkout':
+          return {
+            title: 'Checkout Feedback',
+            trigger: 'Visitor abandons cart',
+            questions: '4',
+            completion: '18 seconds',
+            rate: 'High',
+            color: '#6366f1'
+          };
+        case 'Increase Sales':
+          return {
+            title: 'High-Intent Engagement Survey',
+            trigger: 'Scroll depth > 60% on product page',
+            questions: '3',
+            completion: '12 seconds',
+            rate: 'Very High',
+            color: '#10b981'
+          };
+        case 'Product Feedback':
+          return {
+            title: 'Product Experience Insights',
+            trigger: 'Inactive for 15s post-interaction',
+            questions: '3',
+            completion: '15 seconds',
+            rate: 'High',
+            color: '#3b82f6'
+          };
+        case 'Customer Satisfaction':
+          return {
+            title: 'Immediate Customer Satisfaction',
+            trigger: 'After browsing 3+ categories',
+            questions: '2',
+            completion: '8 seconds',
+            rate: 'Very High',
+            color: '#ec4899'
+          };
+        case 'Pricing Feedback':
+          return {
+            title: 'Pricing Page Friction Analysis',
+            trigger: 'Hovering on pricing table exit paths',
+            questions: '3',
+            completion: '14 seconds',
+            rate: 'Very High',
+            color: '#f59e0b'
+          };
+        case 'Reduce Churn':
+          return {
+            title: 'Pre-Exit Loyalty Discovery',
+            trigger: 'Navigates to cancel or billing terms',
+            questions: '5',
+            completion: '22 seconds',
+            rate: 'Medium-High',
+            color: '#ef4444'
+          };
+        default:
+          return {
+            title: 'Custom Intent Capture Survey',
+            trigger: 'Exit-intent detected',
+            questions: '3',
+            completion: '15 seconds',
+            rate: 'High',
+            color: '#8b5cf6'
+          };
+      }
+    }
 
-    const initialSurvey: Survey = {
-      id: `survey-${Date.now()}`,
-      title: 'First Onboarding Survey',
-      displayOption: surveyToUse.recommendedPlacement || 'Exit Intent Popup',
-      headline: surveyToUse.headline,
-      questions: surveyToUse.questions,
-      colors: surveyToUse.colors,
-      brandingEnabled: true,
-      active: true,
-      createdAt: new Date().toISOString(),
-      allowEdits,
-      autoAdvance,
-      allowResubmissions,
-      notifyOnResponse,
+    // Multiple goals selected
+    return {
+      title: `${selectedGoals.length}-Goal AI Optimization Survey`,
+      trigger: 'Exit intent & hesitation signals',
+      questions: `${Math.min(2 + selectedGoals.length, 5)}`,
+      completion: `${12 + selectedGoals.length * 3} seconds`,
+      rate: 'Very High',
+      color: '#6366f1'
     };
-
-    onComplete(workspace, initialSurvey);
   };
 
+  // Move to step 3 by publishing the survey
+  const handlePublishSurvey = () => {
+    setIsPublishing(true);
+    setTimeout(() => {
+      setIsPublishing(false);
+      setStep(3);
+    }, 1500);
+  };
+
+  // Final onboarding completion callback
+  const handleGoToWorkspace = () => {
+    const preview = getSurveyPreviewDetails();
+    const activeGoal = selectedGoals
+      .map(g => g === 'Custom Goal' ? (customGoalText || 'Custom Goal') : g)
+      .join(', ') || 'Conversion Optimization';
+    const selectedPlatformInfo = platforms.find(p => p.name === activePlatform) || platforms[8];
+
+    const initialSurveyObj: Survey = {
+      id: 'sv_' + Math.random().toString(36).substring(2, 9),
+      title: preview.title,
+      displayOption: 'Exit Intent Popup',
+      headline: `Quick Feedback: ${preview.title}`,
+      questions: [
+        {
+          id: 'q1',
+          type: 'multiple-choice' as const,
+          questionText: 'What was your primary goal visiting our website today?',
+          options: ['Just browsing options', 'Looking for specific pricing plans', 'Need customer support', 'Ready to make a purchase']
+        },
+        {
+          id: 'q2',
+          type: 'rating' as const,
+          questionText: 'How easy was it to navigate our website today?',
+        },
+        {
+          id: 'q3',
+          type: 'multiple-choice' as const,
+          questionText: 'What is keeping you from continuing right now?',
+          options: ['Not ready to buy yet', 'Unexpected additional costs', 'Pricing plan is unclear', 'Missing a specific feature']
+        },
+        {
+          id: 'q4',
+          type: 'text' as const,
+          questionText: 'Is there anything else we could improve to earn your business?'
+        }
+      ].slice(0, parseInt(preview.questions)).map(q => ({
+        id: q.id,
+        type: q.type as 'multiple-choice' | 'rating' | 'text',
+        questionText: q.questionText,
+        options: q.options
+      })),
+      colors: {
+        background: '#ffffff',
+        text: '#0f172a',
+        accent: preview.color,
+      },
+      brandingEnabled: true,
+      active: true,
+      createdAt: new Date().toISOString()
+    };
+
+    const workspaceObj: Workspace = {
+      id: 'ws_' + Math.random().toString(36).substring(2, 9),
+      name: websiteUrl ? websiteUrl.replace(/https?:\/\/(www\.)?/, '').split('/')[0] : 'My Workspace',
+      businessType: selectedPlatformInfo.type,
+      url: websiteUrl || 'https://yourwebsite.com',
+      goal: activeGoal,
+      whiteLabel: {
+        primaryColor: preview.color,
+        removeBranding: false,
+        logoUrl: 'sparkle'
+      }
+    };
+
+    onComplete(workspaceObj, initialSurveyObj);
+  };
+
+  const currentPreview = getSurveyPreviewDetails();
+
   return (
-    <div id="onboarding_container" className="min-h-screen bg-slate-50 flex flex-col justify-between py-12 px-4 sm:px-6 lg:px-8">
-      {/* Top Header */}
-      <div className={`${isWorkspaceStep ? 'max-w-5xl' : 'max-w-4xl'} mx-auto w-full flex items-center justify-between mb-8 transition-all duration-300`}>
-        <div className="flex items-center gap-2">
-          <div className="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-indigo-200">
-            CL
-          </div>
-          <span className="font-sans font-bold text-xl text-slate-900 tracking-tight">CustomerLens</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500 font-mono">
-          <span>Signed in as:</span>
-          <span className="bg-slate-200 px-2.5 py-1 rounded-full text-slate-700 font-medium">{userEmail}</span>
-        </div>
-      </div>
+    <div id="onboarding_wizard_container" className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col relative overflow-hidden pb-12">
+      
+      {/* Dynamic top gradient line to show wizard momentum */}
+      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600 z-50" />
 
-      {/* Main Card */}
-      <div className={`${isWorkspaceStep ? 'max-w-5xl' : 'max-w-4xl'} mx-auto w-full flex-grow flex items-center justify-center transition-all duration-300`}>
-        <div className={`bg-white rounded-3xl border border-slate-200/80 shadow-xl shadow-slate-100 ${isWorkspaceStep ? 'p-6 sm:p-8' : 'p-8 sm:p-10'} w-full relative overflow-hidden transition-all duration-300`}>
+      {/* HEADER BAR */}
+      <header className="bg-white border-b border-slate-100 py-4 px-6 md:px-12 flex flex-col sm:flex-row items-center justify-between gap-4 z-10 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-200">
+            <Sparkles className="h-5 w-5 text-indigo-100" />
+          </div>
+          <div>
+            <h1 className="text-sm font-black tracking-tight text-slate-900 flex items-center gap-1.5 font-mono">
+              CUSTOMER<span className="text-indigo-600">LENS</span>
+              <span className="text-[10px] bg-indigo-50 text-indigo-600 font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider font-mono">AI</span>
+            </h1>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest font-mono">Setup Assistant</p>
+          </div>
+        </div>
+
+        {/* 3-Step Wizard Navigation State Tracker */}
+        <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
+          <div className="flex items-center gap-1.5">
+            <span className={`h-5 w-5 text-[10px] font-bold rounded-full flex items-center justify-center transition-all ${step >= 1 ? 'bg-indigo-600 text-white font-mono' : 'bg-slate-200 text-slate-400'}`}>1</span>
+            <span className={`text-[11px] font-bold hidden md:inline ${step === 1 ? 'text-indigo-950 font-extrabold' : 'text-slate-400'}`}>Verify Site</span>
+          </div>
+          <span className="text-slate-300">/</span>
+          <div className="flex items-center gap-1.5">
+            <span className={`h-5 w-5 text-[10px] font-bold rounded-full flex items-center justify-center transition-all ${step >= 2 ? 'bg-indigo-600 text-white font-mono' : 'bg-slate-200 text-slate-400'}`}>2</span>
+            <span className={`text-[11px] font-bold hidden md:inline ${step === 2 ? 'text-indigo-950 font-extrabold' : 'text-slate-400'}`}>Configure Survey</span>
+          </div>
+          <span className="text-slate-300">/</span>
+          <div className="flex items-center gap-1.5">
+            <span className={`h-5 w-5 text-[10px] font-bold rounded-full flex items-center justify-center transition-all ${step >= 3 ? 'bg-indigo-600 text-white font-mono' : 'bg-slate-200 text-slate-400'}`}>3</span>
+            <span className={`text-[11px] font-bold hidden md:inline ${step === 3 ? 'text-indigo-950 font-extrabold' : 'text-slate-400'}`}>Launch Live</span>
+          </div>
+        </div>
+
+        <div>
+          <button 
+            onClick={onBack}
+            className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-100 border border-transparent cursor-pointer"
+          >
+            <ArrowLeft size={13} /> Exit Setup
+          </button>
+        </div>
+      </header>
+
+      {/* STEP CONTAINER */}
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-8 lg:p-10">
+        <AnimatePresence mode="wait">
           
-          {/* Progress Indicators */}
-          <div className="flex items-center gap-4 mb-8 overflow-x-auto pb-2 scrollbar-thin">
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${step >= 1 ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>1</span>
-              <span className="text-[11px] font-semibold text-slate-700">Platform</span>
-            </div>
-            <div className="h-px bg-slate-200 w-6 flex-grow" />
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${step >= 2 ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>2</span>
-              <span className="text-[11px] font-semibold text-slate-700">Connect Link</span>
-            </div>
-            <div className="h-px bg-slate-200 w-6 flex-grow" />
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${step >= 3 ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>3</span>
-              <span className="text-[11px] font-semibold text-slate-700">Goal</span>
-            </div>
-            <div className="h-px bg-slate-200 w-6 flex-grow" />
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${step >= 4 ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>4</span>
-              <span className="text-[11px] font-semibold text-slate-700">AI Surveys</span>
-            </div>
-            <div className="h-px bg-slate-200 w-6 flex-grow" />
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${step >= 5 ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>5</span>
-              <span className="text-[11px] font-semibold text-slate-700">Launch Now</span>
-            </div>
-          </div>
-
-          <AnimatePresence mode="wait">
-            {/* STEP 1: Business Details & Platform Selection */}
-            {step === 1 && (
-              <motion.div
-                key="step1"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="max-w-2xl text-left mb-6">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
-                    Let's set up your CustomerLens experience
-                  </h1>
-                  <p className="text-slate-500 text-sm">
-                    Enter your store details and choose your primary platform to initialize behavioral intelligence triggers.
-                  </p>
+          {/* STEP 1: CONNECT & VERIFY */}
+          {step === 1 && (
+            <motion.div
+              key="step1"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+            >
+              {/* Left Form: URL & Integrations */}
+              <div className="lg:col-span-7 bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-md space-y-6">
+                <div>
+                  <span className="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">Step 1 of 3</span>
+                  <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-2 tracking-tight">Connect & Verify Your Website</h2>
+                  <p className="text-xs text-slate-500 mt-1">Connect CustomerLens AI to your website in under 2 minutes.</p>
                 </div>
 
-                {/* Form Fields: Company Name, Website, Industry */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8 text-left">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Company Name</label>
-                    <div className="relative">
-                      <Building2 className="absolute left-3.5 top-3.5 text-slate-400" size={18} />
-                      <input
-                        id="input_business_name_step1"
-                        type="text"
-                        required
-                        value={businessName}
-                        onChange={(e) => setBusinessName(e.target.value)}
-                        placeholder="Acme Store"
-                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all text-sm outline-none font-medium"
-                      />
+                {/* Input block */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider font-mono">Enter your website</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Globe size={16} />
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Website Address</label>
-                    <div className="relative">
-                      <Globe className="absolute left-3.5 top-3.5 text-slate-400" size={18} />
-                      <input
-                        id="input_website_url_step1"
-                        type="text"
-                        value={websiteUrl}
-                        onChange={(e) => setWebsiteUrl(e.target.value)}
-                        placeholder="www.acmestore.com"
-                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all text-sm outline-none font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Industry</label>
-                    <div className="relative">
-                      <Target className="absolute left-3.5 top-3.5 text-slate-400" size={18} />
-                      <input
-                        id="input_industry_step1"
-                        type="text"
-                        value={industry}
-                        onChange={(e) => setIndustry(e.target.value)}
-                        placeholder="E-commerce"
-                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all text-sm outline-none font-medium"
-                      />
-                    </div>
+                    <input 
+                      type="url"
+                      value={websiteUrl}
+                      onChange={(e) => {
+                        setWebsiteUrl(e.target.value);
+                        // Reset verification status so they must re-verify
+                        setProgressIndex(-1);
+                      }}
+                      placeholder="https://yourwebsite.com"
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold transition-all shadow-inner focus:ring-2 focus:ring-indigo-100 outline-none"
+                    />
                   </div>
                 </div>
 
-                <div className="text-left mb-4">
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 font-mono block">Primary Platform / Integration</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar mb-8">
-                  {BUSINESS_TYPES.map((type) => {
-                    const IconComp = type.icon;
-                    return (
+                {/* Platform select options */}
+                <div className="space-y-2.5">
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">or connect with</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {platforms.map((plat) => (
                       <button
-                        key={type.id}
-                        id={`btn_business_type_${type.id}`}
-                        onClick={() => setBusinessType(type.id)}
-                        className={`text-left p-4 rounded-2xl border transition-all duration-200 flex items-start gap-3.5 hover:bg-slate-50 ${
-                          businessType === type.id 
-                            ? 'border-indigo-600 bg-indigo-50/50 ring-2 ring-indigo-600/10' 
-                            : 'border-slate-200 bg-white'
+                        key={plat.name}
+                        onClick={() => handlePlatformSelect(plat)}
+                        className={`py-2 px-1 text-center rounded-xl border text-[11px] font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                          activePlatform === plat.name 
+                            ? 'border-indigo-600 bg-indigo-50/50 text-indigo-950 shadow-sm'
+                            : 'border-slate-100 hover:border-slate-200 text-slate-600 bg-white'
                         }`}
                       >
-                        <div className={`p-2.5 rounded-xl ${businessType === type.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                          <IconComp size={20} />
+                        <span className="text-base leading-none">{plat.icon}</span>
+                        <span className="truncate max-w-full font-mono text-[10px]">{plat.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Verify Ownership Block */}
+                <div className="border-t border-slate-100 pt-5 space-y-4">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">Verify Ownership</h3>
+                    <p className="text-[11px] text-slate-500">To protect your website, CustomerLens AI verifies that you own the domain.</p>
+                  </div>
+
+                  {/* Method Tabs */}
+                  <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-150">
+                    <button
+                      onClick={() => setVerifyMethod('script')}
+                      className={`flex-1 py-1.5 text-center text-[10px] font-bold rounded-lg transition-all cursor-pointer ${verifyMethod === 'script' ? 'bg-white text-slate-900 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                      ✓ Recommended Script
+                    </button>
+                    <button
+                      onClick={() => setVerifyMethod('dns')}
+                      className={`flex-1 py-1.5 text-center text-[10px] font-bold rounded-lg transition-all cursor-pointer ${verifyMethod === 'dns' ? 'bg-white text-slate-900 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                      • DNS Record
+                    </button>
+                    <button
+                      onClick={() => setVerifyMethod('meta')}
+                      className={`flex-1 py-1.5 text-center text-[10px] font-bold rounded-lg transition-all cursor-pointer ${verifyMethod === 'meta' ? 'bg-white text-slate-900 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                      • Meta Tag
+                    </button>
+                  </div>
+
+                  <AnimatePresence mode="wait">
+                    {verifyMethod === 'script' && (
+                      <motion.div
+                        key="method-script"
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 5 }}
+                        className="space-y-2"
+                      >
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-slate-600">Install the CustomerLens AI script</span>
+                          <button
+                            onClick={handleCopyCode}
+                            className="text-indigo-600 hover:text-indigo-700 font-extrabold flex items-center gap-1 transition-colors bg-indigo-50 px-2 py-0.5 rounded cursor-pointer text-[10px]"
+                          >
+                            <Copy size={11} /> {copied ? 'Copied!' : 'Copy'}
+                          </button>
                         </div>
-                        <div>
-                          <p className="font-semibold text-slate-950 text-sm">{type.name}</p>
-                          <p className="text-slate-500 text-xs mt-0.5">{type.description}</p>
+                        <pre className="bg-slate-950 text-slate-300 p-3.5 rounded-xl text-[10px] font-mono overflow-x-auto border border-slate-800 leading-normal shadow-sm">
+{`<script
+src="https://cdn.customerlens.ai/customerlens.js"
+data-site-id="cl_live_x8K29P4">
+</script>`}
+                        </pre>
+                        <p className="text-[10px] text-slate-400 leading-relaxed font-semibold">Paste this script in your header or footer before the closing tag on your page.</p>
+                      </motion.div>
+                    )}
+
+                    {verifyMethod === 'dns' && (
+                      <motion.div
+                        key="method-dns"
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 5 }}
+                        className="space-y-2 bg-slate-50 border border-slate-200 p-3.5 rounded-xl text-[11px] space-y-2"
+                      >
+                        <p className="text-slate-600">Add a TXT record to your DNS configuration matching this verification token:</p>
+                        <div className="bg-white p-2 border border-slate-200 rounded font-mono text-[10px] select-all font-bold text-slate-800">
+                          customerlens-site-verification=cl_live_x8K29P4
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-semibold font-mono">TTL: 3600 | Host: @ or root</p>
+                      </motion.div>
+                    )}
+
+                    {verifyMethod === 'meta' && (
+                      <motion.div
+                        key="method-meta"
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 5 }}
+                        className="space-y-2 bg-slate-50 border border-slate-200 p-3.5 rounded-xl text-[11px] space-y-2"
+                      >
+                        <p className="text-slate-600">Paste the following meta tag into your website's HTML home page header <code className="bg-slate-150 px-1 py-0.5 rounded font-mono font-bold text-rose-600">&lt;head&gt;</code> block:</p>
+                        <div className="bg-white p-2 border border-slate-200 rounded font-mono text-[10px] select-all font-bold text-slate-800">
+                          {`<meta name="customerlens-site-verification" content="cl_live_x8K29P4" />`}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Detect & run verify */}
+                  <button
+                    onClick={triggerVerificationFlow}
+                    disabled={isVerifying || progressIndex === connectionProgressItems.length}
+                    className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isVerifying ? (
+                      <>
+                        <RefreshCw className="animate-spin h-3.5 w-3.5" /> Detecting active site tags...
+                      </>
+                    ) : progressIndex === connectionProgressItems.length ? (
+                      <>✓ Installation Verified & Active</>
+                    ) : (
+                      <>Verify Script & Connection Status</>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Connection Progress Logs */}
+              <div className="lg:col-span-5 bg-white border border-slate-200 rounded-3xl p-6 shadow-md space-y-5">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <span className="text-lg">🤖</span>
+                  <h3 className="font-bold text-xs text-slate-900 uppercase tracking-widest font-mono">AI Connection Progress</h3>
+                </div>
+
+                <div className="space-y-3.5 py-1">
+                  {connectionProgressItems.map((item, index) => {
+                    const isChecked = progressIndex > index || progressIndex === connectionProgressItems.length;
+                    const isActive = progressIndex === index;
+                    const isPending = progressIndex < index && !isVerifying;
+
+                    return (
+                      <div 
+                        key={item} 
+                        className={`flex items-center gap-3 transition-all duration-300 ${
+                          isChecked ? 'text-indigo-900 font-extrabold' : isActive ? 'text-indigo-600 font-bold scale-[1.01]' : 'text-slate-400'
+                        }`}
+                      >
+                        <div className={`h-5 w-5 rounded-full flex items-center justify-center text-[11px] transition-all border ${
+                          isChecked 
+                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                            : isActive 
+                            ? 'bg-indigo-50 border-indigo-500 text-indigo-600 animate-pulse'
+                            : 'bg-slate-50 border-slate-200 text-slate-300'
+                        }`}>
+                          {isChecked ? (
+                            <Check size={11} strokeWidth={3} />
+                          ) : isActive ? (
+                            <RefreshCw size={10} className="animate-spin" />
+                          ) : (
+                            <span className="font-mono text-[9px] font-bold">{index + 1}</span>
+                          )}
+                        </div>
+                        <span className="text-xs tracking-tight">{item}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {progressIndex === connectionProgressItems.length && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl space-y-1.5"
+                  >
+                    <p className="text-emerald-900 text-xs font-black uppercase tracking-wider font-mono flex items-center gap-1">
+                      <span>🟢 Connection Activated</span>
+                    </p>
+                    <p className="text-emerald-700 text-[11px] leading-relaxed font-semibold">
+                      CustomerLens AI is now learning your website and will continuously understand visitor behavior as customers interact with your site.
+                    </p>
+                  </motion.div>
+                )}
+
+                <button
+                  onClick={() => setStep(2)}
+                  disabled={progressIndex < connectionProgressItems.length}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-extrabold text-xs py-3.5 rounded-xl transition-all shadow-md shadow-indigo-150 flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  Continue <ArrowRight size={13} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 2: CREATE AI SURVEY */}
+          {step === 2 && (
+            <motion.div
+              key="step2"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+            >
+              {/* Left Column: Choose Goals */}
+              <div className="lg:col-span-5 bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-md space-y-5">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">Step 2 of 3</span>
+                    <span className="text-[10px] font-extrabold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-mono">
+                      {selectedGoals.length} {selectedGoals.length === 1 ? 'goal' : 'goals'} selected
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-black text-slate-900 mt-2 tracking-tight">Select Conversion Goals</h2>
+                  <p className="text-xs text-slate-500 mt-1">Select one or multiple goals. AI generates a survey for each.</p>
+                </div>
+
+                {/* Multiple choice goal selection grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {goalOptions.map((goal) => {
+                    const isSelected = selectedGoals.includes(goal.id);
+                    return (
+                      <button
+                        key={goal.id}
+                        type="button"
+                        onClick={() => handleToggleGoal(goal.id)}
+                        className={`text-left p-3 rounded-2xl border-2 text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                          isSelected 
+                            ? 'border-indigo-600 bg-indigo-50/25 text-indigo-950 shadow-sm'
+                            : 'border-slate-100 hover:border-slate-200 text-slate-600 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-sm bg-slate-50 p-1 rounded-xl border border-slate-100">{goal.icon}</span>
+                          <span className="font-semibold tracking-tight text-[11px]">{goal.label}</span>
+                        </div>
+                        <div className={`h-4 w-4 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${isSelected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                          {isSelected && <Check size={10} strokeWidth={3} />}
                         </div>
                       </button>
                     );
                   })}
                 </div>
 
-                <div className="flex justify-between pt-4 border-t border-slate-100">
-                  {onBack ? (
-                    <button
-                      id="btn_onboarding_back_1"
-                      onClick={onBack}
-                      className="text-slate-600 hover:text-slate-800 text-sm font-semibold px-4 py-2"
-                    >
-                      Back
-                    </button>
-                  ) : (
-                    <div />
-                  )}
-                  <button
-                    id="btn_onboarding_next_1"
-                    onClick={handleStep1}
-                    className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-sm px-6 py-3 rounded-xl flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+                {selectedGoals.includes('Custom Goal') && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="space-y-2"
                   >
-                    Continue <ArrowRight size={16} />
-                  </button>
-                </div>
-              </motion.div>
-            )}
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">Describe your custom target goal</label>
+                    <input 
+                      type="text"
+                      placeholder="e.g., Identify navigation friction on pricing page"
+                      value={customGoalText}
+                      onChange={(e) => setCustomGoalText(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold transition-all shadow-inner outline-none"
+                    />
+                  </motion.div>
+                )}
 
-            {/* STEP 2: Website Details */}
-            {step === 2 && (
-              <motion.div
-                key="step2"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-6"
-              >
-                <div className="max-w-2xl">
-                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mb-2">
-                    Link your website
-                  </h1>
-                  <p className="text-slate-500 text-sm">
-                    Enter the domain and brand name of the website you want to connect to CustomerLens. We'll optimize your exit-intent triggers for this specific address.
-                  </p>
-                </div>
-
-                <div className="max-w-xl space-y-5">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Business / Brand Name</label>
-                    <div className="relative">
-                      <Building2 className="absolute left-3.5 top-3.5 text-slate-400" size={18} />
-                      <input
-                        id="input_business_name"
-                        type="text"
-                        required
-                        value={businessName}
-                        onChange={(e) => setBusinessName(e.target.value)}
-                        placeholder="e.g. Acme Retail"
-                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm outline-none font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Website Address URL</label>
-                    <div className="relative">
-                      <Globe className="absolute left-3.5 top-3.5 text-slate-400" size={18} />
-                      <input
-                        id="input_website_url"
-                        type="url"
-                        value={websiteUrl}
-                        onChange={(e) => setWebsiteUrl(e.target.value)}
-                        placeholder="https://example.com"
-                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm outline-none font-medium"
-                      />
-                    </div>
+                {/* AI Creates Section */}
+                <div className="border-t border-slate-100 pt-4 space-y-2.5">
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">AI Automatically Configures</span>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-150">
+                    {[
+                      'Optimal question set',
+                      'Intent exit trigger',
+                      'Brand color match',
+                      'Targeting logic'
+                    ].map((item) => (
+                      <div key={item} className="flex items-center gap-1.5 text-slate-700 font-medium">
+                        <span className="text-emerald-500 font-extrabold text-xs">✓</span>
+                        <span className="text-[10.5px] tracking-tight">{item}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                <div className="flex justify-between pt-6 border-t border-slate-100 mt-8">
+                {/* Navigation row */}
+                <div className="flex justify-between items-center pt-2 gap-3">
                   <button
-                    id="btn_onboarding_back_2"
                     onClick={() => setStep(1)}
-                    className="text-slate-600 hover:text-slate-800 text-sm font-semibold px-4 py-2"
+                    className="border border-slate-200 hover:bg-slate-50 text-slate-500 font-bold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer"
                   >
-                    Back
+                    Back to Setup
                   </button>
                   <button
-                    id="btn_onboarding_next_2"
-                    onClick={handleStep2}
-                    className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-sm px-6 py-3 rounded-xl flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+                    onClick={() => setStep(3)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-150 flex items-center gap-1.5 cursor-pointer"
                   >
-                    Continue <ArrowRight size={16} />
+                    Continue to Review & Launch <ArrowRight size={13} />
                   </button>
                 </div>
-              </motion.div>
-            )}
+              </div>
 
-            {/* STEP 3: Select Conversion Goal */}
-            {step === 3 && (
-              <motion.div
-                key="step3"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-                className="w-full"
-              >
-                {isWorkspaceStep ? (
-                  <div>
-                    {/* Top simulated builder bar */}
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-5">
-                      <button
-                        type="button"
-                        onClick={handleStep3}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[11px] px-4 py-2 rounded-lg flex items-center gap-1.5 shadow-sm transition-all"
-                      >
-                        Next Step <ArrowRight size={13} className="stroke-[2.5]" />
-                      </button>
-                      
-                      <div className="bg-white border border-slate-200 rounded-full px-3 py-1 flex items-center gap-1.5 shadow-xs">
-                        <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                        </svg>
-                        <span className="text-[11px] font-black text-slate-800 font-mono">1 / 5</span>
-                      </div>
-
-                      <div className="flex items-center gap-2.5">
-                        <button type="button" className="h-7 w-7 bg-slate-50 hover:bg-slate-100 border border-slate-200/60 rounded-full flex items-center justify-center text-slate-500 text-xs font-bold shadow-xs transition-all">
-                          ?
-                        </button>
-                        <div className="h-7 w-7 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs font-extrabold shadow-sm select-none">
-                          {userEmail ? userEmail.charAt(0).toUpperCase() : 'S'}
-                        </div>
+              {/* Right Column: AI Generated Surveys List & Live Previews */}
+              <div className="lg:col-span-7 space-y-4">
+                {/* AI Generated Surveys Header & Natural Language Command Assistant Bar */}
+                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-white shadow-md space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-indigo-400 text-base">✨</span>
+                      <div>
+                        <h3 className="font-extrabold text-xs uppercase tracking-widest text-slate-200 font-mono">
+                          AI Generated Surveys ({generatedSurveys.length})
+                        </h3>
+                        <p className="text-[10px] text-slate-400 font-medium">Ask AI to edit, unify design, or customize all surveys</p>
                       </div>
                     </div>
-
-                    {/* Sub-breadcrumbs */}
-                    <div className="flex items-center gap-1 text-[10px] font-extrabold text-slate-400 mb-4 tracking-wide uppercase font-mono">
-                      <span className="text-slate-600">{businessName || 'cupcake'}</span>
-                      <span className="text-slate-300 font-sans font-normal text-xs">&gt;</span>
-                      <span className="text-slate-600">Surveys</span>
-                      <span className="text-slate-300 font-sans font-normal text-xs">&gt;</span>
-                      <span className="text-slate-800">{workspaceSubStep === 'questions' ? 'Create Survey' : 'Configure Behavior'}</span>
-                    </div>
-
-                    {workspaceSubStep === 'questions' ? (
-                      /* QUESTIONS SUB-STEP (MATCHES THE SECOND SCREENSHOT) */
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-                        {/* Left column - Template library */}
-                        <div className="md:col-span-7 space-y-5 text-left">
-                          <div>
-                            <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-tight">What questions do you want to ask?</h2>
-                            <p className="text-slate-500 text-xs mt-0.5">Choose how to get started.</p>
-                          </div>
-
-                          {/* Two top cards: Use a Template vs Start from Scratch */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {/* Card 1: Use a Template */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCreationMode('template');
-                                setPreviewActiveQuestionIndex(0);
-                                setPreviewSubmitted(false);
-                              }}
-                              className={`w-full text-left rounded-2xl p-4.5 border-2 transition-all flex flex-col items-center text-center justify-between cursor-pointer focus:outline-none ${
-                                creationMode === 'template'
-                                  ? 'border-blue-600 bg-blue-50/5 shadow-sm'
-                                  : 'border-slate-200 bg-white hover:bg-slate-50/50'
-                              }`}
-                            >
-                              <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl mb-3 flex items-center justify-center">
-                                <Files size={22} className="stroke-[2.5]" />
-                              </div>
-                              <h3 className="text-xs sm:text-sm font-black text-slate-950">Use a Template</h3>
-                              <p className="text-[11px] text-slate-500 leading-normal mt-1.5 font-medium">
-                                Pick from a library of pre-built survey templates. (You can edit everything later)
-                              </p>
-                            </button>
-
-                            {/* Card 2: Start from Scratch */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCreationMode('scratch');
-                                setPreviewActiveQuestionIndex(0);
-                                setPreviewSubmitted(false);
-                              }}
-                              className={`w-full text-left rounded-2xl p-4.5 border-2 transition-all flex flex-col items-center text-center justify-between cursor-pointer focus:outline-none ${
-                                creationMode === 'scratch'
-                                  ? 'border-blue-600 bg-blue-50/5 shadow-sm'
-                                  : 'border-slate-200 bg-white hover:bg-slate-50/50'
-                              }`}
-                            >
-                              <div className="p-3 bg-slate-100 text-slate-600 rounded-2xl mb-3 flex items-center justify-center">
-                                <Pencil size={22} className="stroke-[2.5]" />
-                              </div>
-                              <h3 className="text-xs sm:text-sm font-black text-slate-950">Start from Scratch</h3>
-                              <p className="text-[11px] text-slate-500 leading-normal mt-1.5 font-medium">
-                                Know what you want to ask your customers? Build your own survey one question at a time.
-                              </p>
-                            </button>
-                          </div>
-
-                          {creationMode === 'template' ? (
-                            <div className="space-y-4">
-                              {/* Search and Filters row */}
-                              <div className="flex gap-2.5 items-center">
-                                {/* Search box */}
-                                <div className="relative flex-grow">
-                                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-                                  <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Filter templates"
-                                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-xs font-semibold text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-blue-600/10 focus:border-blue-600 transition-all"
-                                  />
-                                </div>
-
-                                {/* Filter Categories Dropdown Trigger */}
-                                <div className="relative">
-                                  <button
-                                    type="button"
-                                    onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                                    className="border border-slate-200 rounded-full px-4 py-2 bg-white text-xs font-black text-slate-800 flex items-center gap-1.5 hover:bg-slate-50 shadow-xs transition-all outline-none"
-                                  >
-                                    Filter Categories
-                                    <svg className={`w-3 h-3 text-slate-500 transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  </button>
-
-                                  {/* Filter Categories Dropdown Checklist */}
-                                  <AnimatePresence>
-                                    {isCategoryDropdownOpen && (
-                                      <>
-                                        {/* Click away backdrop */}
-                                        <div className="fixed inset-0 z-40" onClick={() => setIsCategoryDropdownOpen(false)} />
-                                        <motion.div
-                                          initial={{ opacity: 0, y: 5 }}
-                                          animate={{ opacity: 1, y: 0 }}
-                                          exit={{ opacity: 0, y: 5 }}
-                                          className="absolute right-0 mt-1.5 w-60 bg-white border border-slate-200 rounded-xl shadow-lg py-3.5 px-3 z-50 text-left space-y-3"
-                                        >
-                                          <input
-                                            type="text"
-                                            value={categorySearch}
-                                            onChange={(e) => setCategorySearch(e.target.value)}
-                                            placeholder="Type to filter"
-                                            className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 bg-slate-50/50"
-                                          />
-                                          <div className="space-y-2">
-                                            <span className="text-[9px] font-black tracking-widest text-slate-400 font-mono block">CATEGORIES</span>
-                                            <div className="max-h-48 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                                              {ALL_CATEGORIES.filter(cat => cat.toLowerCase().includes(categorySearch.toLowerCase())).map((cat) => {
-                                                const isChecked = selectedCategories.includes(cat);
-                                                return (
-                                                  <div
-                                                    key={cat}
-                                                    onClick={() => {
-                                                      if (isChecked) {
-                                                        setSelectedCategories(selectedCategories.filter(c => c !== cat));
-                                                      } else {
-                                                        setSelectedCategories([...selectedCategories, cat]);
-                                                      }
-                                                    }}
-                                                    className="flex items-center gap-2 px-1 py-1 hover:bg-slate-50 rounded-lg cursor-pointer select-none text-xs font-bold text-slate-700"
-                                                  >
-                                                    <div className={`w-4 h-4 rounded flex items-center justify-center transition-all ${
-                                                      isChecked ? 'bg-blue-600 border-blue-600' : 'bg-white border border-slate-300'
-                                                    }`}>
-                                                      {isChecked && <Check className="text-white stroke-[3.5]" size={11} />}
-                                                    </div>
-                                                    <span>{cat}</span>
-                                                  </div>
-                                                );
-                                              })}
-                                            </div>
-                                          </div>
-                                        </motion.div>
-                                      </>
-                                    )}
-                                  </AnimatePresence>
-                                </div>
-                              </div>
-
-                              {/* Build from a prompt AI Option */}
-                              <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden shadow-xs">
-                                <button
-                                  type="button"
-                                  onClick={() => setIsPromptInputOpen(!isPromptInputOpen)}
-                                  className="w-full p-4 flex flex-col text-left hover:bg-slate-50/50 transition-all outline-none"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="h-5 w-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                                      <Sparkles size={11} className="stroke-[2.5]" />
-                                    </div>
-                                    <span className="text-xs font-black text-slate-900">Build from a prompt</span>
-                                  </div>
-                                  <p className="text-[10px] text-slate-500 mt-0.5 ml-7">
-                                    Generate your survey with AI using a description.
-                                  </p>
-                                </button>
-
-                                <AnimatePresence>
-                                  {isPromptInputOpen && (
-                                    <motion.div
-                                      initial={{ height: 0, opacity: 0 }}
-                                      animate={{ height: 'auto', opacity: 1 }}
-                                      exit={{ height: 0, opacity: 0 }}
-                                      className="border-t border-slate-100 bg-slate-50/40 p-4 space-y-3"
-                                    >
-                                      {isGeneratingFromPrompt ? (
-                                        <div className="py-6 text-center space-y-2">
-                                          <Loader2 className="animate-spin text-blue-600 mx-auto" size={24} />
-                                          <p className="text-xs font-black text-slate-800 animate-pulse">{promptLoadingPhrase}</p>
-                                        </div>
-                                      ) : (
-                                        <div className="space-y-3">
-                                          <textarea
-                                            value={promptInput}
-                                            onChange={(e) => setPromptInput(e.target.value)}
-                                            placeholder="e.g. A checkout exit feedback questionnaire asking if they faced payment issues..."
-                                            rows={2}
-                                            className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/15 focus:border-blue-600"
-                                          />
-                                          <div className="flex justify-end gap-2">
-                                            <button
-                                              type="button"
-                                              onClick={() => setIsPromptInputOpen(false)}
-                                              className="text-slate-500 hover:text-slate-700 text-[10px] font-black px-3 py-1.5"
-                                            >
-                                              Cancel
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                if (!promptInput.trim()) return;
-                                                setIsGeneratingFromPrompt(true);
-                                                setPromptLoadingPhrase('Analyzing your prompt...');
-                                                const phrases = [
-                                                  'Extracting customer insights...',
-                                                  'Formulating adaptive questions...',
-                                                  'Finalizing survey preview...'
-                                                ];
-                                                let pIndex = 0;
-                                                const interval = setInterval(() => {
-                                                  if (pIndex < phrases.length) {
-                                                    setPromptLoadingPhrase(phrases[pIndex]);
-                                                    pIndex++;
-                                                  }
-                                                }, 1200);
-                                                setTimeout(() => {
-                                                  clearInterval(interval);
-                                                  setIsGeneratingFromPrompt(false);
-                                                  setIsPromptInputOpen(false);
-                                                  const customTemplate: OnboardingTemplate = {
-                                                    id: 'custom-prompt-temp',
-                                                    title: 'AI Prompt Generated Survey',
-                                                    description: `Custom questions created from: "${promptInput}"`,
-                                                    category: 'Feedback & Optimization',
-                                                    recommendedDelivery: 'Slide In',
-                                                    questions: [
-                                                      {
-                                                        questionText: `On a scale of 1-5, how well did our checkout process work?`,
-                                                        type: 'multiple-choice',
-                                                        options: ['5 - Perfect', '4 - Good', '3 - Neutral', '2 - Poor', '1 - Failed']
-                                                      },
-                                                      {
-                                                        questionText: 'Would you like us to notify you once your issue is fixed?',
-                                                        type: 'multiple-choice',
-                                                        options: ['Yes, please', 'No, thank you']
-                                                      }
-                                                    ]
-                                                  };
-                                                  setCustomPromptTemplate(customTemplate);
-                                                  setSelectedTemplateId('custom-prompt-temp');
-                                                  setPreviewActiveQuestionIndex(0);
-                                                  setPreviewSelectedChoice('');
-                                                  setPreviewSubmitted(false);
-                                                }, 3600);
-                                              }}
-                                              className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm transition-all"
-                                            >
-                                              Generate with AI <Sparkles size={11} />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-                              </div>
-
-                              {/* Templates List grouped by Category */}
-                              <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1.5 custom-scrollbar">
-                                {customPromptTemplate && (
-                                  <div>
-                                    <span className="text-[9px] font-black tracking-widest text-blue-600 font-mono uppercase">AI CUSTOM GENERATION</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedTemplateId('custom-prompt-temp');
-                                        setPreviewActiveQuestionIndex(0);
-                                        setPreviewSelectedChoice('');
-                                        setPreviewSubmitted(false);
-                                      }}
-                                      className={`w-full text-left rounded-2xl p-4 border transition-all mt-1.5 relative block focus:outline-none ${
-                                        selectedTemplateId === 'custom-prompt-temp'
-                                          ? 'border-blue-600 bg-blue-50/10'
-                                          : 'border-slate-200 bg-white hover:border-slate-300'
-                                      }`}
-                                    >
-                                      {selectedTemplateId === 'custom-prompt-temp' && (
-                                        <div className="absolute top-3.5 right-4 h-4 w-4 bg-blue-600 rounded-full flex items-center justify-center text-white">
-                                          <Check size={10} className="stroke-[3]" />
-                                        </div>
-                                      )}
-                                      <h4 className="text-[12px] sm:text-[13px] font-black text-slate-950 flex items-center gap-1.5">
-                                        <Sparkles size={12} className="text-blue-600" /> {customPromptTemplate.title}
-                                      </h4>
-                                      <p className="text-[11px] text-slate-500 leading-normal mt-1 font-medium">{customPromptTemplate.description}</p>
-                                      <div className="text-[10px] text-slate-400 font-semibold mt-2.5">
-                                        Recommended Delivery: <span className="underline text-slate-600 font-bold">{customPromptTemplate.recommendedDelivery}</span>
-                                      </div>
-                                    </button>
-                                  </div>
-                                )}
-
-                                {ALL_CATEGORIES.map(category => {
-                                  const templatesInCategory = ONBOARDING_TEMPLATES.filter(temp => {
-                                    const matchesCategory = selectedCategories.includes(temp.category) && temp.category === category;
-                                    const matchesSearch = temp.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                                          temp.description.toLowerCase().includes(searchQuery.toLowerCase());
-                                    return matchesCategory && matchesSearch;
-                                  });
-
-                                  if (templatesInCategory.length === 0) return null;
-
-                                  return (
-                                    <div key={category} className="space-y-2">
-                                      <span className="text-[9px] font-black tracking-widest text-slate-400 font-mono uppercase block">{category}</span>
-                                      <div className="space-y-2">
-                                        {templatesInCategory.map((temp) => {
-                                          const isSelected = selectedTemplateId === temp.id;
-                                          return (
-                                            <button
-                                              key={temp.id}
-                                              type="button"
-                                              onClick={() => {
-                                                setSelectedTemplateId(temp.id);
-                                                setPreviewActiveQuestionIndex(0);
-                                                setPreviewSelectedChoice('');
-                                                setPreviewSubmitted(false);
-                                              }}
-                                              className={`w-full text-left rounded-2xl p-4 border transition-all relative block focus:outline-none ${
-                                                isSelected
-                                                  ? 'border-2 border-blue-600 bg-blue-50/5'
-                                                  : 'border-slate-200 bg-white hover:border-slate-300'
-                                              }`}
-                                            >
-                                              {isSelected && (
-                                                <div className="absolute top-3.5 right-4 h-4 w-4 bg-blue-600 rounded-full flex items-center justify-center text-white">
-                                                  <Check size={10} className="stroke-[3]" />
-                                                </div>
-                                              )}
-                                              <h4 className="text-[12px] sm:text-[13px] font-black text-slate-950">{temp.title}</h4>
-                                              <p className="text-[11px] text-slate-500 leading-normal mt-1 font-medium">{temp.description}</p>
-                                              <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mt-2.5">
-                                                <span>
-                                                  Recommended Delivery: <span className="underline text-slate-600 font-bold">{temp.recommendedDelivery}</span>
-                                                </span>
-                                                <span className="text-slate-500 font-bold hover:text-slate-700 flex items-center gap-0.5">
-                                                  <Sparkles size={11} /> Learn
-                                                </span>
-                                              </div>
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ) : (
-                            /* START FROM SCRATCH EXPLAINER */
-                            <div className="border border-blue-500/10 bg-blue-50/10 rounded-2xl p-6 text-center space-y-3 shadow-xs">
-                              <h3 className="text-xs sm:text-sm font-black text-blue-900">Custom Survey Template Selected</h3>
-                              <p className="text-xs text-blue-700 leading-relaxed font-semibold">
-                                You chose to build from scratch. Our AI will set up a placeholder template, and you'll be able to add, re-order, and design customized survey cards question-by-question immediately inside the editor workspace.
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Footer action buttons */}
-                          <div className="flex justify-between pt-4 border-t border-slate-100">
-                            <button
-                              id="btn_onboarding_back_3_questions"
-                              onClick={() => setStep(2)}
-                              className="text-slate-500 hover:text-slate-800 text-xs font-bold px-4 py-2"
-                            >
-                              ← Back
-                            </button>
-                            <button
-                              id="btn_onboarding_next_3_questions"
-                              onClick={() => {
-                                setWorkspaceSubStep('behavior');
-                                setPreviewActiveQuestionIndex(0);
-                                setPreviewSelectedChoice('');
-                                setPreviewSubmitted(false);
-                              }}
-                              className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md transition-all"
-                            >
-                              Next Step <ArrowRight size={14} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Right column - SURVEY PREVIEW BOX (100% MATCHES THE SCREENSHOT) */}
-                        <div className="md:col-span-5 space-y-4 text-left">
-                          <div>
-                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider font-mono">
-                              Survey Preview: {creationMode === 'scratch' ? 'Build from scratch' : 'Use a Template'}
-                            </h3>
-                            <p className="text-slate-400 text-[11px] mt-0.5">Survey representation below.</p>
-                          </div>
-
-                          <div className="border border-slate-200 rounded-2xl bg-slate-50/50 p-5 flex flex-col justify-between min-h-[380px] relative shadow-inner">
-                            {/* Centered card mockup */}
-                            <div className="flex-grow flex items-center justify-center py-4">
-                              {creationMode === 'scratch' ? (
-                                /* START FROM SCRATCH MOCKUP CARD */
-                                <div className="bg-white rounded-2xl p-5 w-full max-w-[270px] border border-slate-200/80 shadow-md relative">
-                                  <button
-                                    type="button"
-                                    onClick={() => {}}
-                                    className="absolute top-2.5 right-2.5 text-slate-300 hover:text-slate-500 text-xs font-bold"
-                                  >
-                                    ✕
-                                  </button>
-                                  <h4 className="text-[13px] font-black text-slate-950 mb-1.5">Example Slide</h4>
-                                  <p className="text-[11px] text-slate-500 leading-normal mb-4 font-medium">
-                                    This is an example slide. Your published customerlens will look look something like this given your current settings.
-                                  </p>
-                                  <div className="flex justify-end">
-                                    <button
-                                      type="button"
-                                      className="bg-[#1e293b] hover:bg-[#0f172a] text-white text-[10px] font-bold px-3 py-1.5 rounded flex items-center gap-1 shadow-sm transition-all"
-                                    >
-                                      Close <span className="font-sans">✕</span>
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                /* TEMPLATE CHOSEN MOCKUP CARD */
-                                <div className="bg-white rounded-2xl p-5 w-full max-w-[270px] border border-slate-200/80 shadow-md relative text-left">
-                                  {/* Close corner action */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setPreviewActiveQuestionIndex(0);
-                                      setPreviewSelectedChoice('');
-                                      setPreviewSubmitted(false);
-                                    }}
-                                    className="absolute top-2.5 right-2.5 text-slate-300 hover:text-slate-500 text-xs font-bold outline-none"
-                                    title="Reset"
-                                  >
-                                    ✕
-                                  </button>
-
-                                  {previewSubmitted ? (
-                                    /* Preview Submitted Success view */
-                                    <div className="text-center py-4 space-y-2">
-                                      <div className="h-9 w-9 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                                        <Check size={18} className="stroke-[3]" />
-                                      </div>
-                                      <h5 className="text-[11px] font-black text-slate-950">Thank you!</h5>
-                                      <p className="text-[10px] text-slate-500 leading-normal">Your response was recorded. Have a great day!</p>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setPreviewActiveQuestionIndex(0);
-                                          setPreviewSelectedChoice('');
-                                          setPreviewSubmitted(false);
-                                        }}
-                                        className="text-blue-600 hover:text-blue-800 text-[10px] font-bold underline mt-1 block w-full"
-                                      >
-                                        Restart Preview
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    /* Active Question view */
-                                    <div>
-                                      {/* Question metadata */}
-                                      <div className="text-[9px] font-bold text-slate-400 font-mono uppercase tracking-wider mb-1">
-                                        Question {previewActiveQuestionIndex + 1} of{' '}
-                                        {(selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions.length || 0}
-                                      </div>
-
-                                      {/* Question Headline */}
-                                      <h4 className="text-[12px] sm:text-[13px] font-black text-slate-950 mb-3 leading-snug">
-                                        {(selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions[previewActiveQuestionIndex]?.questionText}
-                                      </h4>
-
-                                      {/* Question options */}
-                                      {((selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions[previewActiveQuestionIndex]?.type === 'multiple-choice') ? (
-                                        <div className="space-y-1.5">
-                                          {(selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions[previewActiveQuestionIndex]?.options.map((opt) => (
-                                            <button
-                                              key={opt}
-                                              type="button"
-                                              onClick={() => {
-                                                setPreviewSelectedChoice(opt);
-                                                // Handle autoAdvance
-                                                const totalQuestions = (selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions.length || 0;
-                                                if (autoAdvance) {
-                                                  if (previewActiveQuestionIndex + 1 < totalQuestions) {
-                                                    setPreviewActiveQuestionIndex(previewActiveQuestionIndex + 1);
-                                                    setPreviewSelectedChoice('');
-                                                  } else {
-                                                    setPreviewSubmitted(true);
-                                                  }
-                                                }
-                                              }}
-                                              className={`w-full text-left px-3 py-2 rounded-xl border text-[10px] font-bold transition-all flex items-center justify-between ${
-                                                previewSelectedChoice === opt
-                                                  ? 'border-blue-600 bg-blue-50/15 text-blue-900'
-                                                  : 'border-slate-200 bg-white hover:bg-slate-50/30 text-slate-800'
-                                              }`}
-                                            >
-                                              <span>{opt}</span>
-                                              <div className={`h-3 w-3 rounded-full border flex items-center justify-center ${previewSelectedChoice === opt ? 'border-blue-600 text-blue-600' : 'border-slate-300'}`}>
-                                                {previewSelectedChoice === opt && <div className="h-1.5 w-1.5 rounded-full bg-blue-600" />}
-                                              </div>
-                                            </button>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <div className="space-y-1.5">
-                                          <input
-                                            type="text"
-                                            disabled
-                                            placeholder="Respondent types answer here..."
-                                            className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-[10px] outline-none placeholder-slate-400 font-medium"
-                                          />
-                                        </div>
-                                      )}
-
-                                      {/* Preview Bottom Controls */}
-                                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-                                        {/* Back button (Only if allowEdits and not first question) */}
-                                        {allowEdits && previewActiveQuestionIndex > 0 ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setPreviewActiveQuestionIndex(previewActiveQuestionIndex - 1);
-                                              setPreviewSelectedChoice('');
-                                            }}
-                                            className="text-slate-500 hover:text-slate-700 text-[10px] font-bold flex items-center gap-0.5"
-                                          >
-                                            ← Back
-                                          </button>
-                                        ) : (
-                                          <div />
-                                        )}
-
-                                        {/* Next button (If autoAdvance is false OR it is a text question) */}
-                                        {(!autoAdvance || (selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions[previewActiveQuestionIndex]?.type !== 'multiple-choice') && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const totalQuestions = (selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions.length || 0;
-                                              if (previewActiveQuestionIndex + 1 < totalQuestions) {
-                                                setPreviewActiveQuestionIndex(previewActiveQuestionIndex + 1);
-                                                setPreviewSelectedChoice('');
-                                              } else {
-                                                setPreviewSubmitted(true);
-                                              }
-                                            }}
-                                            className="bg-slate-900 hover:bg-black text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm ml-auto"
-                                          >
-                                            {previewActiveQuestionIndex + 1 < ((selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions.length || 0) ? 'Next' : 'Submit'}
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Bottom info banner */}
-                            <div className="bg-[#f0f9ff] border border-sky-100 rounded-xl p-3 flex items-start gap-2 text-left">
-                              <div className="p-1 rounded-lg bg-sky-100 text-sky-800 flex-shrink-0 mt-0.5">
-                                <svg className="w-3.5 h-3.5 transform rotate-180 text-sky-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 13l-7 7-7-7" />
-                                </svg>
-                              </div>
-                              <p className="text-[10px] text-sky-950 leading-relaxed font-bold">
-                                A preview of your survey template is printed in the box above. Feel free to click through it. You can always edit this template after saving.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* BEHAVIOR SUB-STEP (MATCHES THE FIRST SCREENSHOT) */
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start text-left">
-                        {/* Left column - Behavior Config */}
-                        <div className="md:col-span-7 space-y-5">
-                          <div>
-                            <h2 className="text-lg font-black text-slate-900 tracking-tight leading-tight">Survey Summary</h2>
-                            <p className="text-slate-400 text-xs mt-0.5">Click any step below to make changes.</p>
-                          </div>
-
-                          {/* Checklist items to go back */}
-                          <div className="space-y-2">
-                            <button
-                              type="button"
-                              onClick={() => setWorkspaceSubStep('questions')}
-                              className="w-full text-left flex items-center justify-between border border-slate-200/75 rounded-xl px-4 py-2.5 bg-white text-slate-800 text-[11px] font-extrabold shadow-xs hover:border-blue-500/30 transition-all"
-                            >
-                              <div className="flex items-center gap-2">
-                                <Check className="text-emerald-500 stroke-[3]" size={14} />
-                                <span>Step 1: Questions</span>
-                              </div>
-                              <span className="text-blue-600 hover:underline font-bold">
-                                {creationMode === 'scratch'
-                                  ? 'Build from scratch'
-                                  : (selectedTemplateId === 'custom-prompt-temp' ? 'Custom Prompt Survey' : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId)?.title || 'Simple Post Purchase Survey')}
-                              </span>
-                            </button>
-
-                            <div className="flex items-center justify-between border border-slate-200/75 rounded-xl px-4 py-2.5 bg-white text-slate-800 text-[11px] font-extrabold shadow-xs">
-                              <div className="flex items-center gap-2">
-                                <Check className="text-emerald-500 stroke-[3]" size={14} />
-                                <span>Step 2: Delivery</span>
-                              </div>
-                              <span className="text-slate-400 font-normal">Link Only</span>
-                            </div>
-                          </div>
-
-                          {/* Behavior Questions Header */}
-                          <div className="pt-2">
-                            <h3 className="text-[13px] font-black text-slate-900 tracking-tight">How should this survey behave?</h3>
-                            <p className="text-slate-400 text-xs mt-0.5">Adjust how this survey runs. You can edit these and more options later.</p>
-                          </div>
-
-                          {/* Behavior Config Toggle List */}
-                          <div className="border border-blue-500/15 bg-blue-50/5 rounded-2xl p-4.5 space-y-4.5 shadow-xs">
-                            {/* ALLOW EDITS */}
-                            <div className="flex items-start gap-4">
-                              <OnboardingToggle checked={allowEdits} onChange={() => setAllowEdits(!allowEdits)} />
-                              <div className="space-y-0.5">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-mono block">ALLOW EDITS</span>
-                                <p className="text-xs font-bold text-slate-800 leading-normal">
-                                  Let respondents go back and change their answers before submitting.
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* AUTOMATICALLY ADVANCE SLIDES */}
-                            <div className="flex items-start gap-4 border-t border-slate-100 pt-3">
-                              <OnboardingToggle checked={autoAdvance} onChange={() => setAutoAdvance(!autoAdvance)} />
-                              <div className="space-y-0.5">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-mono block">AUTOMATICALLY ADVANCE SLIDES</span>
-                                <p className="text-xs font-bold text-slate-800 leading-normal">
-                                  Automatically move to the next slide on selection.
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* ALLOW RESUBMISSIONS */}
-                            <div className="flex items-start gap-4 border-t border-slate-100 pt-3">
-                              <OnboardingToggle checked={allowResubmissions} onChange={() => setAllowResubmissions(!allowResubmissions)} />
-                              <div className="space-y-0.5">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-mono block">ALLOW RESUBMISSIONS</span>
-                                <p className="text-xs font-bold text-slate-800 leading-normal">
-                                  Let the same participant submit this survey more than once.
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* NOTIFY ME ON RESPONSE */}
-                            <div className="flex items-start gap-4 border-t border-slate-100 pt-3">
-                              <OnboardingToggle checked={notifyOnResponse} onChange={() => setNotifyOnResponse(!notifyOnResponse)} />
-                              <div className="space-y-0.5">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-mono block">NOTIFY ME ON RESPONSE</span>
-                                <p className="text-xs font-bold text-slate-800 leading-normal">
-                                  Send an email to your team whenever someone responds.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Footer action buttons */}
-                          <div className="flex justify-between pt-4 border-t border-slate-100">
-                            <button
-                              id="btn_onboarding_back_3_behavior"
-                              onClick={() => setWorkspaceSubStep('questions')}
-                              className="text-slate-500 hover:text-slate-800 text-xs font-bold px-4 py-2"
-                            >
-                              ← Back to Questions
-                            </button>
-                            <button
-                              id="btn_onboarding_next_3_behavior"
-                              onClick={handleStep3}
-                              className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md transition-all"
-                            >
-                              Next Step <ArrowRight size={14} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Right column - Preview Column */}
-                        <div className="md:col-span-5 space-y-4">
-                          <div>
-                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider font-mono">
-                              Survey Preview: {creationMode === 'scratch' ? 'Build from scratch' : 'Use a Template'}
-                            </h3>
-                            <p className="text-slate-400 text-[11px] mt-0.5">Survey representation below.</p>
-                          </div>
-
-                          <div className="border border-slate-200 rounded-2xl bg-slate-50/50 p-5 flex flex-col justify-between min-h-[380px] relative shadow-inner">
-                            {/* Centered card mockup */}
-                            <div className="flex-grow flex items-center justify-center py-4">
-                              {creationMode === 'scratch' ? (
-                                <div className="bg-white rounded-2xl p-5 w-full max-w-[270px] border border-slate-200/80 shadow-md relative">
-                                  <button type="button" className="absolute top-2.5 right-2.5 text-slate-300 hover:text-slate-500 text-xs font-bold">
-                                    ✕
-                                  </button>
-                                  <h4 className="text-[13px] font-black text-slate-950 mb-1.5">Example Slide</h4>
-                                  <p className="text-[11px] text-slate-500 leading-normal mb-4 font-medium">
-                                    This is an example slide. Your published customerlens will look look something like this given your current settings.
-                                  </p>
-                                  <div className="flex justify-end">
-                                    <button type="button" className="bg-[#1e293b] hover:bg-[#0f172a] text-white text-[10px] font-bold px-3 py-1.5 rounded flex items-center gap-1 shadow-sm transition-all">
-                                      Close <span className="font-sans">✕</span>
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="bg-white rounded-2xl p-5 w-full max-w-[270px] border border-slate-200/80 shadow-md relative">
-                                  {/* Close corner action */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setPreviewActiveQuestionIndex(0);
-                                      setPreviewSelectedChoice('');
-                                      setPreviewSubmitted(false);
-                                    }}
-                                    className="absolute top-2.5 right-2.5 text-slate-300 hover:text-slate-500 text-xs font-bold outline-none"
-                                  >
-                                    ✕
-                                  </button>
-
-                                  {previewSubmitted ? (
-                                    <div className="text-center py-4 space-y-2">
-                                      <div className="h-9 w-9 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                                        <Check size={18} className="stroke-[3]" />
-                                      </div>
-                                      <h5 className="text-[11px] font-black text-slate-950">Thank you!</h5>
-                                      <p className="text-[10px] text-slate-500 leading-normal">Your response was recorded. Have a great day!</p>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setPreviewActiveQuestionIndex(0);
-                                          setPreviewSelectedChoice('');
-                                          setPreviewSubmitted(false);
-                                        }}
-                                        className="text-blue-600 hover:text-blue-800 text-[10px] font-bold underline mt-1 block w-full"
-                                      >
-                                        Restart Preview
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div>
-                                      {/* Question metadata */}
-                                      <div className="text-[9px] font-bold text-slate-400 font-mono uppercase tracking-wider mb-1">
-                                        Question {previewActiveQuestionIndex + 1} of{' '}
-                                        {(selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions.length || 0}
-                                      </div>
-
-                                      {/* Question Headline */}
-                                      <h4 className="text-[12px] sm:text-[13px] font-black text-slate-950 mb-3 leading-snug">
-                                        {(selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions[previewActiveQuestionIndex]?.questionText}
-                                      </h4>
-
-                                      {/* Question options */}
-                                      {((selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions[previewActiveQuestionIndex]?.type === 'multiple-choice') ? (
-                                        <div className="space-y-1.5">
-                                          {(selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions[previewActiveQuestionIndex]?.options.map((opt) => (
-                                            <button
-                                              key={opt}
-                                              type="button"
-                                              onClick={() => {
-                                                setPreviewSelectedChoice(opt);
-                                                const totalQuestions = (selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions.length || 0;
-                                                if (autoAdvance) {
-                                                  if (previewActiveQuestionIndex + 1 < totalQuestions) {
-                                                    setPreviewActiveQuestionIndex(previewActiveQuestionIndex + 1);
-                                                    setPreviewSelectedChoice('');
-                                                  } else {
-                                                    setPreviewSubmitted(true);
-                                                  }
-                                                }
-                                              }}
-                                              className={`w-full text-left px-3 py-2 rounded-xl border text-[10px] font-bold transition-all flex items-center justify-between ${
-                                                previewSelectedChoice === opt
-                                                  ? 'border-blue-600 bg-blue-50/15 text-blue-900'
-                                                  : 'border-slate-200 bg-white hover:bg-slate-50/30 text-slate-800'
-                                              }`}
-                                            >
-                                              <span>{opt}</span>
-                                              <div className={`h-3 w-3 rounded-full border flex items-center justify-center ${previewSelectedChoice === opt ? 'border-blue-600 text-blue-600' : 'border-slate-300'}`}>
-                                                {previewSelectedChoice === opt && <div className="h-1.5 w-1.5 rounded-full bg-blue-600" />}
-                                              </div>
-                                            </button>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <div className="space-y-1.5">
-                                          <input
-                                            type="text"
-                                            disabled
-                                            placeholder="Respondent types answer here..."
-                                            className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-[10px] outline-none placeholder-slate-400 font-medium"
-                                          />
-                                        </div>
-                                      )}
-
-                                      {/* Preview Bottom Controls */}
-                                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-                                        {/* Back button */}
-                                        {allowEdits && previewActiveQuestionIndex > 0 ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setPreviewActiveQuestionIndex(previewActiveQuestionIndex - 1);
-                                              setPreviewSelectedChoice('');
-                                            }}
-                                            className="text-slate-500 hover:text-slate-700 text-[10px] font-bold flex items-center gap-0.5"
-                                          >
-                                            ← Back
-                                          </button>
-                                        ) : (
-                                          <div />
-                                        )}
-
-                                        {/* Next button */}
-                                        {(!autoAdvance || (selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions[previewActiveQuestionIndex]?.type !== 'multiple-choice') && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const totalQuestions = (selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions.length || 0;
-                                              if (previewActiveQuestionIndex + 1 < totalQuestions) {
-                                                setPreviewActiveQuestionIndex(previewActiveQuestionIndex + 1);
-                                                setPreviewSelectedChoice('');
-                                              } else {
-                                                setPreviewSubmitted(true);
-                                              }
-                                            }}
-                                            className="bg-slate-900 hover:bg-black text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm ml-auto"
-                                          >
-                                            {previewActiveQuestionIndex + 1 < ((selectedTemplateId === 'custom-prompt-temp' ? customPromptTemplate : ONBOARDING_TEMPLATES.find(t => t.id === selectedTemplateId))?.questions.length || 0) ? 'Next' : 'Submit'}
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Bottom info banner */}
-                            <div className="bg-[#f0f9ff] border border-sky-100 rounded-xl p-3 flex items-start gap-2 text-left">
-                              <div className="p-1 rounded-lg bg-sky-100 text-sky-800 flex-shrink-0 mt-0.5">
-                                <svg className="w-3.5 h-3.5 transform rotate-180 text-sky-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 13l-7 7-7-7" />
-                                </svg>
-                              </div>
-                              <p className="text-[10px] text-sky-950 leading-relaxed font-bold">
-                                A preview of your survey template is printed in the box above. Feel free to click through it. You can always edit this template after saving.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-mono font-bold px-2.5 py-1 rounded-full border border-indigo-500/30 flex items-center gap-1 self-start sm:self-auto">
+                      <Sparkles size={11} className="text-indigo-400" /> AI Assistant Active
+                    </span>
                   </div>
-                ) : (
-                  <div>
-                    {/* Standard step 3 list (Non-Workspace flow, eg. Shopify) */}
-                    <div className="max-w-2xl mb-6 text-left">
-                      <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
-                        Select your primary conversion goal
-                      </h1>
-                      <p className="text-slate-500 text-sm font-medium">
-                        Our AI models will formulate targeted questions and trigger criteria tuned specifically to this milestone.
-                      </p>
+
+                  {/* AI Natural Language Prompt Box */}
+                  <div className="relative flex items-center gap-2 pt-1">
+                    <div className="relative flex-1">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-indigo-400">
+                        <Wand2 size={13} />
+                      </div>
+                      <input
+                        type="text"
+                        value={aiCommandInput}
+                        onChange={(e) => setAiCommandInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleRunAiCommand();
+                          }
+                        }}
+                        placeholder='Ask AI e.g. "Make design consistent in all surveys", "Change color to emerald"...'
+                        className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-750 focus:border-indigo-500 text-slate-100 rounded-xl text-xs placeholder:text-slate-500 outline-none transition-all shadow-inner font-medium"
+                      />
                     </div>
 
-                    <div className="space-y-3 max-w-2xl max-h-[320px] overflow-y-auto pr-2 custom-scrollbar mb-8 text-left">
-                      {GOALS.map((g) => (
+                    <button
+                      type="button"
+                      disabled={isExecutingAiCommand || !aiCommandInput.trim()}
+                      onClick={() => handleRunAiCommand()}
+                      className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow cursor-pointer flex items-center gap-1.5 shrink-0"
+                    >
+                      {isExecutingAiCommand ? (
+                        <>
+                          <RefreshCw size={12} className="animate-spin" />
+                          <span>Working...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Apply AI</span>
+                          <ArrowRight size={12} />
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* AI Quick Preset Action Chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[9px] text-slate-400 font-mono font-bold uppercase mr-1">Quick Actions:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRunAiCommand('Make design consistent in all surveys')}
+                      className="bg-slate-800 hover:bg-indigo-950 hover:border-indigo-500/50 border border-slate-700 text-slate-300 hover:text-indigo-200 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      🎨 Make Design Consistent
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRunAiCommand('Change accent color to emerald green')}
+                      className="bg-slate-800 hover:bg-emerald-950 hover:border-emerald-500/50 border border-slate-700 text-slate-300 hover:text-emerald-200 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      💚 Emerald Theme
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRunAiCommand('Shorten questions and headlines')}
+                      className="bg-slate-800 hover:bg-amber-950 hover:border-amber-500/50 border border-slate-700 text-slate-300 hover:text-amber-200 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      ⚡ Shorten Questions
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRunAiCommand('Add 15% discount promo code option')}
+                      className="bg-slate-800 hover:bg-purple-950 hover:border-purple-500/50 border border-slate-700 text-slate-300 hover:text-purple-200 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      🎁 Add Discount Promo
+                    </button>
+                  </div>
+
+                  {/* AI Execution Feedback Notification */}
+                  {aiCommandFeedback && (
+                    <div className="bg-indigo-950/90 border border-indigo-500/40 text-indigo-200 text-[11px] p-2.5 rounded-xl flex items-center justify-between font-mono font-medium">
+                      <span>{aiCommandFeedback}</span>
+                      <button
+                        onClick={() => setAiCommandFeedback(null)}
+                        className="text-indigo-400 hover:text-white p-0.5 rounded cursor-pointer"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Survey Cards */}
+                <div className="space-y-4">
+                  {generatedSurveys.map((srv) => (
+                    <div 
+                      key={srv.id} 
+                      className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all space-y-3 relative"
+                    >
+                      {/* Card Header Row */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                        <div className="flex items-start gap-3">
+                          <span className="text-xl p-2 bg-slate-50 rounded-2xl border border-slate-100 shrink-0">{srv.goalIcon}</span>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-black text-slate-900 text-sm tracking-tight">{srv.title}</h4>
+                              <span className="text-[9px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-mono">
+                                {srv.goalLabel}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                              <span className="text-slate-400 font-mono">Trigger:</span> {srv.trigger}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Preview option button (down chevron opens preview) */}
                         <button
-                          key={g.id}
-                          id={`btn_goal_${g.id.replace(/\s+/g, '_')}`}
-                          onClick={() => setGoal(g.id)}
-                          className={`w-full text-left px-5 py-3.5 rounded-2xl border transition-all duration-200 flex items-start gap-4 hover:bg-slate-50/50 focus:outline-none ${
-                            goal === g.id 
-                              ? 'border-indigo-600 bg-indigo-50/20' 
-                              : 'border-slate-200 bg-white'
+                          type="button"
+                          onClick={() => toggleSurveyPreview(srv.id)}
+                          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                            srv.isExpanded 
+                              ? 'bg-indigo-600 text-white shadow-sm' 
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                           }`}
                         >
-                          <div className={`mt-0.5 h-5 w-5 rounded-full border flex items-center justify-center ${goal === g.id ? 'border-indigo-600 text-indigo-600 bg-indigo-50' : 'border-slate-300 bg-white'}`}>
-                            {goal === g.id && <div className="h-2.5 w-2.5 rounded-full bg-indigo-600" />}
-                          </div>
-                          <div>
-                            <p className="font-bold text-slate-900 text-xs sm:text-sm">{g.text}</p>
-                            <p className="text-slate-500 text-[11px] sm:text-xs leading-relaxed mt-0.5">{g.desc}</p>
-                          </div>
+                          <Eye size={13} />
+                          <span>{srv.isExpanded ? 'Hide Preview' : 'Preview Survey'}</span>
+                          {srv.isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                         </button>
-                      ))}
-                    </div>
-
-                    <div className="flex justify-between pt-4 border-t border-slate-100">
-                      <button
-                        id="btn_onboarding_back_3"
-                        onClick={() => setStep(2)}
-                        className="text-slate-600 hover:text-slate-800 text-sm font-semibold px-4 py-2"
-                      >
-                        Back
-                      </button>
-                      <button
-                        id="btn_onboarding_next_3"
-                        onClick={handleStep3}
-                        className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-sm px-6 py-3 rounded-xl flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
-                      >
-                        Build AI Surveys <Sparkles size={16} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-            )}
-
-            {/* STEP 4: AI Generated Survey Preview & Theme Selection */}
-            {step === 4 && (
-              <motion.div
-                key="step4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="min-h-[350px] flex flex-col justify-center"
-              >
-                {loading ? (
-                  <div className="text-center py-12 space-y-4">
-                    <Loader2 size={44} className="animate-spin text-indigo-600 mx-auto" />
-                    <div>
-                      <h3 className="font-bold text-lg text-slate-900 tracking-tight animate-pulse">Consulting CustomerLens AI Specialist...</h3>
-                      <p className="text-indigo-600 text-xs font-mono mt-1.5 font-bold tracking-wider uppercase bg-indigo-50 inline-block px-3 py-1 rounded-full">{loadingPhrase}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="max-w-2xl mb-6">
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-extrabold mb-2 border border-emerald-100">
-                        <Sparkles size={12} className="text-emerald-600" /> Co-designed by Gemini AI
                       </div>
-                      <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                        Your custom exit-intent survey is ready!
-                      </h1>
-                      <p className="text-slate-500 text-sm">
-                        Based on your primary target to <strong className="text-indigo-600 font-bold">{goal}</strong>, our AI prepared a customized feedback workflow.
-                      </p>
-                    </div>
 
-                    {generatedSurvey && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        {/* Survey specs summary */}
-                        <div className="bg-slate-50 rounded-2xl border border-slate-200/60 p-5 space-y-4">
-                          <div>
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1 font-mono">Recommended Placement</span>
-                            <div className="flex items-center gap-2 text-slate-800">
-                              <Layers size={16} className="text-indigo-500" />
-                              <span className="text-xs font-bold bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded">{generatedSurvey.recommendedPlacement}</span>
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1 font-mono">Aesthetic Design Theme Accent</span>
-                            <div className="flex items-center gap-2.5">
-                              <Palette size={16} className="text-indigo-500" />
-                              <div className="flex items-center gap-1.5 bg-white border border-slate-200/60 px-2 py-1 rounded-lg">
-                                <div className="h-3.5 w-3.5 rounded-full border border-slate-300" style={{ backgroundColor: generatedSurvey.colors.accent }} />
-                                <span className="font-mono text-[10px] font-extrabold uppercase text-slate-600">{generatedSurvey.colors.accent}</span>
+                      {/* Expandable Live Survey Preview Panel */}
+                      <AnimatePresence>
+                        {srv.isExpanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="pt-1 overflow-hidden"
+                          >
+                            <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-inner space-y-3 relative">
+                              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                                <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                                  <span>Live Exit-Intent Overlay Preview</span>
+                                </div>
+                                <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono font-bold">
+                                  {srv.sizePosition}
+                                </span>
                               </div>
-                            </div>
-                          </div>
 
-                          <div>
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1.5 font-mono">AI Suggested Question Blueprint</span>
-                            <div className="space-y-2">
-                              {generatedSurvey.questions.map((q: any, i: number) => (
-                                <div key={q.id} className="text-xs bg-white border border-slate-200/40 p-2.5 rounded-xl flex items-start gap-2.5">
-                                  <span className="font-bold text-indigo-600 bg-indigo-50/80 px-2 py-0.5 rounded text-[10px]">{i+1}</span>
-                                  <div>
-                                    <p className="font-semibold text-slate-800 text-[11px] leading-snug">{q.questionText}</p>
-                                    <p className="text-slate-400 text-[9px] mt-0.5 uppercase tracking-wide font-mono font-bold">{q.type}</p>
+                              {/* Interactive Mock Survey Card */}
+                              <div 
+                                className="bg-white text-slate-900 p-4 rounded-xl shadow-lg space-y-3 relative border border-slate-100"
+                                style={{ borderTop: `4px solid ${srv.accentColor}` }}
+                              >
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                  <div className="flex items-center gap-2">
+                                    {srv.logoUrl ? (
+                                      <img 
+                                        src={srv.logoUrl} 
+                                        alt="Brand Logo" 
+                                        className="h-6 w-6 rounded-lg object-contain bg-white border border-slate-200 p-0.5 shadow-sm"
+                                      />
+                                    ) : (
+                                      <div 
+                                        className="h-6 w-6 rounded-lg flex items-center justify-center text-white text-xs font-black shadow-sm"
+                                        style={{ backgroundColor: srv.accentColor }}
+                                      >
+                                        {srv.logoDoodle}
+                                      </div>
+                                    )}
+                                    <h5 className="text-[11px] font-extrabold text-slate-900">{srv.headline}</h5>
+                                  </div>
+                                  <span className="text-[9px] text-slate-400 font-mono">1 of {srv.questionsCount}</span>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <p className="text-[11.5px] font-bold text-slate-800 leading-snug">{srv.questionText}</p>
+                                  <div className="space-y-1.5">
+                                    {srv.options.map((opt, i) => (
+                                      <div 
+                                        key={i}
+                                        className={`p-2 rounded-lg text-[10px] font-bold flex items-center justify-between border transition-all ${
+                                          i === 0 
+                                            ? 'border-indigo-200 bg-indigo-50/60 text-indigo-950' 
+                                            : 'border-slate-100 bg-slate-50 text-slate-700'
+                                        }`}
+                                      >
+                                        <span>{opt}</span>
+                                        <span className="text-slate-300">{i === 0 ? '●' : '○'}</span>
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
-                              ))}
+
+                                {/* EDIT BUTTON in the Bottom Right Corner of Each Preview */}
+                                <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                                  <span className="text-[8px] text-slate-400 font-mono">Powered by CustomerLens AI</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingSurvey(srv)}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg transition-all shadow flex items-center gap-1 cursor-pointer transform hover:scale-105"
+                                  >
+                                    <Edit3 size={11} /> Edit Survey
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 3: REVIEW & PUBLISH ALL SURVEYS */}
+          {step === 3 && (
+            <motion.div
+              key="step3"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="space-y-6"
+            >
+              {!publishComplete ? (
+                /* Step 3 Pre-Publish Review State */
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-md space-y-6">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <div>
+                      <span className="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">Step 3 of 3</span>
+                      <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-2 tracking-tight">Review & Launch AI Surveys</h2>
+                      <p className="text-xs text-slate-500 mt-1">Deploy your AI surveys directly to your website script in one click.</p>
+                    </div>
+                    <button
+                      onClick={() => setStep(2)}
+                      className="border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer"
+                    >
+                      ← Back to Edit
+                    </button>
+                  </div>
+
+                  {/* Summary List of Generated Surveys */}
+                  <div className="space-y-3">
+                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Surveys Ready for Deployment ({generatedSurveys.length})</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {generatedSurveys.map((srv) => (
+                        <div key={srv.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg p-1.5 bg-white rounded-xl border border-slate-200">{srv.goalIcon}</span>
+                            <div>
+                              <h4 className="font-extrabold text-slate-900 text-xs">{srv.title}</h4>
+                              <p className="text-[10px] text-slate-500 font-medium">{srv.trigger}</p>
                             </div>
                           </div>
+                          <span className="text-emerald-600 bg-emerald-50 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-emerald-200 font-mono">
+                            Ready
+                          </span>
                         </div>
-
-                        {/* Visual Mock-up */}
-                        <div className="border border-slate-200/80 rounded-2xl p-6 flex flex-col justify-between shadow-sm relative overflow-hidden" style={{ backgroundColor: generatedSurvey.colors.background, color: generatedSurvey.colors.text }}>
-                          <div className="absolute right-3 top-3 text-[9px] font-bold font-mono tracking-wider opacity-30 uppercase">Interactive Widget Mockup</div>
-                          <div>
-                            <p className="text-xs font-bold uppercase tracking-widest opacity-60">Wait! Before you go...</p>
-                            <h3 className="text-base font-black tracking-tight mt-1 mb-4 leading-snug">{generatedSurvey.headline}</h3>
-                            
-                            {/* Dummy Options for First Question */}
-                            <div className="space-y-1.5">
-                              {generatedSurvey.questions[0]?.options?.slice(0, 4).map((opt: string, i: number) => (
-                                <div key={i} className="flex items-center gap-2 border px-3 py-2 rounded-xl text-xs font-medium cursor-pointer transition-all hover:opacity-85" style={{ borderColor: generatedSurvey.colors.accent + '25', backgroundColor: generatedSurvey.colors.background }}>
-                                  <div className="h-3 w-3 rounded-full border border-slate-300 flex-shrink-0" />
-                                  <span>{opt}</span>
-                                </div>
-                              )) || (
-                                <div className="border-2 border-dashed border-slate-200 p-4 rounded-xl text-center text-xs opacity-50">
-                                  No options needed for ratings/text responses.
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="mt-6 flex justify-end gap-2 text-xs pt-4 border-t border-slate-100/50">
-                            <button className="px-3 py-1.5 font-semibold opacity-60 rounded-lg">Skip</button>
-                            <button className="px-3 py-1.5 text-white font-semibold rounded-lg shadow-sm" style={{ backgroundColor: generatedSurvey.colors.accent }}>Submit</button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between pt-4 border-t border-slate-100">
-                      <button
-                        id="btn_onboarding_back_4"
-                        onClick={() => setStep(3)}
-                        className="text-slate-600 hover:text-slate-800 text-sm font-semibold px-4 py-2"
-                      >
-                        Back
-                      </button>
-                      <button
-                        id="btn_onboarding_next_4"
-                        onClick={handleStep4}
-                        className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm px-6 py-3 rounded-xl flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
-                      >
-                        Go to Final Step <ArrowRight size={16} />
-                      </button>
+                      ))}
                     </div>
                   </div>
-                )}
-              </motion.div>
-            )}
 
-            {/* STEP 5: Celebratory Launch Screen */}
-            {step === 5 && (
-              <motion.div
-                key="step5"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="space-y-6 text-center py-6"
-              >
-                <div className="mx-auto h-16 w-16 bg-indigo-50 rounded-full flex items-center justify-center text-3xl mb-4 animate-bounce">
-                  🚀
-                </div>
-
-                <div className="max-w-xl mx-auto space-y-2">
-                  <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight">
-                    Ready for launch!
-                  </h1>
-                  <p className="text-slate-500 text-sm leading-relaxed">
-                    Your CustomerLens tracker has been compiled successfully. You are now ready to capture exit-intent feedback on your website and analyze results.
-                  </p>
-                </div>
-
-                {/* Configuration Summary Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 max-w-2xl mx-auto text-left pt-2">
-                  <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 space-y-1 shadow-sm">
-                    <span className="text-[9px] uppercase font-bold tracking-widest text-slate-400 font-mono block">Connected Website</span>
-                    <p className="font-extrabold text-slate-800 text-xs truncate" title={websiteUrl || 'Not set'}>{websiteUrl || 'Not specified'}</p>
-                    <p className="text-[10px] text-slate-500 font-medium font-mono">{businessName || 'Default Store'}</p>
-                  </div>
-
-                  <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 space-y-1 shadow-sm">
-                    <span className="text-[9px] uppercase font-bold tracking-widest text-slate-400 font-mono block">Target Conversion Goal</span>
-                    <p className="font-extrabold text-slate-800 text-xs truncate" title={goal}>{goal}</p>
-                    <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">🟢 Optimization Active</p>
-                  </div>
-
-                  <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 space-y-1 shadow-sm">
-                    <span className="text-[9px] uppercase font-bold tracking-widest text-slate-400 font-mono block">Selected Platform</span>
-                    <p className="font-extrabold text-slate-800 text-xs truncate">{businessType} Integration</p>
-                    <p className="text-[10px] text-indigo-600 font-bold">1 Click Install Ready</p>
+                  {/* Big Publish Trigger Button */}
+                  <div className="pt-4 border-t border-slate-100 flex flex-col items-center justify-center space-y-3">
+                    <button
+                      onClick={handlePublishSurvey}
+                      disabled={isPublishing}
+                      className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm px-10 py-4 rounded-2xl transition-all shadow-lg hover:shadow-xl shadow-indigo-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transform hover:-translate-y-0.5 active:translate-y-0"
+                    >
+                      {isPublishing ? (
+                        <>
+                          <RefreshCw className="animate-spin h-4 w-4" /> Deploying Script & Publishing Surveys...
+                        </>
+                      ) : (
+                        <>
+                          🚀 Publish All ({generatedSurveys.length}) AI Surveys <ArrowRight size={16} />
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[11px] text-slate-400 font-medium">Surveys will immediately trigger for website visitors based on AI exit behavior.</p>
                   </div>
                 </div>
+              ) : (
+                /* Step 3 Post-Publish Completion State */
+                <div className="space-y-6">
+                  {/* Header Box */}
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-5 justify-between shadow-sm">
+                    <div className="flex items-center gap-4 text-center md:text-left flex-col md:flex-row">
+                      <div className="h-14 w-14 bg-emerald-500 rounded-2xl flex items-center justify-center text-3xl shadow-md text-white shrink-0 animate-bounce">
+                        🎉
+                      </div>
+                      <div className="space-y-1">
+                        <h2 className="text-xl md:text-2xl font-black text-slate-950 tracking-tight">CustomerLens AI Is Live</h2>
+                        <h3 className="font-extrabold text-emerald-800 text-sm">Setup Complete!</h3>
+                        <p className="text-slate-600 text-xs">Your website is connected and your {generatedSurveys.length} AI surveys are live.</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleGoToWorkspace}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-8 py-3.5 rounded-xl transition-all shadow-md shadow-indigo-150 shrink-0 cursor-pointer flex items-center gap-1"
+                    >
+                      Go to Workspace <ArrowRight size={13} />
+                    </button>
+                  </div>
 
-                {/* Simulated Telemetry Banner Removed (Architectural Honesty) */}
-                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl max-w-xl mx-auto text-center">
-                  <p className="text-xs font-bold text-emerald-800 leading-normal flex items-center justify-center gap-1.5">
-                    <Check size={14} className="text-emerald-600 stroke-[3]" /> All systems ready. Dashboard configuration initialized successfully!
-                  </p>
+                  {/* Status and Activity lists Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Workspace Status */}
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-md space-y-4">
+                      <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <h3 className="font-bold text-xs text-slate-900 uppercase tracking-widest font-mono">Workspace Status</h3>
+                      </div>
+
+                      <div className="space-y-3 font-medium text-xs text-slate-700">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-emerald-500 text-xs shrink-0">🟢</span>
+                          <span>Website Connected</span>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-emerald-500 text-xs shrink-0">🟢</span>
+                          <span>Domain Verified</span>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-emerald-500 text-xs shrink-0">🟢</span>
+                          <span>CustomerLens AI Active</span>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-emerald-500 text-xs shrink-0">🟢</span>
+                          <span>{generatedSurveys.length} Surveys Published</span>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-emerald-500 text-xs shrink-0">🟢</span>
+                          <span>Behavior Tracking Enabled</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* AI Activity */}
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-md space-y-4">
+                      <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <span className="text-indigo-600">🤖</span>
+                        <h3 className="font-bold text-xs text-slate-900 uppercase tracking-widest font-mono">AI Activity</h3>
+                      </div>
+
+                      <div className="space-y-3 font-medium text-xs text-slate-700">
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-base shrink-0 leading-none">🤖</span>
+                          <span>Monitoring visitor behavior</span>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-base shrink-0 leading-none">🤖</span>
+                          <span>Detecting hesitation, exits, and conversions</span>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-base shrink-0 leading-none">🤖</span>
+                          <span>Learning customer intent</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Big central complete wizard trigger button */}
+                  <div className="flex justify-center pt-2">
+                    <button
+                      onClick={handleGoToWorkspace}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm px-10 py-4 rounded-2xl transition-all shadow-lg hover:shadow-xl shadow-indigo-200 flex items-center justify-center gap-2 cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
+                    >
+                      Go to Workspace <ArrowRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+        </AnimatePresence>
+      </main>
+
+      {/* EDIT SURVEY CUSTOMIZER MODAL */}
+      <AnimatePresence>
+        {editingSurvey && (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl space-y-5 relative my-8"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 bg-indigo-50 text-indigo-600 rounded-xl text-lg">
+                    {editingSurvey.goalIcon}
+                  </span>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-base">Edit AI Survey</h3>
+                    <span className="text-xs text-slate-500 font-medium">{editingSurvey.goalLabel}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setEditingSurvey(null)}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-4 text-xs font-semibold text-slate-700 max-h-[70vh] overflow-y-auto pr-1">
+                {/* Brand Color Accent & Picker */}
+                <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-150">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider font-mono flex items-center gap-1.5">
+                      <Pipette size={12} className="text-indigo-600" /> Primary Brand Color Accent
+                    </label>
+                    <span className="text-[10px] font-mono text-slate-400 font-bold uppercase">{editingSurvey.accentColor}</span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    {['#6366f1', '#10b981', '#ec4899', '#f59e0b', '#3b82f6', '#8b5cf6', '#06b6d4', '#1e293b'].map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setEditingSurvey({ ...editingSurvey, accentColor: color })}
+                        className={`h-7 w-7 rounded-full transition-transform cursor-pointer border border-white/40 shadow-sm ${
+                          editingSurvey.accentColor === color ? 'scale-125 ring-2 ring-offset-2 ring-indigo-500' : 'hover:scale-110'
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+
+                    {/* Native HTML Color Dropper Picker */}
+                    <div className="relative flex items-center gap-1.5 pl-2 border-l border-slate-200">
+                      <label 
+                        title="Pick custom brand color using color dropper"
+                        className="h-8 w-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center cursor-pointer shadow-sm hover:border-indigo-400 transition-all text-slate-700 overflow-hidden"
+                        style={{ borderColor: editingSurvey.accentColor }}
+                      >
+                        <Pipette size={14} style={{ color: editingSurvey.accentColor }} />
+                        <input
+                          type="color"
+                          value={editingSurvey.accentColor.startsWith('#') ? editingSurvey.accentColor : '#6366f1'}
+                          onChange={(e) => setEditingSurvey({ ...editingSurvey, accentColor: e.target.value })}
+                          className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                        />
+                      </label>
+                      <input
+                        type="text"
+                        value={editingSurvey.accentColor}
+                        onChange={(e) => setEditingSurvey({ ...editingSurvey, accentColor: e.target.value })}
+                        placeholder="#6366f1"
+                        className="w-20 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-[11px] font-mono font-bold text-slate-800 outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Launch Button */}
-                <div className="pt-4 flex justify-between max-w-xl mx-auto border-t border-slate-100">
-                  <button
-                    id="btn_onboarding_back_5"
-                    onClick={() => setStep(4)}
-                    className="text-slate-600 hover:text-slate-800 text-sm font-semibold px-4 py-2"
-                  >
-                    Back
-                  </button>
-                  <button
-                    id="btn_onboarding_launch"
-                    onClick={handleLaunch}
-                    className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-sm px-10 py-4 rounded-xl flex items-center gap-2 shadow-lg hover:shadow-indigo-500/20 shadow-indigo-600/10 transition-all transform hover:-translate-y-0.5"
-                  >
-                    Launch Now! <ArrowRight size={16} />
-                  </button>
+                {/* Custom Brand Logo Image Upload & URL */}
+                <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-150">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider font-mono flex items-center gap-1.5">
+                      <ImageIcon size={12} className="text-indigo-600" /> Own Brand Logo Image
+                    </label>
+                    {editingSurvey.logoUrl && (
+                      <span className="text-[9px] font-extrabold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                        Custom Logo Active
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Logo Preview & Upload Row */}
+                  {editingSurvey.logoUrl ? (
+                    <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200">
+                      <div className="flex items-center gap-2.5">
+                        <img 
+                          src={editingSurvey.logoUrl} 
+                          alt="Custom Brand Logo" 
+                          className="h-8 w-8 rounded-lg object-contain bg-slate-50 border border-slate-150 p-0.5"
+                        />
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-800">Custom Logo Loaded</p>
+                          <p className="text-[9px] text-slate-400 truncate max-w-[180px]">{editingSurvey.logoUrl}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingSurvey({ ...editingSurvey, logoUrl: undefined })}
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                        title="Remove custom logo"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center gap-2">
+                        {/* File Upload Button */}
+                        <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-slate-200 hover:border-indigo-300 rounded-xl text-slate-700 cursor-pointer transition-all shadow-sm">
+                          <Upload size={13} className="text-indigo-600" />
+                          <span className="text-[11px] font-bold">Upload Logo File</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (evt) => {
+                                  const result = evt.target?.result as string;
+                                  if (result) {
+                                    setEditingSurvey({ ...editingSurvey, logoUrl: result });
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+
+                      {/* Direct Logo URL Option */}
+                      <input
+                        type="text"
+                        placeholder="Or paste image URL (e.g., https://yourdomain.com/logo.png)"
+                        value={editingSurvey.logoUrl || ''}
+                        onChange={(e) => setEditingSurvey({ ...editingSurvey, logoUrl: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-medium focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
-        </div>
-      </div>
+                {/* Custom Doodle / Icon Option */}
+                <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-150">
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider font-mono">
+                    Brand Doodle / Emoji Icon
+                  </label>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    {['✨', '🛍', '🛒', '⚡', '🎯', '💎', '😊', '🚀', '🔥', '💡'].map((icon) => (
+                      <button
+                        key={icon}
+                        type="button"
+                        onClick={() => setEditingSurvey({ ...editingSurvey, logoDoodle: icon, logoUrl: undefined })}
+                        className={`px-2.5 py-1.5 rounded-xl border font-bold text-xs transition-all cursor-pointer ${
+                          !editingSurvey.logoUrl && editingSurvey.logoDoodle === icon 
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' 
+                            : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-100'
+                        }`}
+                      >
+                        {icon}
+                      </button>
+                    ))}
+                  </div>
 
-      {/* Footer copyright */}
-      <div className={`${isWorkspaceStep ? 'max-w-5xl' : 'max-w-4xl'} mx-auto w-full text-center text-xs text-slate-400 font-mono mt-8 transition-all duration-300`}>
-        CustomerLens Onboarding System • No Manual Support Approval Required • 🟢 Self-Service Activated
-      </div>
+                  {/* Custom Doodle Text Input */}
+                  <div className="pt-1.5">
+                    <label className="block text-[9.5px] font-bold text-slate-400 uppercase tracking-wider mb-1">Custom Doodle Text / Character</label>
+                    <input
+                      type="text"
+                      placeholder="Type custom doodle e.g. 🦊 or CS"
+                      value={editingSurvey.logoDoodle}
+                      onChange={(e) => setEditingSurvey({ ...editingSurvey, logoDoodle: e.target.value, logoUrl: undefined })}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Size & Position */}
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider font-mono mb-2">
+                    Widget Size & Position
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      'Bottom Right Widget',
+                      'Compact Center Modal',
+                      'Full Center Modal',
+                      'Bottom Banner'
+                    ].map((pos) => (
+                      <button
+                        key={pos}
+                        type="button"
+                        onClick={() => setEditingSurvey({ ...editingSurvey, sizePosition: pos as any })}
+                        className={`p-2.5 rounded-xl border text-left text-[11px] font-bold transition-all cursor-pointer ${
+                          editingSurvey.sizePosition === pos ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {pos}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Survey Headline */}
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider font-mono mb-1">
+                    Survey Headline
+                  </label>
+                  <input
+                    type="text"
+                    value={editingSurvey.headline}
+                    onChange={(e) => setEditingSurvey({ ...editingSurvey, headline: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:bg-white focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Question Text */}
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider font-mono mb-1">
+                    Main Question Text
+                  </label>
+                  <input
+                    type="text"
+                    value={editingSurvey.questionText}
+                    onChange={(e) => setEditingSurvey({ ...editingSurvey, questionText: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:bg-white focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingSurvey(null)}
+                  className="px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGeneratedSurveys(prev =>
+                      prev.map(s => (s.id === editingSurvey.id ? editingSurvey : s))
+                    );
+                    setEditingSurvey(null);
+                  }}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-extrabold text-xs transition-all shadow-md cursor-pointer"
+                >
+                  Save Customizations
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

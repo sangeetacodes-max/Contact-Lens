@@ -64,6 +64,11 @@ service cloud.firestore {
         && data.timestamp is string && data.timestamp.size() <= 64;
     }
 
+    // Rules for test connection
+    match /test/{testId} {
+      allow read: if true;
+    }
+
     // Rules for individual collections
     match /users/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
