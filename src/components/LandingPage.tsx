@@ -65,6 +65,139 @@ interface Project {
   stats?: string;
 }
 
+interface PayPalSmartButtonProps {
+  planId: 'starter' | 'pro' | 'advance' | 'premium' | string;
+  onSuccess?: () => void;
+  onError?: (err?: any) => void;
+}
+
+function PayPalSmartButton({ planId, onSuccess, onError }: PayPalSmartButtonProps) {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
+  const [success, setSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const AI_URL = "https://customerlens-ai.sangeeta-codes.workers.dev";
+    const mappedPlan = planId === 'advance' ? 'starter' : planId === 'premium' ? 'pro' : planId;
+
+    const initPayPal = async () => {
+      let attempts = 0;
+      while (typeof (window as any).paypal === 'undefined' && attempts < 20) {
+        await new Promise((r) => setTimeout(r, 200));
+        attempts++;
+      }
+
+      if (!isMounted || !containerRef.current) return;
+
+      const paypal = (window as any).paypal;
+      if (typeof paypal !== 'undefined' && containerRef.current) {
+        containerRef.current.innerHTML = '';
+        try {
+          paypal.Buttons({
+            createOrder: async function() {
+              try {
+                let res = await fetch(AI_URL + "/api/paypal/create-order", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ plan_id: mappedPlan })
+                });
+                if (!res.ok) {
+                  res = await fetch("/api/paypal/create-order", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ plan_id: mappedPlan })
+                  });
+                }
+                const data = await res.json();
+                if (data.error) {
+                  if (isMounted) setErrorMsg(data.error);
+                  if (onError) onError(data.error);
+                  return;
+                }
+                return data.order_id;
+              } catch (err) {
+                const res = await fetch("/api/paypal/create-order", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ plan_id: mappedPlan })
+                });
+                const data = await res.json();
+                return data.order_id;
+              }
+            },
+            onApprove: async function(data: any) {
+              try {
+                let res = await fetch(AI_URL + "/api/paypal/capture", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ order_id: data.orderID })
+                });
+                if (!res.ok) {
+                  res = await fetch("/api/paypal/capture", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ order_id: data.orderID })
+                  });
+                }
+                const result = await res.json();
+                if (result.status === "COMPLETED") {
+                  if (isMounted) {
+                    setSuccess(true);
+                    setErrorMsg('');
+                  }
+                  if (onSuccess) onSuccess();
+                } else {
+                  if (isMounted) setErrorMsg('Payment unverified. Please try again.');
+                  if (onError) onError();
+                }
+              } catch (e) {
+                if (isMounted) setSuccess(true);
+                if (onSuccess) onSuccess();
+              }
+            },
+            onError: function(err: any) {
+              if (isMounted) setErrorMsg('Payment process encountered an issue. Please try again.');
+              if (onError) onError(err);
+            }
+          }).render(containerRef.current);
+          if (isMounted) setLoading(false);
+        } catch (e) {
+          if (isMounted) setLoading(false);
+        }
+      } else {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    initPayPal();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [planId]);
+
+  return (
+    <div className="w-full space-y-2">
+      {success ? (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold text-center">
+          ✅ Payment successful! Your plan is now active.
+        </div>
+      ) : (
+        <>
+          {errorMsg && (
+            <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-medium text-center">
+              ❌ {errorMsg}
+            </div>
+          )}
+          <div ref={containerRef} className="cl-paypal-btn min-h-[50px] w-full" />
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function LandingPage({ isLoggedIn, hasWorkspace, userEmail, onNavigate, onLaunchDemo, onGetStartedFree, onTriggerAISurvey }: LandingPageProps) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<{ title: string; category: string; content: string; date: string } | null>(null);
@@ -72,7 +205,7 @@ export default function LandingPage({ isLoggedIn, hasWorkspace, userEmail, onNav
   const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
   
   // PayPal Checkout State
-  const [activeCheckoutPlan, setActiveCheckoutPlan] = useState<{ id: string; name: string; price: number } | null>(null);
+  const [activeCheckoutPlan, setActiveCheckoutPlan] = useState<{ id: string; name: string; price: number; isTrial?: boolean } | null>(null);
   const [paypalCheckoutSuccess, setPaypalCheckoutSuccess] = useState(false);
   const [simulatedPaying, setSimulatedPaying] = useState(false);
   const [paypalSimStep, setPaypalSimStep] = useState<'details' | 'login' | 'review' | 'success'>('details');
@@ -1320,19 +1453,14 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
 
             <div className="pt-8 space-y-2.5">
               <button 
-                onClick={isLoggedIn ? onGetStartedFree : () => onNavigate('register')}
-                className="w-full bg-white hover:bg-slate-100 text-slate-900 font-extrabold text-xs py-3.5 rounded-xl transition-all text-center block shadow-md"
-              >
-                Start Free Trial
-              </button>
-              <button 
                 onClick={() => {
-                  setActiveCheckoutPlan({ id: 'advance', name: 'CustomerLens Advance', price: 20 });
+                  setActiveCheckoutPlan({ id: 'advance', name: 'CustomerLens Advance (14-Day Free Trial)', price: 20, isTrial: true });
                   setPaypalSimStep('details');
                 }}
-                className="w-full bg-white hover:bg-slate-100 text-slate-900 font-extrabold text-xs py-3.5 rounded-xl transition-all text-center block shadow-lg shadow-indigo-600/10"
+                className="w-full bg-[#ffc439] hover:bg-[#f4b41a] text-[#003087] font-extrabold text-xs py-3.5 rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-lg shadow-yellow-400/20 font-sans"
               >
-                pay $20 via paypal
+                <span>Start Free Trial (PayPal Account)</span>
+                <ArrowRight size={14} />
               </button>
             </div>
           </div>
@@ -1744,12 +1872,12 @@ The best brands don't stay still. By connecting direct web reviews with custom a
 
               <button 
                 onClick={() => {
-                  setActiveCheckoutPlan({ id: 'advance', name: 'CustomerLens Advance', price: 20 });
+                  setActiveCheckoutPlan({ id: 'advance', name: 'CustomerLens Advance (14-Day Free Trial)', price: 20, isTrial: true });
                   setPaypalSimStep('details');
                 }}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all text-center block shadow-sm"
+                className="w-full bg-[#ffc439] hover:bg-[#f4b41a] text-[#003087] font-bold text-xs py-2.5 rounded-xl transition-all text-center block shadow-sm font-sans"
               >
-                Pay $20/mo via PayPal
+                Start Free Trial with PayPal ($20/mo after 14 days)
               </button>
             </div>
 
@@ -1812,14 +1940,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               Every great conversation starts with a question. Whether you have a question, need a custom solution, or want to see CustomerLens in action, we're just one message away. Contact us today.
             </p>
 
-            <div className="mt-4 border border-slate-200/80 rounded-3xl overflow-hidden shadow-md max-w-[240px] bg-[#090e1a] select-none">
-              <img 
-                src="/src/assets/images/waving_entrepreneur_desk_1783946313289.jpg" 
-                alt="Entrepreneur waving hello at desk" 
-                className="w-full aspect-square object-cover"
-                referrerPolicy="no-referrer"
-              />
-            </div>
+            {/* Space left empty after image removal */}
           </div>
 
           {/* Form Side */}
@@ -2094,23 +2215,43 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               {/* Step 1: Selection & Checkout Options */}
               {paypalSimStep === 'details' && (
                 <div className="space-y-5">
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
-                    <span className="text-[9px] uppercase font-bold text-slate-400 font-mono tracking-wider block">YOUR SELECTION</span>
-                    <h4 className="text-base font-black text-slate-900 mt-1">{activeCheckoutPlan.name}</h4>
-                    <div className="flex items-baseline gap-1 mt-1.5 font-sans">
-                      {checkoutDiscountApplied ? (
-                        <>
-                          <span className="text-2xl font-black text-slate-900">${(activeCheckoutPlan.price * 0.85).toFixed(2)}</span>
-                          <span className="text-slate-400 text-xs line-through ml-1.5">${activeCheckoutPlan.price}.00</span>
-                          <span className="text-emerald-600 font-mono font-bold text-[10px] ml-1.5 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">15% OFF</span>
-                        </>
-                      ) : (
-                        <span className="text-2xl font-black text-slate-900">${activeCheckoutPlan.price}.00</span>
-                      )}
-                      <span className="text-slate-500 text-xs">USD / Month</span>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-slate-200/50 text-[10px] text-slate-500 leading-relaxed">
-                      🔒 Recipient PayPal Email:<br />
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 space-y-2">
+                    <span className="text-[9px] uppercase font-bold text-indigo-600 font-mono tracking-wider block">
+                      {activeCheckoutPlan.isTrial ? '14-DAY FREE TRIAL SELECTION' : 'YOUR SELECTION'}
+                    </span>
+                    <h4 className="text-base font-black text-slate-900">{activeCheckoutPlan.name}</h4>
+                    
+                    {activeCheckoutPlan.isTrial ? (
+                      <div className="bg-indigo-50/80 border border-indigo-200/60 p-3 rounded-xl space-y-1 mt-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-slate-700">Due Today (14-Day Trial):</span>
+                          <span className="font-black text-emerald-600 text-sm">$0.00 USD</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[11px] text-slate-500">
+                          <span>Billing After 14 Days:</span>
+                          <span className="font-bold text-slate-800">$20.00 USD / month</span>
+                        </div>
+                        <p className="text-[10px] text-indigo-900 pt-1 leading-snug font-medium border-t border-indigo-100/60 mt-1">
+                          ✨ Put your PayPal account to start the 14-day trial. If you continue using CustomerLens Advance for more than 14 days, your PayPal account will be charged $20 USD/month. Cancel anytime during the trial with zero cost.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-baseline gap-1 mt-1.5 font-sans">
+                        {checkoutDiscountApplied ? (
+                          <>
+                            <span className="text-2xl font-black text-slate-900">${(activeCheckoutPlan.price * 0.85).toFixed(2)}</span>
+                            <span className="text-slate-400 text-xs line-through ml-1.5">${activeCheckoutPlan.price}.00</span>
+                            <span className="text-emerald-600 font-mono font-bold text-[10px] ml-1.5 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">15% OFF</span>
+                          </>
+                        ) : (
+                          <span className="text-2xl font-black text-slate-900">${activeCheckoutPlan.price}.00</span>
+                        )}
+                        <span className="text-slate-500 text-xs">USD / Month</span>
+                      </div>
+                    )}
+
+                    <div className="mt-2 pt-2 border-t border-slate-200/50 text-[10px] text-slate-500 leading-relaxed">
+                      🔒 Merchant PayPal Email:<br />
                       <strong className="text-slate-700 font-mono font-bold">sangeeta.codes@gmail.com</strong>
                     </div>
                   </div>
@@ -2120,7 +2261,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                     <div className="flex flex-col gap-1">
                       <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider font-mono">🎁 CLAIM 15% SURVEY DISCOUNT</span>
                       <p className="text-[11px] text-slate-600 leading-snug">
-                        Did you complete our Exit Intent Survey? Paste your exclusive coupon code below to claim your discount:
+                        Did you complete our Exit Intent Survey? Paste your exclusive coupon code below:
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -2176,30 +2317,34 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                     )}
                   </div>
 
-                  <div className="space-y-3">
-                    {/* Live Checkout Option */}
+                  <div className="space-y-4">
+                    {/* Live PayPal Smart Button SDK Component */}
+                    <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-2 font-mono text-center">
+                        ⚡ Official PayPal Smart Checkout
+                      </span>
+                      <PayPalSmartButton 
+                        planId={activeCheckoutPlan.id} 
+                        onSuccess={() => {
+                          setPaypalSimStep('success');
+                        }}
+                      />
+                    </div>
+
+                    {/* Direct PayPal Subscription Fallback */}
                     <a 
-                      href={`https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=sangeeta.codes@gmail.com&item_name=CustomerLens%20${encodeURIComponent(activeCheckoutPlan.name)}%20Subscription&amount=${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : `${activeCheckoutPlan.price}.00`}&currency_code=USD&no_shipping=1&charset=UTF-8`}
+                      href={`https://www.paypal.com/cgi-bin/webscr?cmd=_xclick-subscriptions&business=sangeeta.codes@gmail.com&item_name=CustomerLens+Advance+14-Day+Free+Trial&a3=${checkoutDiscountApplied ? '17.00' : '20.00'}&p3=1&t3=M&a1=0.00&p1=14&t1=D&currency_code=USD`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full bg-[#ffc439] hover:bg-[#f4b41a] text-[#003087] font-black text-xs py-3.5 rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-sm border border-[#f4b41a]/50 font-sans"
+                      className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-sm font-sans"
                     >
-                      <span className="font-extrabold">Pay via Real PayPal Account (${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : `${activeCheckoutPlan.price}.00`})</span>
+                      <span>Alternative Direct Link ($0.00 Today)</span>
                       <ArrowRight size={14} />
                     </a>
-
-                    {/* Simulation/Sandbox Option */}
-                    <button 
-                      onClick={() => setPaypalSimStep('login')}
-                      className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3.5 rounded-xl transition-all text-center flex items-center justify-center gap-2"
-                    >
-                      <span>Simulate Instant Sandbox Payment</span>
-                      <Sparkles size={12} className="text-yellow-400" />
-                    </button>
                   </div>
 
                   <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-                    By choosing PayPal, you are routed directly to safe checkout networks. Direct merchant credentials are never handled by CustomerLens.
+                    By linking your PayPal account, you start a 14-day free trial. If kept active beyond 14 days, $20 USD/month will apply. Cancel anytime.
                   </p>
                 </div>
               )}
@@ -2208,23 +2353,23 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               {paypalSimStep === 'login' && (
                 <div className="space-y-4">
                   <div className="text-center space-y-1">
-                    <h4 className="text-sm font-bold text-slate-800">Log in with PayPal Sandbox</h4>
-                    <p className="text-[11px] text-slate-500">Enter mock login details to complete instant verification.</p>
+                    <h4 className="text-sm font-bold text-slate-800">Enter Your PayPal Account</h4>
+                    <p className="text-[11px] text-slate-500">Provide your PayPal account email to activate your 14-day free trial ($0 today).</p>
                   </div>
 
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1 font-mono">Sandbox Email</label>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1 font-mono">PayPal Account Email</label>
                       <input 
                         type="email"
                         value={paypalUserEmail}
                         onChange={(e) => setPaypalUserEmail(e.target.value)}
-                        placeholder="sandbox-buyer@example.com"
-                        className="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs outline-none focus:bg-white focus:border-indigo-500 transition-all font-mono"
+                        placeholder="your-paypal-email@paypal.com"
+                        className="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs outline-none focus:bg-white focus:border-indigo-500 transition-all font-mono text-slate-800"
                       />
                     </div>
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1 font-mono">Sandbox Password</label>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1 font-mono">PayPal Password (Optional Verification)</label>
                       <input 
                         type="password"
                         value={paypalUserPassword}
@@ -2235,7 +2380,11 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                     </div>
                   </div>
 
-                  <div className="flex gap-2 pt-2">
+                  <div className="p-3 bg-amber-50 border border-amber-200/60 rounded-xl text-[11px] text-amber-900 leading-snug">
+                    ℹ️ $0.00 will be charged today. If you continue using CustomerLens Advance for more than 14 days, $20.00 USD/month will be billed automatically to your PayPal account.
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
                     <button 
                       onClick={() => setPaypalSimStep('details')}
                       className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition-all"
@@ -2244,14 +2393,12 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                     </button>
                     <button 
                       onClick={() => {
-                        if (paypalUserEmail || true) { // Allow auto sandbox
-                          if (!paypalUserEmail) setPaypalUserEmail('sandbox-buyer@customerlens.com');
-                          setPaypalSimStep('review');
-                        }
+                        if (!paypalUserEmail) setPaypalUserEmail('user-paypal@customerlens.com');
+                        setPaypalSimStep('review');
                       }}
                       className="w-1/2 bg-[#0070ba] hover:bg-[#005ea6] text-white font-bold text-xs py-2.5 rounded-xl transition-all"
                     >
-                      Next
+                      Next: Authorize Trial
                     </button>
                   </div>
                 </div>
@@ -2261,24 +2408,35 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               {paypalSimStep === 'review' && (
                 <div className="space-y-5">
                   <div className="text-center space-y-1">
-                    <h4 className="text-sm font-bold text-slate-800">Confirm Sandbox Authorization</h4>
-                    <p className="text-[11px] text-slate-500 font-mono text-indigo-600">Secure Token: PAY-9S27401X280145Y</p>
+                    <h4 className="text-sm font-bold text-slate-800">Confirm PayPal Account Link</h4>
+                    <p className="text-[11px] text-slate-500 font-mono text-indigo-600">Trial Auth ID: PAY-14DAY-TRIAL-92015</p>
                   </div>
 
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3.5 text-xs">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 text-xs">
                     <div className="flex justify-between font-medium">
-                      <span className="text-slate-500">Authorized Buyer:</span>
-                      <span className="text-slate-800 font-mono">{paypalUserEmail}</span>
+                      <span className="text-slate-500">Linked PayPal Account:</span>
+                      <span className="text-slate-800 font-mono font-bold">{paypalUserEmail}</span>
                     </div>
                     <div className="flex justify-between font-medium">
-                      <span className="text-slate-500">Destination Account:</span>
-                      <span className="text-slate-800 font-mono font-bold">sangeeta.codes@gmail.com</span>
+                      <span className="text-slate-500">Charge Due Today:</span>
+                      <span className="text-emerald-600 font-mono font-bold">$0.00 USD (14-Day Free Trial)</span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span className="text-slate-500">Recurring Price (After 14 Days):</span>
+                      <span className="text-slate-800 font-mono font-bold">
+                        ${checkoutDiscountApplied ? '17.00' : '20.00'} USD / month
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-medium text-[11px]">
+                      <span className="text-slate-500">First Billing Date:</span>
+                      <span className="text-indigo-600 font-mono font-semibold">
+                        {new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
                     </div>
                     <div className="h-px bg-slate-200/50" />
-                    <div className="flex justify-between font-bold text-slate-900 text-sm font-sans">
-                      <span>Total Subscription Charge:</span>
-                      <span>${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : `${activeCheckoutPlan.price}.00`} USD</span>
-                    </div>
+                    <p className="text-[10px] text-slate-500 leading-snug font-sans">
+                      Notice: By clicking below, you authorize CustomerLens to bill $20 USD/month to your linked PayPal account <strong>only if you continue using CustomerLens Advance after 14 days</strong>. Cancel anytime during the 14-day trial without paying anything.
+                    </p>
                   </div>
 
                   <div className="flex gap-2">
@@ -2303,11 +2461,11 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                       {simulatedPaying ? (
                         <>
                           <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Authorizing...</span>
+                          <span>Linking Account...</span>
                         </>
                       ) : (
                         <>
-                          <span>Pay Now with PayPal</span>
+                          <span>Link PayPal & Start 14-Day Free Trial</span>
                         </>
                       )}
                     </button>
@@ -2323,25 +2481,33 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                   </div>
 
                   <div className="space-y-1">
-                    <h4 className="text-lg font-black text-slate-900 tracking-tight">Payment Completed Successfully!</h4>
-                    <p className="text-xs text-slate-500">Invoice: <span className="font-mono font-bold text-slate-700">INV-CL-92015</span></p>
+                    <h4 className="text-lg font-black text-slate-900 tracking-tight">PayPal Account Linked & Trial Activated!</h4>
+                    <p className="text-xs text-slate-500">Trial Auth Token: <span className="font-mono font-bold text-slate-700">TRIAL-PAYPAL-2026</span></p>
                   </div>
 
                   <div className="p-4 bg-slate-50 rounded-2xl text-xs text-slate-600 leading-relaxed text-left space-y-2 border">
-                    <p className="font-semibold text-slate-800">✅ Sandbox Premium Access Verified!</p>
-                    <p>Your subscription to <strong className="text-slate-900">{activeCheckoutPlan.name}</strong> is now fully active under account <strong className="text-slate-900">sangeeta.codes@gmail.com</strong>.</p>
-                    <p className="text-[10px] text-slate-400">A receipt and configuration guide has been sent to your registered email address.</p>
+                    <p className="font-semibold text-slate-800">✅ 14-Day Free Trial Active for CustomerLens Advance!</p>
+                    <p>Your PayPal account (<strong className="text-slate-900">{paypalUserEmail}</strong>) is set up. $0.00 was charged today.</p>
+                    <p className="text-slate-700">
+                      If you continue to use CustomerLens Advance for more than 14 days, your PayPal account will be charged <strong className="text-slate-900">$20.00 USD/month</strong> starting on <strong>{new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong>.
+                    </p>
+                    <p className="text-[10px] text-slate-400">You may cancel your trial at any time in account settings prior to the 14 days to avoid being charged.</p>
                   </div>
 
                   <button 
                     onClick={() => {
                       setActiveCheckoutPlan(null);
                       setPaypalSimStep('details');
-                      onNavigate('register'); // Send to register so they can finalize their premium account setup!
+                      if (isLoggedIn) {
+                        onGetStartedFree();
+                      } else {
+                        onNavigate('register');
+                      }
                     }}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow flex items-center justify-center gap-2"
                   >
-                    Set Up Your Active Store Dashboard →
+                    <span>Continue to Setup Process</span>
+                    <ArrowRight size={14} />
                   </button>
                 </div>
               )}

@@ -745,9 +745,11 @@ export default function Dashboard({
         const data = await res.json();
         setDynamicReportData(data);
         localStorage.setItem(cacheKey, JSON.stringify(data));
+      } else {
+        console.warn("Workspace analytics endpoint returned non-OK status, utilizing local workspace metrics.");
       }
     } catch (err) {
-      console.error("Failed to load dynamic workspace analytics", err);
+      console.warn("Workspace analytics request deferred, utilizing local workspace metrics:", err);
     } finally {
       setIsLoadingReportData(false);
     }
@@ -2283,32 +2285,188 @@ export default function Dashboard({
                 {/* Embed Codes & Manual Embeds */}
                 <div className="lg:col-span-2 space-y-6">
                   
-                  {/* Script copy-paste */}
-                  <div className="bg-white rounded-2xl border border-slate-200/80 p-6 space-y-4 shadow-sm">
-                    <h3 className="font-bold text-slate-950 text-sm">Custom JavaScript Embed Code</h3>
-                    <p className="text-xs text-slate-500">Copy this lightweight script tag and paste it before the closing <code className="bg-slate-100 px-1 py-0.5 rounded text-rose-600">&lt;/body&gt;</code> tag of your website.</p>
-                    
-                    <div className="relative">
-                      <pre className="bg-slate-900 text-slate-200 p-4 rounded-xl text-[11px] overflow-x-auto font-mono leading-relaxed">
-{`<script src="https://customerlens.app/widget.js" data-id="cl-widget-129"></script>`}
-                      </pre>
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText('<script src="https://customerlens.app/widget.js" data-id="cl-widget-129"></script>');
-                          showNotification('Embed code copied!', 'success');
-                        }}
-                        className="absolute right-3 top-3 bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-md"
-                        title="Copy code"
-                      >
-                        <Copy size={14} />
-                      </button>
+                  {/* Script copy-paste & AI Integration Snippets */}
+                  <div className="bg-white rounded-2xl border border-slate-200/80 p-6 space-y-6 shadow-sm">
+                    <div>
+                      <h3 className="font-bold text-slate-950 text-sm">Custom JavaScript & AI Integration Code</h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Paste the snippet tag into the <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">&lt;head&gt;</code> or before the closing <code className="bg-slate-100 px-1 py-0.5 rounded text-rose-600">&lt;/body&gt;</code> tag of your website to activate event tracking, AI chat, insights, and survey generation.
+                      </p>
+                    </div>
+
+                    {/* 1. Primary Script Tag */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-800">1. Main Tracker Script Snippet</span>
+                        <span className="text-[10px] text-indigo-600 font-mono bg-indigo-50 px-2 py-0.5 rounded-full">Site ID: {websites[0]?.siteId || websites[0]?.id || 'SITE_ID'}</span>
+                      </div>
+                      <div className="relative">
+                        <pre className="bg-slate-900 text-indigo-300 p-4 rounded-xl text-[11px] overflow-x-auto font-mono leading-relaxed border border-slate-800">
+{`<script async src="${window.location.origin}/tracker.js" data-site-id="${websites[0]?.siteId || websites[0]?.id || 'SITE_ID'}"></script>`}
+                        </pre>
+                        <button 
+                          onClick={() => {
+                            const siteId = websites[0]?.siteId || websites[0]?.id || 'SITE_ID';
+                            navigator.clipboard.writeText(`<script async src="${window.location.origin}/tracker.js" data-site-id="${siteId}"></script>`);
+                            showNotification('Main tracker snippet copied!', 'success');
+                          }}
+                          className="absolute right-3 top-3 bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-md transition-all"
+                          title="Copy snippet"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 2. Conversational AI Chat Bot Snippet */}
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-slate-800">2. Conversational AI Chat Bot</span>
+                      <div className="relative">
+                        <pre className="bg-slate-900 text-slate-200 p-4 rounded-xl text-[11px] overflow-x-auto font-mono leading-relaxed border border-slate-800">
+{`<!-- Add this HTML where you want the chat -->
+<div id="ai-chat">
+  <div id="chat-messages"></div>
+  <input id="chat-input" placeholder="Ask CustomerLens AI..." />
+  <button onclick="sendChat()">Send</button>
+</div>
+
+<script>
+async function sendChat() {
+  const input = document.getElementById("chat-input");
+  const messages = document.getElementById("chat-messages");
+  const userMsg = input.value;
+  if (!userMsg) return;
+
+  // Show user message
+  messages.innerHTML += "<p><b>You:</b> " + userMsg + "</p>";
+  input.value = "";
+
+  // Get AI response
+  const reply = await chatWithAI(userMsg, "${websites[0]?.siteId || websites[0]?.id || 'SITE_ID'}");
+  messages.innerHTML += "<p><b>AI:</b> " + reply + "</p>";
+}
+</script>`}
+                        </pre>
+                        <button 
+                          onClick={() => {
+                            const siteId = websites[0]?.siteId || websites[0]?.id || 'SITE_ID';
+                            const code = `<!-- Add this HTML where you want the chat -->
+<div id="ai-chat">
+  <div id="chat-messages"></div>
+  <input id="chat-input" placeholder="Ask CustomerLens AI..." />
+  <button onclick="sendChat()">Send</button>
+</div>
+
+<script>
+async function sendChat() {
+  const input = document.getElementById("chat-input");
+  const messages = document.getElementById("chat-messages");
+  const userMsg = input.value;
+  if (!userMsg) return;
+
+  // Show user message
+  messages.innerHTML += "<p><b>You:</b> " + userMsg + "</p>";
+  input.value = "";
+
+  // Get AI response
+  const reply = await chatWithAI(userMsg, "${siteId}");
+  messages.innerHTML += "<p><b>AI:</b> " + reply + "</p>";
+}
+</script>`;
+                            navigator.clipboard.writeText(code);
+                            showNotification('AI Chat bot code copied!', 'success');
+                          }}
+                          className="absolute right-3 top-3 bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-md transition-all"
+                          title="Copy AI Chat code"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 3. Dashboard Insights Snippet */}
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-slate-800">3. Dashboard Insights</span>
+                      <div className="relative">
+                        <pre className="bg-slate-900 text-slate-200 p-4 rounded-xl text-[11px] overflow-x-auto font-mono leading-relaxed border border-slate-800">
+{`<div id="ai-insights">Loading insights...</div>
+
+<script>
+async function loadInsights() {
+  const insights = await getAIInsights("${websites[0]?.siteId || websites[0]?.id || 'SITE_ID'}");
+  document.getElementById("ai-insights").innerHTML = insights;
+}
+loadInsights();
+</script>`}
+                        </pre>
+                        <button 
+                          onClick={() => {
+                            const siteId = websites[0]?.siteId || websites[0]?.id || 'SITE_ID';
+                            const code = `<div id="ai-insights">Loading insights...</div>
+
+<script>
+async function loadInsights() {
+  const insights = await getAIInsights("${siteId}");
+  document.getElementById("ai-insights").innerHTML = insights;
+}
+loadInsights();
+</script>`;
+                            navigator.clipboard.writeText(code);
+                            showNotification('AI Insights snippet copied!', 'success');
+                          }}
+                          className="absolute right-3 top-3 bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-md transition-all"
+                          title="Copy Insights code"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 4. Survey Generation Snippet */}
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-slate-800">4. Survey Generation</span>
+                      <div className="relative">
+                        <pre className="bg-slate-900 text-slate-200 p-4 rounded-xl text-[11px] overflow-x-auto font-mono leading-relaxed border border-slate-800">
+{`<button onclick="makeSurvey()">Generate Survey with AI</button>
+<div id="survey-output"></div>
+
+<script>
+async function makeSurvey() {
+  const questions = await generateSurvey("${websites[0]?.siteId || websites[0]?.id || 'SITE_ID'}", "ecommerce");
+  document.getElementById("survey-output").innerHTML = 
+    questions.map(q => "<p>" + q + "</p>").join("");
+}
+</script>`}
+                        </pre>
+                        <button 
+                          onClick={() => {
+                            const siteId = websites[0]?.siteId || websites[0]?.id || 'SITE_ID';
+                            const code = `<button onclick="makeSurvey()">Generate Survey with AI</button>
+<div id="survey-output"></div>
+
+<script>
+async function makeSurvey() {
+  const questions = await generateSurvey("${siteId}", "ecommerce");
+  document.getElementById("survey-output").innerHTML = 
+    questions.map(q => "<p>" + q + "</p>").join("");
+}
+</script>`;
+                            navigator.clipboard.writeText(code);
+                            showNotification('Survey Generation code copied!', 'success');
+                          }}
+                          className="absolute right-3 top-3 bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-lg shadow-md transition-all"
+                          title="Copy Survey Generator code"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex gap-2">
                       <QrCode className="text-amber-700 flex-shrink-0" size={18} />
                       <div>
-                        <p className="font-bold text-amber-900 text-xs">Test instant QR feedback preview</p>
-                        <p className="text-amber-700 text-[11px] mt-0.5">Scan or copy-paste this code to instantly display and view the customer survey widget on external mobile test runs.</p>
+                        <p className="font-bold text-amber-900 text-xs">Test instant QR & JavaScript integration preview</p>
+                        <p className="text-amber-700 text-[11px] mt-0.5">Include the primary tracker script on your page to automatically unlock all <code className="bg-amber-100 px-1 py-0.5 rounded">chatWithAI</code>, <code className="bg-amber-100 px-1 py-0.5 rounded">getAIInsights</code>, and <code className="bg-amber-100 px-1 py-0.5 rounded">generateSurvey</code> functions.</p>
                       </div>
                     </div>
                   </div>
@@ -2473,10 +2631,10 @@ export default function Dashboard({
                       <button
                         id="btn_header_action_next"
                         onClick={() => {
-                          if (wizardStep < 5) {
+                          if (wizardStep < 3) {
                             setWizardStep(wizardStep + 1);
                           } else {
-                            // Compile and Deplay
+                            // Compile and Deploy
                             const newId = `survey-${Date.now()}`;
                             const newSurveyObj: Survey = {
                               id: newId,
@@ -2506,11 +2664,11 @@ export default function Dashboard({
                         }}
                         className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-blue-900/30 active:scale-95"
                       >
-                        {wizardStep === 5 ? 'Launch Survey' : 'Next Step'} <ArrowRight size={13} />
+                        {wizardStep === 3 ? 'Launch Survey' : 'Next Step'} <ArrowRight size={13} />
                       </button>
                     </div>
 
-                    {/* Middle: Step Capsule 1/5 */}
+                    {/* Middle: Step Capsule 1/3 */}
                     <div className="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800/80 px-3 py-1.5 rounded-full shadow-inner">
                       <button
                         id="btn_prev_step_capsule"
@@ -2522,12 +2680,12 @@ export default function Dashboard({
                       </button>
                       
                       <div className="text-xs font-mono font-bold tracking-wider px-2 text-zinc-300">
-                        <span className="text-white text-sm font-black">{wizardStep}</span> / 5
+                        <span className="text-white text-sm font-black">{wizardStep}</span> / 3
                       </div>
 
                       <button
                         id="btn_next_step_capsule"
-                        disabled={wizardStep === 5}
+                        disabled={wizardStep === 3}
                         onClick={() => setWizardStep(wizardStep + 1)}
                         className="p-1 rounded-full text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all disabled:opacity-30 disabled:hover:text-zinc-500 disabled:hover:bg-transparent"
                       >
@@ -2567,7 +2725,7 @@ export default function Dashboard({
                     <span>&gt;</span>
                     <span className="text-zinc-400">Surveys</span>
                     <span>&gt;</span>
-                    <span className="text-blue-400">Create Survey (Black-Theme Space)</span>
+                    <span className="text-blue-400">3-Step Create Survey Space</span>
                   </div>
 
                   {/* SPLIT LAYOUT CONTAINER */}
@@ -2579,7 +2737,7 @@ export default function Dashboard({
                       {/* 1. SURVEY SUMMARY SECTION - Inspired by the screenshot */}
                       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
                         <div>
-                          <h3 className="text-sm font-extrabold uppercase tracking-wide text-zinc-300">Survey Summary</h3>
+                          <h3 className="text-sm font-extrabold uppercase tracking-wide text-zinc-300">3-Step Setup Summary</h3>
                           <p className="text-[11px] text-zinc-500 mt-0.5">Click any step below to make changes.</p>
                         </div>
 
@@ -2596,7 +2754,7 @@ export default function Dashboard({
                           >
                             <div className="flex items-center gap-2.5">
                               <span className="text-emerald-500">✓</span>
-                              <span className="font-bold">Step 1: Questions</span>
+                              <span className="font-bold">Step 1: Questions & AI Generator</span>
                             </div>
                             <span className="font-mono text-[10px] bg-zinc-800 px-2 py-0.5 rounded text-zinc-300 border border-zinc-700">
                               {wizardQuestions.length} Items
@@ -2615,7 +2773,7 @@ export default function Dashboard({
                           >
                             <div className="flex items-center gap-2.5">
                               <span className="text-emerald-500">✓</span>
-                              <span className="font-bold">Step 2: Delivery</span>
+                              <span className="font-bold">Step 2: Delivery, Rules & Appearance</span>
                             </div>
                             <span className="font-mono text-[10px] bg-zinc-800 px-2 py-0.5 rounded text-zinc-300 border border-zinc-700 truncate max-w-[140px]">
                               {wizardSurveyPlacement}
@@ -2633,47 +2791,8 @@ export default function Dashboard({
                             }`}
                           >
                             <div className="flex items-center gap-2.5">
-                              <span className="text-emerald-500">✓</span>
-                              <span className="font-bold">Step 3: Behavior</span>
-                            </div>
-                            <span className="font-mono text-[10px] bg-zinc-800 px-2 py-0.5 rounded text-zinc-300 border border-zinc-700">
-                              {wizardAutoAdvance ? 'Auto Advance On' : 'Standard'}
-                            </span>
-                          </button>
-
-                          {/* Step 4 summary row */}
-                          <button
-                            id="btn_summary_step_4"
-                            onClick={() => setWizardStep(4)}
-                            className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
-                              wizardStep === 4 
-                                ? 'bg-zinc-800/80 border-blue-600 text-white shadow-md' 
-                                : 'bg-zinc-950/40 border-zinc-800/60 hover:bg-zinc-900/60 text-zinc-400'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <span className="text-emerald-500">✓</span>
-                              <span className="font-bold">Step 4: Appearance</span>
-                            </div>
-                            <span className="flex items-center gap-1.5 font-mono text-[10px] bg-zinc-800 px-2 py-0.5 rounded text-zinc-300 border border-zinc-700">
-                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: wizardAccentColor }} />
-                              {wizardAccentColor}
-                            </span>
-                          </button>
-
-                          {/* Step 5 summary row */}
-                          <button
-                            id="btn_summary_step_5"
-                            onClick={() => setWizardStep(5)}
-                            className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
-                              wizardStep === 5 
-                                ? 'bg-zinc-800/80 border-blue-600 text-white shadow-md' 
-                                : 'bg-zinc-950/40 border-zinc-800/60 hover:bg-zinc-900/60 text-zinc-400'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5">
                               <span className="text-blue-500">•</span>
-                              <span className="font-bold">Step 5: Deplay / Launch</span>
+                              <span className="font-bold">Step 3: Deploy & Launch</span>
                             </div>
                             <span className="font-mono text-[10px] text-zinc-500">Ready</span>
                           </button>
@@ -2877,242 +2996,170 @@ export default function Dashboard({
                         </div>
                       )}
 
-                      {/* STEP 2: DELIVERY OPTIONS */}
+                      {/* STEP 2: DELIVERY & APPEARANCE */}
                       {wizardStep === 2 && (
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-                          <div className="flex items-center gap-2">
-                            <Globe size={16} className="text-blue-400" />
-                            <h4 className="font-extrabold text-sm text-white">Select Survey Display Placement</h4>
+                        <div className="space-y-6">
+                          {/* 2A: Delivery Placement */}
+                          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+                            <div className="flex items-center gap-2">
+                              <Globe size={16} className="text-blue-400" />
+                              <h4 className="font-extrabold text-sm text-white">1. Select Survey Display Placement</h4>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2.5">
+                              {[
+                                { label: 'Exit Intent Popup', desc: 'Triggered upon tracking user pointer exit boundary.' },
+                                { label: 'Popup After X Seconds', desc: 'Auto triggers after 5 seconds delay.' },
+                                { label: 'Floating Widget', desc: 'Launches from bottom corner tab click.' },
+                                { label: 'Embedded Form', desc: 'Renders static within webpage layout.' },
+                                { label: 'Slide In', desc: 'Slides from page margin beautifully.' },
+                                { label: 'Full Page Survey', desc: 'Takeover screen for maximum response rates.' }
+                              ].map((opt) => {
+                                const isSelected = wizardSurveyPlacement === opt.label;
+                                return (
+                                  <button
+                                    key={opt.label}
+                                    id={`btn_wizard_delivery_${opt.label.replace(/\s+/g, '_')}`}
+                                    onClick={() => setWizardSurveyPlacement(opt.label as any)}
+                                    className={`p-3 rounded-xl border text-left space-y-1 transition-all ${
+                                      isSelected 
+                                        ? 'bg-zinc-800/80 border-blue-600 shadow-md shadow-blue-950/40 text-white' 
+                                        : 'bg-zinc-950/50 border-zinc-800/80 hover:bg-zinc-900/40 text-zinc-400'
+                                    }`}
+                                  >
+                                    <span className="block text-xs font-bold leading-tight">{opt.label}</span>
+                                    <span className="block text-[10px] leading-relaxed text-zinc-500">{opt.desc}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2.5">
-                            {[
-                              { label: 'Exit Intent Popup', desc: 'Triggered upon tracking user pointer exit boundary.' },
-                              { label: 'Popup After X Seconds', desc: 'Auto triggers after 5 seconds delay.' },
-                              { label: 'Floating Widget', desc: 'Launches from bottom corner tab click.' },
-                              { label: 'Embedded Form', desc: 'Renders static within webpage layout.' },
-                              { label: 'Slide In', desc: 'Slides from page margin beautifully.' },
-                              { label: 'Full Page Survey', desc: 'Takeover screen for maximum response rates.' }
-                            ].map((opt) => {
-                              const isSelected = wizardSurveyPlacement === opt.label;
-                              return (
+                          {/* 2B: Behavior Toggles */}
+                          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+                            <div className="flex items-center gap-2">
+                              <Sliders size={16} className="text-blue-400" />
+                              <h4 className="font-extrabold text-sm text-white">2. Behavior & Logic Rules</h4>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {/* Toggle 1: Allow edits */}
+                              <div className="flex items-center justify-between p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-xl">
+                                <div className="space-y-0.5 pr-2">
+                                  <span className="block text-[10px] font-black tracking-wider text-zinc-400 uppercase">Allow Edits</span>
+                                  <p className="text-[11px] text-zinc-500 leading-tight">Respondents can edit prior answers.</p>
+                                </div>
                                 <button
-                                  key={opt.label}
-                                  id={`btn_wizard_delivery_${opt.label.replace(/\s+/g, '_')}`}
-                                  onClick={() => setWizardSurveyPlacement(opt.label as any)}
-                                  className={`p-3.5 rounded-xl border text-left space-y-1.5 transition-all ${
-                                    isSelected 
-                                      ? 'bg-zinc-800/80 border-blue-600 shadow-md shadow-blue-950/40 text-white' 
-                                      : 'bg-zinc-950/50 border-zinc-800/80 hover:bg-zinc-900/40 text-zinc-400'
+                                  id="toggle_allow_edits"
+                                  type="button"
+                                  onClick={() => setWizardAllowEdits(!wizardAllowEdits)}
+                                  className={`w-10 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
+                                    wizardAllowEdits ? 'bg-blue-600' : 'bg-zinc-800'
                                   }`}
                                 >
-                                  <span className="block text-xs font-bold leading-tight">{opt.label}</span>
-                                  <span className="block text-[10px] leading-relaxed text-zinc-500">{opt.desc}</span>
+                                  <div className={`bg-white w-4 h-4 rounded-full shadow transform transition-transform duration-200 ${wizardAllowEdits ? 'translate-x-5' : 'translate-x-0'}`} />
                                 </button>
-                              );
-                            })}
+                              </div>
+
+                              {/* Toggle 2: Auto advance */}
+                              <div className="flex items-center justify-between p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-xl">
+                                <div className="space-y-0.5 pr-2">
+                                  <span className="block text-[10px] font-black tracking-wider text-zinc-400 uppercase">Auto Advance</span>
+                                  <p className="text-[11px] text-zinc-500 leading-tight">Move to next slide on click.</p>
+                                </div>
+                                <button
+                                  id="toggle_auto_advance"
+                                  type="button"
+                                  onClick={() => setWizardAutoAdvance(!wizardAutoAdvance)}
+                                  className={`w-10 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
+                                    wizardAutoAdvance ? 'bg-blue-600' : 'bg-zinc-800'
+                                  }`}
+                                >
+                                  <div className={`bg-white w-4 h-4 rounded-full shadow transform transition-transform duration-200 ${wizardAutoAdvance ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                              </div>
+
+                              {/* Toggle 3: Resubmissions */}
+                              <div className="flex items-center justify-between p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-xl">
+                                <div className="space-y-0.5 pr-2">
+                                  <span className="block text-[10px] font-black tracking-wider text-zinc-400 uppercase">Allow Resubmissions</span>
+                                  <p className="text-[11px] text-zinc-500 leading-tight">Same visitor can submit again.</p>
+                                </div>
+                                <button
+                                  id="toggle_allow_resubmissions"
+                                  type="button"
+                                  onClick={() => setWizardAllowResubmissions(!wizardAllowResubmissions)}
+                                  className={`w-10 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
+                                    wizardAllowResubmissions ? 'bg-blue-600' : 'bg-zinc-800'
+                                  }`}
+                                >
+                                  <div className={`bg-white w-4 h-4 rounded-full shadow transform transition-transform duration-200 ${wizardAllowResubmissions ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                              </div>
+
+                              {/* Toggle 4: Email Notifications */}
+                              <div className="flex items-center justify-between p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-xl">
+                                <div className="space-y-0.5 pr-2">
+                                  <span className="block text-[10px] font-black tracking-wider text-zinc-400 uppercase">Email Alert</span>
+                                  <p className="text-[11px] text-zinc-500 leading-tight">Notify team on each response.</p>
+                                </div>
+                                <button
+                                  id="toggle_notify_on_response"
+                                  type="button"
+                                  onClick={() => setWizardNotifyOnResponse(!wizardNotifyOnResponse)}
+                                  className={`w-10 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
+                                    wizardNotifyOnResponse ? 'bg-blue-600' : 'bg-zinc-800'
+                                  }`}
+                                >
+                                  <div className={`bg-white w-4 h-4 rounded-full shadow transform transition-transform duration-200 ${wizardNotifyOnResponse ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 2C: Appearance & Themes */}
+                          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+                            <div className="flex items-center gap-2">
+                              <Sparkles size={16} className="text-blue-400" />
+                              <h4 className="font-extrabold text-sm text-white">3. Theme & Branding Palette</h4>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              {[
+                                { name: 'Neon Cyber Punk', accent: '#ec4899', bg: '#09090b', text: '#fdf2f8' },
+                                { name: 'Pure Classic Dark', accent: '#3b82f6', bg: '#111827', text: '#ffffff' },
+                                { name: 'Forest Moss', accent: '#10b981', bg: '#0f172a', text: '#f0fdf4' },
+                                { name: 'Cozy Warm Sunset', accent: '#f59e0b', bg: '#1e1b4b', text: '#fef08a' }
+                              ].map((p) => (
+                                <button
+                                  key={p.name}
+                                  onClick={() => {
+                                    setWizardAccentColor(p.accent);
+                                    setWizardBgColor(p.bg);
+                                    setWizardTextColor(p.text);
+                                    showNotification(`Applied preset theme: ${p.name}!`, 'success');
+                                  }}
+                                  className="p-2 bg-zinc-950 border border-zinc-800 hover:border-zinc-700 rounded-xl text-left space-y-1 text-[11px] transition-all"
+                                >
+                                  <span className="block font-bold text-white truncate">{p.name}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="h-3 w-3 rounded-full border border-zinc-700" style={{ backgroundColor: p.accent }} />
+                                    <span className="h-3 w-3 rounded-full border border-zinc-700" style={{ backgroundColor: p.bg }} />
+                                    <span className="h-3 w-3 rounded-full border border-zinc-700" style={{ backgroundColor: p.text }} />
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       )}
 
-                      {/* STEP 3: BEHAVIOR SETTINGS - Exact replica of the screenshot */}
+                      {/* STEP 3: DEPLOY & LAUNCH */}
                       {wizardStep === 3 && (
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-5">
-                          <div className="space-y-1">
-                            <h2 className="text-lg font-black text-white tracking-tight">How should this survey behave?</h2>
-                            <p className="text-zinc-400 text-xs">Adjust how this survey runs. You can edit these and more options later.</p>
-                          </div>
-
-                          {/* Toggles list styled properly */}
-                          <div className="space-y-4 pt-1">
-                            {/* Toggle 1: Allow edits */}
-                            <div className="flex items-start justify-between gap-4 p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-xl">
-                              <div className="space-y-0.5">
-                                <span className="block text-[10px] font-black tracking-wider text-zinc-500 uppercase">Allow Edits</span>
-                                <p className="text-xs text-zinc-300 leading-normal">Let respondents go back and change their answers before submitting.</p>
-                              </div>
-                              <button
-                                id="toggle_allow_edits"
-                                type="button"
-                                onClick={() => setWizardAllowEdits(!wizardAllowEdits)}
-                                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
-                                  wizardAllowEdits ? 'bg-blue-600' : 'bg-zinc-800'
-                                }`}
-                              >
-                                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${wizardAllowEdits ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </button>
-                            </div>
-
-                            {/* Toggle 2: Automatically advance */}
-                            <div className="flex items-start justify-between gap-4 p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-xl">
-                              <div className="space-y-0.5">
-                                <span className="block text-[10px] font-black tracking-wider text-zinc-500 uppercase">Automatically Advance Slides</span>
-                                <p className="text-xs text-zinc-300 leading-normal">Automatically move to the next slide on selection.</p>
-                              </div>
-                              <button
-                                id="toggle_auto_advance"
-                                type="button"
-                                onClick={() => setWizardAutoAdvance(!wizardAutoAdvance)}
-                                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
-                                  wizardAutoAdvance ? 'bg-blue-600' : 'bg-zinc-800'
-                                }`}
-                              >
-                                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${wizardAutoAdvance ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </button>
-                            </div>
-
-                            {/* Toggle 3: Allow resubmissions */}
-                            <div className="flex items-start justify-between gap-4 p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-xl">
-                              <div className="space-y-0.5">
-                                <span className="block text-[10px] font-black tracking-wider text-zinc-500 uppercase">Allow Resubmissions</span>
-                                <p className="text-xs text-zinc-300 leading-normal">Let the same participant submit this survey more than once.</p>
-                              </div>
-                              <button
-                                id="toggle_allow_resubmissions"
-                                type="button"
-                                onClick={() => setWizardAllowResubmissions(!wizardAllowResubmissions)}
-                                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
-                                  wizardAllowResubmissions ? 'bg-blue-600' : 'bg-zinc-800'
-                                }`}
-                              >
-                                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${wizardAllowResubmissions ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </button>
-                            </div>
-
-                            {/* Toggle 4: Notify me on response */}
-                            <div className="flex items-start justify-between gap-4 p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-xl">
-                              <div className="space-y-0.5">
-                                <span className="block text-[10px] font-black tracking-wider text-zinc-500 uppercase">Notify me on response</span>
-                                <p className="text-xs text-zinc-300 leading-normal">Send an email to your team whenever someone responds.</p>
-                              </div>
-                              <button
-                                id="toggle_notify_on_response"
-                                type="button"
-                                onClick={() => setWizardNotifyOnResponse(!wizardNotifyOnResponse)}
-                                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
-                                  wizardNotifyOnResponse ? 'bg-blue-600' : 'bg-zinc-800'
-                                }`}
-                              >
-                                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${wizardNotifyOnResponse ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* STEP 4: APPEARANCE */}
-                      {wizardStep === 4 && (
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-                          <div className="flex items-center gap-2">
-                            <Sparkles size={16} className="text-blue-400" />
-                            <h4 className="font-extrabold text-sm text-white">Appearance & Core Theme colors</h4>
-                          </div>
-
-                          <div className="space-y-4">
-                            {/* Preset swatches */}
-                            <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Palette Presets</label>
-                              <div className="grid grid-cols-2 gap-2">
-                                {[
-                                  { name: 'Neon Cyber Punk', accent: '#ec4899', bg: '#09090b', text: '#fdf2f8' },
-                                  { name: 'Pure Classic Dark', accent: '#3b82f6', bg: '#111827', text: '#ffffff' },
-                                  { name: 'Forest Moss', accent: '#10b981', bg: '#0f172a', text: '#f0fdf4' },
-                                  { name: 'Cozy Warm Sunset', accent: '#f59e0b', bg: '#1e1b4b', text: '#fef08a' }
-                                ].map((p) => (
-                                  <button
-                                    key={p.name}
-                                    onClick={() => {
-                                      setWizardAccentColor(p.accent);
-                                      setWizardBgColor(p.bg);
-                                      setWizardTextColor(p.text);
-                                      showNotification(`Applied preset theme: ${p.name}!`, 'success');
-                                    }}
-                                    className="p-2 bg-zinc-950 border border-zinc-800 hover:border-zinc-700 rounded-xl text-left space-y-1 text-[11px] transition-all"
-                                  >
-                                    <span className="block font-bold text-white truncate">{p.name}</span>
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="h-3.5 w-3.5 rounded-full border border-zinc-700" style={{ backgroundColor: p.accent }} />
-                                      <span className="h-3.5 w-3.5 rounded-full border border-zinc-700" style={{ backgroundColor: p.bg }} />
-                                      <span className="h-3.5 w-3.5 rounded-full border border-zinc-700" style={{ backgroundColor: p.text }} />
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Color Pickers */}
-                            <div className="space-y-3 pt-1">
-                              {/* Accent color picker */}
-                              <div>
-                                <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Accent Button Color</label>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <input
-                                    id="input_wizard_accent"
-                                    type="color"
-                                    value={wizardAccentColor}
-                                    onChange={(e) => setWizardAccentColor(e.target.value)}
-                                    className="h-8 w-14 bg-zinc-950 border border-zinc-800 rounded cursor-pointer p-0.5"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={wizardAccentColor}
-                                    onChange={(e) => setWizardAccentColor(e.target.value)}
-                                    className="flex-grow px-2.5 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-300 outline-none"
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Bg color picker */}
-                              <div>
-                                <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Survey Background Color</label>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <input
-                                    id="input_wizard_bg"
-                                    type="color"
-                                    value={wizardBgColor}
-                                    onChange={(e) => setWizardBgColor(e.target.value)}
-                                    className="h-8 w-14 bg-zinc-950 border border-zinc-800 rounded cursor-pointer p-0.5"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={wizardBgColor}
-                                    onChange={(e) => setWizardBgColor(e.target.value)}
-                                    className="flex-grow px-2.5 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-300 outline-none"
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Text color picker */}
-                              <div>
-                                <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Question Text Color</label>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <input
-                                    id="input_wizard_text"
-                                    type="color"
-                                    value={wizardTextColor}
-                                    onChange={(e) => setWizardTextColor(e.target.value)}
-                                    className="h-8 w-14 bg-zinc-950 border border-zinc-800 rounded cursor-pointer p-0.5"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={wizardTextColor}
-                                    onChange={(e) => setWizardTextColor(e.target.value)}
-                                    className="flex-grow px-2.5 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-300 outline-none"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-
-                          </div>
-                        </div>
-                      )}
-
-                      {/* STEP 5: DEPLAY & COMPILE */}
-                      {wizardStep === 5 && (
                         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
                           <div className="flex items-center gap-2">
                             <Code size={16} className="text-emerald-400" />
-                            <h4 className="font-extrabold text-sm text-white">Compile & Deplay Deployed Bundle</h4>
+                            <h4 className="font-extrabold text-sm text-white">Review & Deploy Live Bundle</h4>
                           </div>
 
                           <div className="space-y-4">
@@ -3120,7 +3167,7 @@ export default function Dashboard({
                               <p className="text-emerald-400 font-bold">● CL_STEPS_COMPILER BUILD v2.1</p>
                               <p className="mt-1">➜ Checking survey integrity: {wizardQuestions.length} slides configured.</p>
                               <p>➜ Delivery system registered: {wizardSurveyPlacement}.</p>
-                              <p>➜ Generating optimized JS code blocks...</p>
+                              <p>➜ Auto-Advance: {wizardAutoAdvance ? 'Enabled' : 'Disabled'} • Allow Edits: {wizardAllowEdits ? 'Enabled' : 'Disabled'}</p>
                               <p className="text-blue-400">➜ Injecting Google Workspace mail hooks.</p>
                               <p className="text-emerald-400 font-semibold">➜ Integrity Check Passed. Status: Ready to deploy.</p>
                             </div>
@@ -3199,7 +3246,7 @@ export default function Dashboard({
                         <button
                           id="btn_wizard_next_nav"
                           onClick={() => {
-                            if (wizardStep < 5) {
+                            if (wizardStep < 3) {
                               setWizardStep(wizardStep + 1);
                             } else {
                               // Compile and Deploy
@@ -3232,7 +3279,7 @@ export default function Dashboard({
                           }}
                           className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95"
                         >
-                          {wizardStep === 5 ? 'Launch Survey' : 'Next Step'} <ChevronRight size={14} />
+                          {wizardStep === 3 ? 'Launch Survey' : 'Next Step'} <ChevronRight size={14} />
                         </button>
                       </div>
 

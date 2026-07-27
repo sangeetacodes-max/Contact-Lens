@@ -452,7 +452,7 @@ export default function App() {
         email,
         name,
         workspaceId: '',
-        isEmailVerified: pendingLaunchOnAuthRef.current ? true : false,
+        isEmailVerified: true, // Direct sign in without verification
         plan: 'Free',
         billingPeriod: 'monthly',
         subscriptionActive: false,
@@ -466,16 +466,11 @@ export default function App() {
       }
 
       setUser(newUser);
-      if (pendingLaunchOnAuthRef.current) {
-        setWorkspace(null);
-        setInitialSurvey(null);
-        pendingLaunchOnAuthRef.current = false;
-        setCurrentView('dashboard');
-        triggerToast('🟢 Account registered successfully! Let\'s build your AI survey.', 'success');
-      } else {
-        setCurrentView('verify');
-        triggerToast('Account created! Please verify your email.', 'success');
-      }
+      setWorkspace(null);
+      setInitialSurvey(null);
+      pendingLaunchOnAuthRef.current = false;
+      setCurrentView('dashboard');
+      triggerToast('🟢 Account created! Welcome to CustomerLens.', 'success');
     } catch (err: any) {
       triggerToast(err.message || 'Registration failed.', 'error');
     }
@@ -872,7 +867,7 @@ export default function App() {
       )}
 
       {/* 3. ACTIVE ONBOARDING WIZARD */}
-      {user && user.isEmailVerified && !workspace && (
+      {user && !workspace && (
         <OnboardingWizard 
           onComplete={handleOnboardingComplete} 
           userEmail={user.email} 
@@ -881,7 +876,7 @@ export default function App() {
       )}
 
       {/* 4. MAIN CUSTOMERLENS DASHBOARD */}
-      {user && user.isEmailVerified && workspace && initialSurvey && currentView === 'dashboard' && (
+      {user && workspace && initialSurvey && currentView === 'dashboard' && (
         <div id="dashboard_stage">
           <Dashboard 
             user={user} 

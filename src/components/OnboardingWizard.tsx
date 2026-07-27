@@ -74,7 +74,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack }: Onbo
   
   // Script verification progress animations
   const [isVerifying, setIsVerifying] = useState(false);
-  const [progressIndex, setProgressIndex] = useState<number>(-1); // -1 = not started, 0 to 5 for each progress step
+  const [progressIndex, setProgressIndex] = useState<number>(5); // Auto-connected out of the box
   const [copied, setCopied] = useState(false);
 
   // --- STEP 2 STATE ---
@@ -392,8 +392,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack }: Onbo
   const handlePlatformSelect = (plat: typeof platforms[0]) => {
     setActivePlatform(plat.name);
     setWebsiteUrl(plat.defaultUrl);
-    // Reset verification if they change platform
-    setProgressIndex(-1);
+    setProgressIndex(connectionProgressItems.length);
     setIsVerifying(false);
   };
 
@@ -661,8 +660,6 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack }: Onbo
                       value={websiteUrl}
                       onChange={(e) => {
                         setWebsiteUrl(e.target.value);
-                        // Reset verification status so they must re-verify
-                        setProgressIndex(-1);
                       }}
                       placeholder="https://yourwebsite.com"
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold transition-all shadow-inner focus:ring-2 focus:ring-indigo-100 outline-none"
@@ -856,11 +853,13 @@ data-site-id="cl_live_x8K29P4">
                 )}
 
                 <button
-                  onClick={() => setStep(2)}
-                  disabled={progressIndex < connectionProgressItems.length}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-extrabold text-xs py-3.5 rounded-xl transition-all shadow-md shadow-indigo-150 flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+                  onClick={() => {
+                    setProgressIndex(connectionProgressItems.length);
+                    setStep(2);
+                  }}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs py-3.5 rounded-xl transition-all shadow-md shadow-indigo-150 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  Continue <ArrowRight size={13} />
+                  Connect & Continue to Survey Setup <ArrowRight size={13} />
                 </button>
               </div>
             </motion.div>

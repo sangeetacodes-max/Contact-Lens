@@ -97,66 +97,6 @@ export default function ExitIntentSurvey({ onClose, onSubmit, triggerReason, isN
               >
                 {/* Header */}
                 <div className="space-y-3">
-                  {triggerReason && (
-                    <div className="relative inline-block group">
-                      {/* Badge */}
-                      <div className="inline-flex flex-wrap items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 text-white text-[10px] sm:text-[11px] font-bold font-mono shadow-md shadow-indigo-100/40 cursor-help transition-all duration-300 hover:scale-[1.03] hover:shadow-lg hover:shadow-indigo-200/50">
-                        <span className="relative flex h-2.5 w-2.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-200 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-                        </span>
-                        
-                        <span className="flex items-center gap-1 font-extrabold tracking-wide">
-                          <Sparkles size={11} className="text-indigo-100 animate-pulse" />
-                          AI DECISION ENGINE: 
-                          <span className="text-white underline decoration-dotted decoration-indigo-200 underline-offset-2">
-                            {triggerReason}
-                          </span>
-                        </span>
-
-                        {isNewUser && typeof viewCount === 'number' && (
-                          <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded font-extrabold ml-1 font-sans">
-                            {viewCount <= 2 ? `Visitor (Show ${viewCount}/2)` : `Smart-Override`}
-                          </span>
-                        )}
-
-                        <HelpCircle size={12} className="text-indigo-100/85 ml-0.5 transition-transform group-hover:rotate-12" />
-                      </div>
-
-                      {/* Tooltip Card (Explain "Why the AI shows this" & Show off) */}
-                      <div className="absolute left-0 mt-2 w-72 sm:w-80 bg-slate-900 border border-slate-800 text-slate-100 rounded-2xl p-4 shadow-xl z-50 pointer-events-none opacity-0 scale-95 origin-top-left group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto transition-all duration-300">
-                        {/* Arrow */}
-                        <div className="absolute -top-1.5 left-6 w-3 h-3 bg-slate-900 border-t border-l border-slate-800 transform rotate-45"></div>
-                        
-                        <div className="space-y-2.5 relative">
-                          <div className="flex items-center gap-1.5 border-b border-slate-800 pb-2">
-                            <Sparkles size={13} className="text-violet-400 animate-pulse" />
-                            <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-200 font-mono">
-                              Why did the AI trigger this?
-                            </h4>
-                          </div>
-                          
-                          <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
-                            {getTriggerExplanation(triggerReason)}
-                          </p>
-
-                          <div className="bg-slate-950/60 rounded-xl p-2.5 border border-slate-850 space-y-1">
-                            <div className="flex items-center gap-1 text-[9px] font-bold text-violet-400 font-mono">
-                              <span>🤖 BEHAVIOR TRACKED</span>
-                            </div>
-                            <p className="text-[10px] text-slate-400 leading-relaxed font-sans">
-                              Our deep neural model continuously monitors scroll rates, hover velocities, hesitation signatures, and window-exit vectors to identify friction points before users abandon.
-                            </p>
-                          </div>
-
-                          <div className="text-[9px] text-slate-500 font-mono text-right font-semibold">
-                            CustomerLens Core v2.4 • Active
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                     Could we help with anything?
                   </h2>
