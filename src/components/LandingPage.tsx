@@ -675,7 +675,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
         </div>
 
         {/* Hero Content */}
-        <div className="w-full max-w-4xl mx-auto px-6 text-center mt-20 md:mt-28 mb-16 md:mb-24 relative z-10 space-y-8 my-auto flex-grow flex flex-col justify-center">
+        <div className="w-full max-w-5xl mx-auto px-6 text-center mt-16 md:mt-24 mb-16 md:mb-24 relative z-10 space-y-8 my-auto flex-grow flex flex-col justify-center">
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
@@ -685,7 +685,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
             <span className="inline-block bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase mb-2">
               ✨ ENGINEERED FOR ENTREPRENEURS TO MAKE SMART DECISIONS
             </span>
-            <h1 className="text-4xl md:text-7.5xl font-extrabold tracking-tight text-white leading-tight">
+            <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-extrabold tracking-tight text-white leading-none">
               CUSTOMER <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-sky-200 to-indigo-300">LENS</span>
             </h1>
           </motion.div>
@@ -694,16 +694,21 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.6 }}
-            className="text-slate-300 text-sm md:text-lg max-w-3xl mx-auto leading-relaxed"
+            className="text-slate-200 text-base md:text-xl max-w-3xl mx-auto leading-relaxed space-y-2 font-medium"
           >
-            Engineered for entrepreneurs to make smart decisions. CustomerLens captures precise visitor exit-intent patterns, intercepts bounce traffic, and converts raw visitor behaviors into actionable insights to scale your business.
+            <span className="block font-bold text-white text-lg md:text-2xl tracking-tight">
+              Every successful startup is built on understanding its customers.
+            </span>
+            <span className="block text-slate-300 text-sm md:text-base leading-relaxed pt-1">
+              CustomerLens AI reveals the hidden emotions, frustrations, and motivations behind every decision—so you know why customers buy, switch, stay, or leave.
+            </span>
           </motion.p>
 
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.6 }}
-            className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-6"
+            className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-10"
           >
             <a 
               href="#about-lens"
@@ -1378,11 +1383,11 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
               <ul className="space-y-3.5 text-xs text-slate-300 font-medium">
                 <li className="flex items-center gap-2.5">
                   <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                  <span>1 Active Survey</span>
+                  <span>3 Active Surveys</span>
                 </li>
                 <li className="flex items-center gap-2.5">
                   <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                  <span>100 Responses / Month</span>
+                  <span>1500 Responses / Month</span>
                 </li>
                 <li className="flex items-center gap-2.5">
                   <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
@@ -1409,7 +1414,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
             </div>
           </div>
 
-          {/* Advance Package */}
+          {/* Standard Package */}
           <div className="bg-slate-900 rounded-3xl border-2 border-indigo-600 p-8 pt-14 flex flex-col justify-between hover:shadow-2xl hover:shadow-slate-900/40 transition-all duration-300 hover:-translate-y-1 relative overflow-hidden text-white group">
             {/* Yellow Banner */}
             <div className="absolute top-0 left-0 right-0 bg-yellow-400 text-slate-950 text-[10px] font-black py-2 text-center uppercase tracking-wider font-mono border-b border-yellow-500/30">
@@ -1422,7 +1427,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
 
             <div className="space-y-6">
               <div>
-                <span className="text-[10px] uppercase font-extrabold tracking-widest text-indigo-400 font-mono block">Advance</span>
+                <span className="text-[10px] uppercase font-extrabold tracking-widest text-indigo-400 font-mono block">Standard</span>
                 <div className="flex items-baseline gap-1 mt-2">
                   <span className="text-4xl font-black text-white">$20</span>
                   <span className="text-slate-400 text-xs font-semibold">/month</span>
@@ -1446,7 +1451,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
                 </li>
                 <li className="flex items-center gap-2.5">
                   <CheckCircle2 size={16} className="text-indigo-400 shrink-0" />
-                  <span>Shopify & Website Integration</span>
+                  <span>5000 Responses</span>
                 </li>
               </ul>
             </div>
@@ -1454,7 +1459,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
             <div className="pt-8 space-y-2.5">
               <button 
                 onClick={() => {
-                  setActiveCheckoutPlan({ id: 'advance', name: 'CustomerLens Advance (14-Day Free Trial)', price: 20, isTrial: true });
+                  setActiveCheckoutPlan({ id: 'advance', name: 'CustomerLens Standard (14-Day Free Trial)', price: 20, isTrial: true });
                   setPaypalSimStep('details');
                 }}
                 className="w-full bg-[#ffc439] hover:bg-[#f4b41a] text-[#003087] font-extrabold text-xs py-3.5 rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-lg shadow-yellow-400/20 font-sans"
@@ -1481,7 +1486,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
               <ul className="space-y-3.5 text-xs text-slate-300 font-medium">
                 <li className="flex items-center gap-2.5">
                   <CheckCircle2 size={16} className="text-indigo-400 shrink-0" />
-                  <span>Everything in Advance</span>
+                  <span>Everything in Standard</span>
                 </li>
                 <li className="flex items-center gap-2.5">
                   <CheckCircle2 size={16} className="text-indigo-400 shrink-0" />
@@ -1805,11 +1810,11 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               <ul className="space-y-2 text-xs text-slate-600 font-medium">
                 <li className="flex items-center gap-2">
                   <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                  <span>1 Active Survey</span>
+                  <span>3 Active Surveys</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                  <span>100 Responses / Month</span>
+                  <span>1500 Responses / Month</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
@@ -1833,14 +1838,14 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               </button>
             </div>
 
-            {/* Advance Plan */}
+            {/* Standard Plan */}
             <div className="bg-gradient-to-b from-indigo-50/50 to-white p-6 rounded-2xl border-2 border-indigo-600 shadow-md hover:shadow-lg transition-all space-y-4 relative overflow-hidden">
               <div className="absolute top-3 right-3 bg-indigo-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 font-mono uppercase">
                 ⭐ MOST POPULAR
               </div>
               
               <div>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-600 font-mono block">Advance</span>
+                <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-600 font-mono block">Standard</span>
                 <div className="flex items-baseline gap-1 mt-1">
                   <span className="text-2xl font-black text-slate-900">$20</span>
                   <span className="text-slate-500 text-xs">/month</span>
@@ -1866,13 +1871,13 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 size={14} className="text-indigo-500 shrink-0" />
-                  <span>Shopify & Website Integration</span>
+                  <span>5000 Responses</span>
                 </li>
               </ul>
 
               <button 
                 onClick={() => {
-                  setActiveCheckoutPlan({ id: 'advance', name: 'CustomerLens Advance (14-Day Free Trial)', price: 20, isTrial: true });
+                  setActiveCheckoutPlan({ id: 'advance', name: 'CustomerLens Standard (14-Day Free Trial)', price: 20, isTrial: true });
                   setPaypalSimStep('details');
                 }}
                 className="w-full bg-[#ffc439] hover:bg-[#f4b41a] text-[#003087] font-bold text-xs py-2.5 rounded-xl transition-all text-center block shadow-sm font-sans"
@@ -1894,7 +1899,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               <ul className="space-y-2 text-xs text-slate-600 font-medium">
                 <li className="flex items-center gap-2">
                   <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                  <span>Everything in Advance</span>
+                  <span>Everything in Standard</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
@@ -2232,7 +2237,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                           <span className="font-bold text-slate-800">$20.00 USD / month</span>
                         </div>
                         <p className="text-[10px] text-indigo-900 pt-1 leading-snug font-medium border-t border-indigo-100/60 mt-1">
-                          ✨ Put your PayPal account to start the 14-day trial. If you continue using CustomerLens Advance for more than 14 days, your PayPal account will be charged $20 USD/month. Cancel anytime during the trial with zero cost.
+                          ✨ Put your PayPal account to start the 14-day trial. If you continue using CustomerLens Standard for more than 14 days, your PayPal account will be charged $20 USD/month. Cancel anytime during the trial with zero cost.
                         </p>
                       </div>
                     ) : (
@@ -2486,10 +2491,10 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                   </div>
 
                   <div className="p-4 bg-slate-50 rounded-2xl text-xs text-slate-600 leading-relaxed text-left space-y-2 border">
-                    <p className="font-semibold text-slate-800">✅ 14-Day Free Trial Active for CustomerLens Advance!</p>
+                    <p className="font-semibold text-slate-800">✅ 14-Day Free Trial Active for CustomerLens Standard!</p>
                     <p>Your PayPal account (<strong className="text-slate-900">{paypalUserEmail}</strong>) is set up. $0.00 was charged today.</p>
                     <p className="text-slate-700">
-                      If you continue to use CustomerLens Advance for more than 14 days, your PayPal account will be charged <strong className="text-slate-900">$20.00 USD/month</strong> starting on <strong>{new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong>.
+                      If you continue to use CustomerLens Standard for more than 14 days, your PayPal account will be charged <strong className="text-slate-900">$20.00 USD/month</strong> starting on <strong>{new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong>.
                     </p>
                     <p className="text-[10px] text-slate-400">You may cancel your trial at any time in account settings prior to the 14 days to avoid being charged.</p>
                   </div>
