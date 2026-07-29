@@ -4,11 +4,138 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CustomerLens AI - Automated Customer Feedback & Conversion Optimization</title>
-    <!-- PayPal SDK -->
+
+    <!-- ─── CustomerLens AI + PayPal Frontend ─── -->
+    <!-- PayPal SDK with Client ID -->
     <script src="https://www.paypal.com/sdk/js?client-id=BAAQfy3_MDECe_w54XFXMBHW_-2u5nakisGumt4IMdjqOCxrgHN9Kz8ZP76VP6DYK6F2k5Ki4B8E_S6VBY&currency=USD"></script>
+
+    <style>
+    .cl-pricing { max-width: 800px; margin: 40px auto; display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+    .cl-plan { border: 1px solid #e0e0e0; border-radius: 12px; padding: 32px; width: 340px; text-align: center; background: #fff; }
+    .cl-plan h2 { font-size: 24px; margin-bottom: 8px; }
+    .cl-price { font-size: 48px; font-weight: bold; margin: 16px 0; }
+    .cl-price span { font-size: 16px; font-weight: normal; color: #666; }
+    .cl-features { list-style: none; padding: 0; margin: 16px 0; text-align: left; }
+    .cl-features li { padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    .cl-features li:before { content: "✓ "; color: #4CAF50; font-weight: bold; }
+    .cl-paypal-btn { margin-top: 16px; min-height: 50px; }
+    .cl-success { display: none; padding: 16px; background: #e8f5e9; border-radius: 8px; margin-top: 16px; color: #2e7d32; font-weight: bold; }
+    .cl-error { display: none; padding: 16px; background: #ffebee; border-radius: 8px; margin-top: 16px; color: #c62828; }
+    .cl-chat { max-width: 600px; margin: 40px auto; }
+    .cl-chat-messages { border: 1px solid #e0e0e0; border-radius: 12px; padding: 16px; height: 400px; overflow-y: auto; margin-bottom: 12px; }
+    .cl-chat-input { display: flex; gap: 8px; }
+    .cl-chat-input input { flex: 1; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
+    .cl-chat-input button { padding: 12px 24px; background: #4F46E5; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    .cl-chat-input button:hover { background: #4338CA; }
+    .cl-msg-user { text-align: right; margin: 8px 0; }
+    .cl-msg-user span { background: #4F46E5; color: white; padding: 8px 16px; border-radius: 12px; display: inline-block; max-width: 80%; }
+    .cl-msg-ai { text-align: left; margin: 8px 0; }
+    .cl-msg-ai span { background: #f0f0f0; padding: 8px 16px; border-radius: 12px; display: inline-block; max-width: 80%; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+
+    <script>
+    var AI_URL = "https://customerlens-ai.sangeeta-codes.workers.dev";
+    var chatHistory = [];
+
+    // Starter Plan Button
+    window.addEventListener('DOMContentLoaded', function() {
+      if (typeof paypal !== "undefined") {
+        var starterBtn = document.getElementById("paypal-starter");
+        if (starterBtn) {
+          paypal.Buttons({
+            createOrder: async function() {
+              var res = await fetch(AI_URL + "/api/paypal/create-order", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plan_id: "starter" })
+              });
+              var data = await res.json();
+              if (data.error) { document.getElementById("error-starter").style.display = "block"; return; }
+              return data.order_id;
+            },
+            onApprove: async function(data) {
+              var res = await fetch(AI_URL + "/api/paypal/capture", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ order_id: data.orderID })
+              });
+              var result = await res.json();
+              if (result.status === "COMPLETED") {
+                document.getElementById("success-starter").style.display = "block";
+                document.getElementById("error-starter").style.display = "none";
+              } else {
+                document.getElementById("error-starter").style.display = "block";
+              }
+            },
+            onError: function() {
+              document.getElementById("error-starter").style.display = "block";
+            }
+          }).render("#paypal-starter");
+        }
+
+        // Pro Plan Button
+        var proBtn = document.getElementById("paypal-pro");
+        if (proBtn) {
+          paypal.Buttons({
+            createOrder: async function() {
+              var res = await fetch(AI_URL + "/api/paypal/create-order", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plan_id: "pro" })
+              });
+              var data = await res.json();
+              if (data.error) { document.getElementById("error-pro").style.display = "block"; return; }
+              return data.order_id;
+            },
+            onApprove: async function(data) {
+              var res = await fetch(AI_URL + "/api/paypal/capture", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ order_id: data.orderID })
+              });
+              var result = await res.json();
+              if (result.status === "COMPLETED") {
+                document.getElementById("success-pro").style.display = "block";
+                document.getElementById("error-pro").style.display = "none";
+              } else {
+                document.getElementById("error-pro").style.display = "block";
+              }
+            },
+            onError: function() {
+              document.getElementById("error-pro").style.display = "block";
+            }
+          }).render("#paypal-pro");
+        }
+      }
+    });
+
+    async function sendChat() {
+      var input = document.getElementById("chat-input");
+      var messages = document.getElementById("chat-messages");
+      if (!input || !messages) return;
+      var userMsg = input.value;
+      if (!userMsg) return;
+
+      messages.innerHTML += '<div class="cl-msg-user"><span>' + userMsg + '</span></div>';
+      input.value = "";
+
+      try {
+        var res = await fetch(AI_URL + "/api/ai/survey-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newMessage: userMsg, siteId: "SITE_ID" })
+        });
+        var data = await res.json();
+        messages.innerHTML += '<div class="cl-msg-ai"><span>' + (data.reply || "Thank you! CustomerLens AI received your message.") + '</span></div>';
+      } catch (e) {
+        messages.innerHTML += '<div class="cl-msg-ai"><span>CustomerLens AI is processing your request.</span></div>';
+      }
+    }
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
