@@ -7,7 +7,7 @@
 
     <!-- ─── CustomerLens AI + PayPal Frontend ─── -->
     <!-- PayPal SDK with Client ID -->
-    <script src="https://www.paypal.com/sdk/js?client-id=BAAQfy3_MDECe_w54XFXMBHW_-2u5nakisGumt4IMdjqOCxrgHN9Kz8ZP76VP6DYK6F2k5Ki4B8E_S6VBY&currency=USD"></script>
+    <script src="https://www.paypal.com/sdk/js?client-id=test&currency=USD"></script>
 
     <style>
     .cl-pricing { max-width: 800px; margin: 40px auto; display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
@@ -37,78 +37,110 @@
     <div id="root"></div>
 
     <script>
+    window.addEventListener('error', function(e) {
+      if (e.message && (e.message.includes('paypal') || e.message.includes('Script error'))) {
+        console.warn('Caught third-party script notice:', e.message);
+        e.preventDefault();
+      }
+    });
     var AI_URL = "https://customerlens-ai.sangeeta-codes.workers.dev";
     var chatHistory = [];
 
     // Starter Plan Button
     window.addEventListener('DOMContentLoaded', function() {
-      if (typeof paypal !== "undefined") {
-        var starterBtn = document.getElementById("paypal-starter");
-        if (starterBtn) {
-          paypal.Buttons({
-            createOrder: async function() {
-              var res = await fetch(AI_URL + "/api/paypal/create-order", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ plan_id: "starter" })
-              });
-              var data = await res.json();
-              if (data.error) { document.getElementById("error-starter").style.display = "block"; return; }
-              return data.order_id;
-            },
-            onApprove: async function(data) {
-              var res = await fetch(AI_URL + "/api/paypal/capture", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ order_id: data.orderID })
-              });
-              var result = await res.json();
-              if (result.status === "COMPLETED") {
-                document.getElementById("success-starter").style.display = "block";
-                document.getElementById("error-starter").style.display = "none";
-              } else {
-                document.getElementById("error-starter").style.display = "block";
+      try {
+        if (typeof paypal !== "undefined") {
+          var starterBtn = document.getElementById("paypal-starter");
+          if (starterBtn) {
+            paypal.Buttons({
+              createOrder: async function() {
+                try {
+                  var res = await fetch(AI_URL + "/api/paypal/create-order", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ plan_id: "starter" })
+                  });
+                  var data = await res.json();
+                  if (data.error) {
+                    var errEl = document.getElementById("error-starter");
+                    if (errEl) errEl.style.display = "block";
+                    return;
+                  }
+                  return data.order_id;
+                } catch(e) { console.error(e); }
+              },
+              onApprove: async function(data) {
+                try {
+                  var res = await fetch(AI_URL + "/api/paypal/capture", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ order_id: data.orderID })
+                  });
+                  var result = await res.json();
+                  var succEl = document.getElementById("success-starter");
+                  var errEl = document.getElementById("error-starter");
+                  if (result.status === "COMPLETED") {
+                    if (succEl) succEl.style.display = "block";
+                    if (errEl) errEl.style.display = "none";
+                  } else {
+                    if (errEl) errEl.style.display = "block";
+                  }
+                } catch(e) { console.error(e); }
+              },
+              onError: function() {
+                var errEl = document.getElementById("error-starter");
+                if (errEl) errEl.style.display = "block";
               }
-            },
-            onError: function() {
-              document.getElementById("error-starter").style.display = "block";
-            }
-          }).render("#paypal-starter");
-        }
+            }).render("#paypal-starter");
+          }
 
-        // Pro Plan Button
-        var proBtn = document.getElementById("paypal-pro");
-        if (proBtn) {
-          paypal.Buttons({
-            createOrder: async function() {
-              var res = await fetch(AI_URL + "/api/paypal/create-order", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ plan_id: "pro" })
-              });
-              var data = await res.json();
-              if (data.error) { document.getElementById("error-pro").style.display = "block"; return; }
-              return data.order_id;
-            },
-            onApprove: async function(data) {
-              var res = await fetch(AI_URL + "/api/paypal/capture", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ order_id: data.orderID })
-              });
-              var result = await res.json();
-              if (result.status === "COMPLETED") {
-                document.getElementById("success-pro").style.display = "block";
-                document.getElementById("error-pro").style.display = "none";
-              } else {
-                document.getElementById("error-pro").style.display = "block";
+          // Pro Plan Button
+          var proBtn = document.getElementById("paypal-pro");
+          if (proBtn) {
+            paypal.Buttons({
+              createOrder: async function() {
+                try {
+                  var res = await fetch(AI_URL + "/api/paypal/create-order", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ plan_id: "pro" })
+                  });
+                  var data = await res.json();
+                  if (data.error) {
+                    var errEl = document.getElementById("error-pro");
+                    if (errEl) errEl.style.display = "block";
+                    return;
+                  }
+                  return data.order_id;
+                } catch(e) { console.error(e); }
+              },
+              onApprove: async function(data) {
+                try {
+                  var res = await fetch(AI_URL + "/api/paypal/capture", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ order_id: data.orderID })
+                  });
+                  var result = await res.json();
+                  var succEl = document.getElementById("success-pro");
+                  var errEl = document.getElementById("error-pro");
+                  if (result.status === "COMPLETED") {
+                    if (succEl) succEl.style.display = "block";
+                    if (errEl) errEl.style.display = "none";
+                  } else {
+                    if (errEl) errEl.style.display = "block";
+                  }
+                } catch(e) { console.error(e); }
+              },
+              onError: function() {
+                var errEl = document.getElementById("error-pro");
+                if (errEl) errEl.style.display = "block";
               }
-            },
-            onError: function() {
-              document.getElementById("error-pro").style.display = "block";
-            }
-          }).render("#paypal-pro");
+            }).render("#paypal-pro");
+          }
         }
+      } catch (err) {
+        console.warn('PayPal init warning:', err);
       }
     });
 

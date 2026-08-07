@@ -49,7 +49,16 @@ import {
   Paintbrush,
   ShieldCheck,
   CheckCircle,
-  X
+  X,
+  Bell,
+  Lightbulb,
+  Clock,
+  Target,
+  Zap,
+  TrendingUp,
+  Filter,
+  CalendarDays,
+  RotateCcw
 } from 'lucide-react';
 import { 
   User, 
@@ -60,6 +69,7 @@ import {
   AIRecommendation, 
   BillingHistoryItem 
 } from '../types';
+import CodeExporter from './CodeExporter';
 
 function ConversionOpportunitiesTab() {
   const [sessions, setSessions] = useState(10000);
@@ -87,7 +97,7 @@ function ConversionOpportunitiesTab() {
           <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded font-mono uppercase font-bold">Shipping Opt</span>
           <h4 className="font-bold text-slate-900 text-sm mt-1">Offer Free Cold Shipping Threshold</h4>
           <p className="text-slate-500 text-xs leading-normal">
-            Deploy an exit-intent discount popup specifically for users who hesitate in the shipping selection screen, offering free shipping on sour beer multi-packs of $50+.
+            Deploy a targeted discount widget specifically for users who hesitate in the shipping selection screen, offering free shipping on sour beer multi-packs of $50+.
           </p>
         </div>
 
@@ -98,7 +108,7 @@ function ConversionOpportunitiesTab() {
           <span className="text-[10px] bg-rose-50 text-rose-700 px-2.5 py-0.5 rounded font-mono uppercase font-bold">Traffic Opt</span>
           <h4 className="font-bold text-slate-900 text-sm mt-1">Adwords Referral Welcome Coupon</h4>
           <p className="text-slate-500 text-xs leading-normal">
-            Detect incoming traffic from Google Ad Campaigns and trigger an instantaneous 10% coupon code popup the moment they show exploratory mouse exit-intent.
+            Detect incoming traffic from Google Ad Campaigns and trigger an instantaneous 10% coupon code popup the moment they land from ad campaigns.
           </p>
         </div>
 
@@ -124,7 +134,7 @@ function ConversionOpportunitiesTab() {
             Estimate Your Monthly Revenue Recovery
           </h3>
           <p className="text-slate-400 text-xs leading-relaxed max-w-xl">
-            Slide the values to estimate your potential recaptured checkout revenue by activating CustomerLens AI exit-intent triggers on your store.
+            Slide the values to estimate your potential recaptured checkout revenue by activating CustomerLens AI feedback triggers on your store.
           </p>
         </div>
 
@@ -236,7 +246,112 @@ export default function Dashboard({
     deliveryMethod: string;
   } | null>(null);
 
-  const [insightView, setInsightView] = useState<'analytical' | 'chatbot'>('analytical');
+  const [insightView, setInsightView] = useState<'analytical' | 'chatbot' | 'strategist' | 'notification-data'>('analytical');
+  const [notifSearchFilter, setNotifSearchFilter] = useState('');
+  const [notifTypeFilter, setNotifTypeFilter] = useState('All');
+  const [triggeringNewNotif, setTriggeringNewNotif] = useState(false);
+
+  const [notificationLogs, setNotificationLogs] = useState<Array<{
+    id: string;
+    type: string;
+    channel: string;
+    title: string;
+    summary: string;
+    sentTime: string;
+    sentDate: string;
+    dayOfWeek: string;
+    recipient: string;
+    status: 'Delivered' | 'Scheduled' | 'Sent';
+    responsesCount?: number;
+  }>>([
+    {
+      id: 'notif-101',
+      type: 'Daily Evening Bulletin',
+      channel: 'Dashboard Bulletin & Email',
+      title: 'Daily Customer Insights Digest',
+      summary: '158 new survey responses recorded today. Top exit reason: High Shipping Costs at checkout (38%).',
+      sentTime: '09:00 PM',
+      sentDate: new Date().toISOString().split('T')[0],
+      dayOfWeek: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+      recipient: 'store-admin@yourwebsite.com',
+      status: 'Delivered',
+      responsesCount: 158
+    },
+    {
+      id: 'notif-100',
+      type: 'Exit Alert Trigger',
+      channel: 'In-App Banner',
+      title: 'High Exit Intent Detected on Cart Page',
+      summary: 'Spike in cart abandonments detected between 3:00 PM - 5:00 PM. 24 visitors reported pricing friction.',
+      sentTime: '05:12 PM',
+      sentDate: new Date().toISOString().split('T')[0],
+      dayOfWeek: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+      recipient: 'In-App Alert Feed',
+      status: 'Delivered',
+      responsesCount: 24
+    },
+    {
+      id: 'notif-099',
+      type: 'Daily Evening Bulletin',
+      channel: 'Email',
+      title: 'Daily Customer Insights Digest',
+      summary: '142 survey responses recorded. 45% discovered store via Google Search organic results.',
+      sentTime: '09:00 PM',
+      sentDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+      dayOfWeek: new Date(Date.now() - 86400000).toLocaleDateString('en-US', { weekday: 'long' }),
+      recipient: 'store-admin@yourwebsite.com',
+      status: 'Delivered',
+      responsesCount: 142
+    },
+    {
+      id: 'notif-098',
+      type: 'Weekly Growth Recap',
+      channel: 'Email',
+      title: 'Weekly AI Growth & Conversion Summary',
+      summary: 'Weekly completion rate reached 91.4%. Strategic recommendation: Add free shipping threshold at $50.',
+      sentTime: '09:00 PM',
+      sentDate: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0],
+      dayOfWeek: new Date(Date.now() - 86400000 * 3).toLocaleDateString('en-US', { weekday: 'long' }),
+      recipient: 'store-admin@yourwebsite.com',
+      status: 'Delivered',
+      responsesCount: 890
+    },
+    {
+      id: 'notif-097',
+      type: 'Daily Evening Bulletin',
+      channel: 'Dashboard Bulletin',
+      title: 'Daily Customer Insights Digest',
+      summary: '118 responses recorded. 32% requested installment/Klarna payment options at checkout.',
+      sentTime: '09:00 PM',
+      sentDate: new Date(Date.now() - 86400000 * 4).toISOString().split('T')[0],
+      dayOfWeek: new Date(Date.now() - 86400000 * 4).toLocaleDateString('en-US', { weekday: 'long' }),
+      recipient: 'store-admin@yourwebsite.com',
+      status: 'Delivered',
+      responsesCount: 118
+    }
+  ]);
+
+  const handleTriggerManualBulletin = () => {
+    setTriggeringNewNotif(true);
+    setTimeout(() => {
+      const now = new Date();
+      const newLog = {
+        id: `notif-${Date.now()}`,
+        type: 'On-Demand AI Bulletin',
+        channel: 'Dashboard Bulletin & Email',
+        title: 'Manual AI Insights Scan Bulletin',
+        summary: `Instant AI survey bulletin generated at ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Scanned 1,660 responses across active surveys.`,
+        sentTime: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        sentDate: now.toISOString().split('T')[0],
+        dayOfWeek: now.toLocaleDateString('en-US', { weekday: 'long' }),
+        recipient: 'store-admin@yourwebsite.com',
+        status: 'Delivered' as const,
+        responsesCount: 1660
+      };
+      setNotificationLogs(prev => [newLog, ...prev]);
+      setTriggeringNewNotif(false);
+    }, 800);
+  };
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{ sender: 'user' | 'ai'; text: string; timestamp: Date }[]>(() => [
     { sender: 'ai', text: 'Hello, please ask me anything about this survey!', timestamp: new Date() }
@@ -332,6 +447,9 @@ export default function Dashboard({
         })
       });
 
+      if (!res.ok) {
+        throw new Error(`Verification service returned status ${res.status}`);
+      }
       const data = await res.json();
 
       if (data.verified) {
@@ -463,8 +581,8 @@ export default function Dashboard({
   // Premium Creator Wizard States (Inspired by the screenshot, with black theme)
   const [showPremiumWizard, setShowPremiumWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState<number>(1); // 1 to 5
-  const [wizardSurveyTitle, setWizardSurveyTitle] = useState('Exit Intent Brewing Questionnaire');
-  const [wizardSurveyPlacement, setWizardSurveyPlacement] = useState<Survey['displayOption']>('Exit Intent Popup');
+  const [wizardSurveyTitle, setWizardSurveyTitle] = useState('Customer Feedback Questionnaire');
+  const [wizardSurveyPlacement, setWizardSurveyPlacement] = useState<Survey['displayOption']>('In-Page Popup');
   const [wizardSurveyHeadline, setWizardSurveyHeadline] = useState('Before you fly away...');
   const [wizardQuestions, setWizardQuestions] = useState<Array<{ id: string; type: 'multiple-choice' | 'rating' | 'text'; questionText: string; options: string[] }>>([
     {
@@ -584,7 +702,7 @@ export default function Dashboard({
       const newSurvey: Survey = {
         id: `ai-survey-${Date.now()}`,
         title: `AI Connected: ${cleanUrl}`,
-        displayOption: 'Exit Intent Popup',
+        displayOption: 'In-Page Popup',
         headline: connectResult.headline || 'Before you go...',
         questions: connectResult.suggestedQuestions.map((q: any, idx: number) => ({
           id: `ai-q-${idx + 1}`,
@@ -653,8 +771,8 @@ export default function Dashboard({
         setWizardSurveyHeadline(data.headline || data.goal || 'Before you fly away...');
         
         // Match placement trigger
-        if (data.deliveryMethod === 'Exit Intent Survey' || data.bestTrigger?.toLowerCase().includes('exit')) {
-          setWizardSurveyPlacement('Exit Intent Popup');
+        if (data.deliveryMethod === 'Customer Feedback Survey' || data.bestTrigger?.toLowerCase().includes('feedback')) {
+          setWizardSurveyPlacement('In-Page Popup');
         } else {
           setWizardSurveyPlacement('Embedded Widget');
         }
@@ -676,7 +794,7 @@ export default function Dashboard({
           bestTrigger: data.bestTrigger,
           recommendedSurveyType: data.recommendedSurveyType || 'Custom Adaptive Survey',
           estimatedCompletionTime: data.estimatedCompletionTime || 'Under 1 minute',
-          deliveryMethod: data.deliveryMethod || 'Exit Intent Popup'
+          deliveryMethod: data.deliveryMethod || 'In-Page Popup'
         });
 
         showNotification(`🟢 AI Custom Survey designed! Recommended type: ${data.recommendedSurveyType || 'Adaptive'}.`, 'success');
@@ -776,9 +894,11 @@ export default function Dashboard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ businessType: workspace.businessType, goal: workspace.goal })
       });
-      const data = await res.json();
-      setRecommendations(data);
-      localStorage.setItem(cacheKey, JSON.stringify(data));
+      if (res.ok) {
+        const data = await res.json();
+        setRecommendations(data);
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -807,9 +927,11 @@ export default function Dashboard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ responses, businessName: workspace.name, goal: workspace.goal })
       });
-      const data = await res.json();
-      setAiAnalysis(data);
-      localStorage.setItem(cacheKey, JSON.stringify(data));
+      if (res.ok) {
+        const data = await res.json();
+        setAiAnalysis(data);
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -850,7 +972,7 @@ export default function Dashboard({
 
   // Survey Builder Functions
   const [newSurveyTitle, setNewSurveyTitle] = useState('');
-  const [newSurveyPlacement, setNewSurveyPlacement] = useState<Survey['displayOption']>('Exit Intent Popup');
+  const [newSurveyPlacement, setNewSurveyPlacement] = useState<Survey['displayOption']>('In-Page Popup');
   const [newSurveyHeadline, setNewSurveyHeadline] = useState('Wait! We value your feedback.');
   const [newSurveyColors, setNewSurveyColors] = useState({ background: '#ffffff', text: '#0f172a', accent: '#4f46e5' });
 
@@ -1025,7 +1147,7 @@ export default function Dashboard({
         "[CONNECT] Session #7721 initialized from Chicago, IL.",
         "[BROWSE] spent 2 minutes reading /features.",
         "[EXIT] Cursor velocity vector towards page close.",
-        "[TRIGGER] Exit intent popup triggered.",
+        "[TRIGGER] Feedback survey widget triggered.",
         "[USER CHOICE] Clicked 'Pricing was too high'.",
         "[AI COGNITIVE ENGINE] Analyzing choice context...",
         "[FOLLOW-UP] Loaded conversational follow-up instantly."
@@ -1356,65 +1478,89 @@ export default function Dashboard({
                 </button>
 
                 <div className="pt-2 pb-1">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono px-3">AI Analytics Pages</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono px-3">Survey & Slide Modes</span>
                 </div>
 
-                {/* TOP PAIN POINTS */}
+                {/* PICK QUESTION TEMPLATE */}
                 <button 
                   id="tab_nav_pain_points"
-                  onClick={() => { setActiveTab('analytics'); setAnalyticsSubTab('pain-points'); setMobileMenuOpen(false); }}
-                  className={`w-full text-left flex items-start gap-2.5 px-3 py-2 rounded-xl text-xs transition-all ${activeTab === 'analytics' && analyticsSubTab === 'pain-points' ? 'bg-indigo-600 text-white shadow-md font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                  onClick={() => { 
+                    setActiveTab('surveys'); 
+                    setShowPremiumWizard(true); 
+                    setWizardStep(1); 
+                    setMobileMenuOpen(false); 
+                    showNotification('📋 Switched to Pick Question Template mode', 'success');
+                  }}
+                  className={`w-full text-left flex items-start gap-2.5 px-3 py-2 rounded-xl text-xs transition-all ${activeTab === 'surveys' && showPremiumWizard && wizardStep === 1 ? 'bg-indigo-600 text-white shadow-md font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                 >
-                  <ShieldAlert size={16} className="mt-0.5 flex-shrink-0" />
+                  <FileText size={16} className="mt-0.5 flex-shrink-0 text-indigo-400" />
                   <div>
-                    <span className="block font-bold">Top Pain Points</span>
-                    <span className={`block text-[9px] font-normal leading-tight mt-0.5 ${activeTab === 'analytics' && analyticsSubTab === 'pain-points' ? 'text-indigo-200' : 'text-slate-500'}`}>
-                      The most common reasons customers don't convert.
+                    <span className="block font-bold">Pick Question Template</span>
+                    <span className={`block text-[9px] font-normal leading-tight mt-0.5 ${activeTab === 'surveys' && showPremiumWizard && wizardStep === 1 ? 'text-indigo-200' : 'text-slate-500'}`}>
+                      Browse and select pre-built question templates.
                     </span>
                   </div>
                 </button>
 
-                {/* FEATURE REQUESTS */}
+                {/* SLIDE MANAGEMENT */}
                 <button 
                   id="tab_nav_feature_requests"
-                  onClick={() => { setActiveTab('analytics'); setAnalyticsSubTab('features'); setMobileMenuOpen(false); }}
-                  className={`w-full text-left flex items-start gap-2.5 px-3 py-2 rounded-xl text-xs transition-all ${activeTab === 'analytics' && analyticsSubTab === 'features' ? 'bg-indigo-600 text-white shadow-md font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                  onClick={() => { 
+                    setActiveTab('surveys'); 
+                    setShowPremiumWizard(true); 
+                    setWizardStep(1); 
+                    setMobileMenuOpen(false); 
+                    showNotification('🎛️ Switched to Slide Management mode', 'success');
+                  }}
+                  className={`w-full text-left flex items-start gap-2.5 px-3 py-2 rounded-xl text-xs transition-all ${activeTab === 'surveys' && showPremiumWizard && wizardStep === 1 ? 'bg-indigo-600 text-white shadow-md font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                 >
-                  <Sliders size={16} className="mt-0.5 flex-shrink-0" />
+                  <Sliders size={16} className="mt-0.5 flex-shrink-0 text-indigo-400" />
                   <div>
-                    <span className="block font-bold">Feature Requests</span>
-                    <span className={`block text-[9px] font-normal leading-tight mt-0.5 ${activeTab === 'analytics' && analyticsSubTab === 'features' ? 'text-indigo-200' : 'text-slate-500'}`}>
-                      Requested improvements ranked by demand.
+                    <span className="block font-bold">Slide Management</span>
+                    <span className={`block text-[9px] font-normal leading-tight mt-0.5 ${activeTab === 'surveys' && showPremiumWizard && wizardStep === 1 ? 'text-indigo-200' : 'text-slate-500'}`}>
+                      Manage, reorder and configure survey slides.
                     </span>
                   </div>
                 </button>
 
-                {/* PURCHASE BARRIERS */}
+                {/* USE A PROMPT (AI) */}
                 <button 
                   id="tab_nav_purchase_barriers"
-                  onClick={() => { setActiveTab('analytics'); setAnalyticsSubTab('barriers'); setMobileMenuOpen(false); }}
-                  className={`w-full text-left flex items-start gap-2.5 px-3 py-2 rounded-xl text-xs transition-all ${activeTab === 'analytics' && analyticsSubTab === 'barriers' ? 'bg-indigo-600 text-white shadow-md font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                  onClick={() => { 
+                    setActiveTab('surveys'); 
+                    setShowPremiumWizard(true); 
+                    setWizardStep(1); 
+                    setMobileMenuOpen(false); 
+                    showNotification('✨ AI Slide Generator active — Enter prompt below to create a slide', 'info');
+                  }}
+                  className={`w-full text-left flex items-start gap-2.5 px-3 py-2 rounded-xl text-xs transition-all ${activeTab === 'surveys' && showPremiumWizard && wizardStep === 1 ? 'bg-indigo-600 text-white shadow-md font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                 >
-                  <ShoppingCart size={16} className="mt-0.5 flex-shrink-0" />
+                  <Sparkles size={16} className="mt-0.5 flex-shrink-0 text-amber-400" />
                   <div>
-                    <span className="block font-bold">Purchase Barriers</span>
-                    <span className={`block text-[9px] font-normal leading-tight mt-0.5 ${activeTab === 'analytics' && analyticsSubTab === 'barriers' ? 'text-indigo-200' : 'text-slate-500'}`}>
-                      Pricing, trust, shipping, usability, or feature concerns.
+                    <span className="block font-bold">Use a Prompt (AI)</span>
+                    <span className={`block text-[9px] font-normal leading-tight mt-0.5 ${activeTab === 'surveys' && showPremiumWizard && wizardStep === 1 ? 'text-indigo-200' : 'text-slate-500'}`}>
+                      Generate custom question slides with AI prompts.
                     </span>
                   </div>
                 </button>
 
-                {/* CONVERSION OPPORTUNITIES */}
+                {/* FULL SURVEY PREVIEW */}
                 <button 
                   id="tab_nav_conversion_opportunities"
-                  onClick={() => { setActiveTab('analytics'); setAnalyticsSubTab('conversion'); setMobileMenuOpen(false); }}
-                  className={`w-full text-left flex items-start gap-2.5 px-3 py-2 rounded-xl text-xs transition-all ${activeTab === 'analytics' && analyticsSubTab === 'conversion' ? 'bg-indigo-600 text-white shadow-md font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                  onClick={() => { 
+                    setActiveTab('surveys'); 
+                    setShowPremiumWizard(true); 
+                    setWizardStep(1); 
+                    setMobileMenuOpen(false); 
+                    showNotification('👁️ Opened Full Survey Interactive Preview', 'success');
+                  }}
+                  className={`w-full text-left flex items-start gap-2.5 px-3 py-2 rounded-xl text-xs transition-all ${activeTab === 'surveys' && showPremiumWizard && wizardStep === 1 ? 'bg-indigo-600 text-white shadow-md font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                 >
-                  <Sparkles size={16} className="mt-0.5 flex-shrink-0 text-indigo-400" />
+                  <Eye size={16} className="mt-0.5 flex-shrink-0 text-emerald-400" />
                   <div>
-                    <span className="block font-bold">Conversion Opportunities</span>
-                    <span className={`block text-[9px] font-normal leading-tight mt-0.5 ${activeTab === 'analytics' && analyticsSubTab === 'conversion' ? 'text-indigo-200' : 'text-slate-500'}`}>
-                      AI suggestions to increase sales.
+                    <span className="block font-bold">Full Survey Preview</span>
+                    <span className={`block text-[9px] font-normal leading-tight mt-0.5 ${activeTab === 'surveys' && showPremiumWizard && wizardStep === 1 ? 'text-indigo-200' : 'text-slate-500'}`}>
+                      Preview complete multi-slide survey experience.
                     </span>
                   </div>
                 </button>
@@ -1484,7 +1630,7 @@ export default function Dashboard({
                   onClick={() => { setActiveTab('simulator'); setMobileMenuOpen(false); }}
                   className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${activeTab === 'simulator' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                 >
-                  <Eye size={16} /> Exit Intent Simulator
+                  <Eye size={16} /> Live Survey Simulator
                 </button>
 
                 <button 
@@ -1516,7 +1662,7 @@ export default function Dashboard({
                   onClick={() => { setActiveTab('domain'); setMobileMenuOpen(false); }}
                   className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${activeTab === 'domain' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                 >
-                  <Settings size={16} /> White Label & Domains
+                  <Settings size={16} /> Settings & Code Export
                 </button>
 
                 {/* Master Admin Portal */}
@@ -1729,7 +1875,7 @@ export default function Dashboard({
 
                 <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
                   <span className="text-[10px] font-bold uppercase text-slate-400 block">Survey Placement</span>
-                  <p className="text-sm font-semibold text-slate-800 mt-1.5 truncate">{surveys[0]?.displayOption || 'Exit Intent Popup'}</p>
+                  <p className="text-sm font-semibold text-slate-800 mt-1.5 truncate">{surveys[0]?.displayOption || 'In-Page Popup'}</p>
                   <p className="text-slate-400 text-[10px] mt-1 uppercase font-mono">Optimized for Conversion</p>
                 </div>
 
@@ -1789,45 +1935,74 @@ export default function Dashboard({
           {activeTab === 'workspace' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-150 pb-5">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-150 pb-5">
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                     <Sparkles className="text-indigo-600 animate-pulse" size={24} />
-                    Workspace Insights
+                    Workspace Intelligence Center
                   </h1>
-                  <p className="text-slate-500 text-xs">
-                    Explore automatic survey insights, distribution patterns, or interact with our conversational AI analyst.
+                  <p className="text-slate-500 text-xs mt-1">
+                    Select your preferred AI workspace mode to analyze survey data, generate growth strategies, or inspect notification delivery logs.
                   </p>
                 </div>
                 
-                {/* Switch button for insights */}
-                <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
+                {/* Mode Selector Tabs */}
+                <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner gap-1">
                   <button 
+                    type="button"
                     onClick={() => setInsightView('analytical')}
-                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
+                    className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
                       insightView === 'analytical' 
-                        ? 'bg-slate-900 text-white shadow-md scale-105' 
-                        : 'text-slate-500 hover:text-slate-850 hover:bg-slate-200/50'
+                        ? 'bg-slate-900 text-white shadow-md scale-[1.02]' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                     }`}
                   >
                     <PieChart size={14} />
-                    Analytical Insights
+                    <span>Analytical Graphs</span>
                   </button>
+
                   <button 
+                    type="button"
                     onClick={() => setInsightView('chatbot')}
-                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
+                    className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
                       insightView === 'chatbot' 
-                        ? 'bg-slate-900 text-white shadow-md scale-105' 
-                        : 'text-slate-500 hover:text-slate-850 hover:bg-slate-200/50'
+                        ? 'bg-slate-900 text-white shadow-md scale-[1.02]' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                     }`}
                   >
                     <MessageSquare size={14} />
-                    AI Analyst Chat Bot
+                    <span>AI Assistant Mode</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => setInsightView('strategist')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
+                      insightView === 'strategist' 
+                        ? 'bg-slate-900 text-white shadow-md scale-[1.02]' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <Lightbulb size={14} className="text-amber-400" />
+                    <span>AI Strategist</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => setInsightView('notification-data')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
+                      insightView === 'notification-data' 
+                        ? 'bg-slate-900 text-white shadow-md scale-[1.02]' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <Bell size={14} className="text-emerald-400" />
+                    <span>AI Notification Log</span>
                   </button>
                 </div>
               </div>
 
-              {insightView === 'analytical' ? (
+              {insightView === 'analytical' && (
                 <div className="space-y-6">
                   {/* Key Stats Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2119,10 +2294,11 @@ export default function Dashboard({
                     </div>
                   </div>
                 </div>
-              ) : (
-                /* AI Analyst Chat Bot Panel */
+              )}
+
+              {/* MODE 2: AI ASSISTANT CHATBOT */}
+              {insightView === 'chatbot' && (
                 <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6 flex flex-col min-h-[500px]">
-                  
                   {/* Chat Panel Header */}
                   <div className="flex justify-between items-center border-b border-slate-150 pb-3">
                     <div className="flex items-center gap-2">
@@ -2219,6 +2395,180 @@ export default function Dashboard({
                 </div>
               )}
 
+              {/* MODE 3: AI STRATEGIST & RECOMMENDATIONS */}
+              {insightView === 'strategist' && (
+                <div className="space-y-6">
+                  {/* Revenue Growth Banner */}
+                  <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl border border-indigo-800/50 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <span className="text-[10px] font-mono uppercase font-bold text-indigo-400 bg-indigo-900/60 px-3 py-1 rounded-full border border-indigo-700">
+                          AI Growth Strategy Engine
+                        </span>
+                        <h2 className="text-2xl font-black mt-2 tracking-tight">E-Commerce Conversion Playbook</h2>
+                        <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                          Calculated directly from 1,660 visitor feedback responses. Executing these 3 CRO recommendations is estimated to recover <strong className="text-emerald-400 font-mono">+$14,200/month</strong> in lost sales.
+                        </p>
+                      </div>
+
+                      <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 text-center min-w-[160px]">
+                        <span className="text-[10px] font-mono text-slate-300 uppercase block">Est. Revenue Uplift</span>
+                        <span className="text-2xl font-black text-emerald-400 font-mono mt-0.5 block">+$14,200 / mo</span>
+                        <span className="text-[9px] text-slate-400 block mt-1">Based on 1,660 survey feedback points</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Playbooks Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Playbook 1 */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-800 px-2.5 py-1 rounded-lg border border-amber-200 uppercase">
+                            High Priority #1
+                          </span>
+                          <span className="text-xs font-bold text-emerald-600 font-mono">+18% Conversion</span>
+                        </div>
+                        <h3 className="font-extrabold text-slate-900 text-sm">Add Free Shipping Threshold at Checkout</h3>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          38% of survey drop-offs cite unexpected shipping fees at cart. Introduce a $50 free shipping progress bar trigger.
+                        </p>
+                      </div>
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400 font-mono">Difficulty: Easy (No-Code)</span>
+                        <button className="text-[#008060] hover:text-emerald-800 font-bold text-xs flex items-center gap-1 cursor-pointer">
+                          <span>Deploy Strategy</span>
+                          <ArrowRight size={12} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Playbook 2 */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-800 px-2.5 py-1 rounded-lg border border-indigo-200 uppercase">
+                            High Priority #2
+                          </span>
+                          <span className="text-xs font-bold text-emerald-600 font-mono">+12% Recovery</span>
+                        </div>
+                        <h3 className="font-extrabold text-slate-900 text-sm">Highlight Express Apple Pay / Klarna Badges</h3>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          32% of mobile visitors requested installment options or 1-tap checkout. Highlight Klarna installment logos on cart drawer.
+                        </p>
+                      </div>
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400 font-mono">Difficulty: Easy</span>
+                        <button className="text-[#008060] hover:text-emerald-800 font-bold text-xs flex items-center gap-1 cursor-pointer">
+                          <span>Deploy Strategy</span>
+                          <ArrowRight size={12} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Playbook 3 */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 uppercase">
+                            Medium Priority #3
+                          </span>
+                          <span className="text-xs font-bold text-emerald-600 font-mono">-28% Returns</span>
+                        </div>
+                        <h3 className="font-extrabold text-slate-900 text-sm">Embed Size & Fit AI Calculator on Product Page</h3>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          21% of hesitations stem from sizing uncertainty. Trigger a size assistant survey modal when visitors spend over 15s on PDP.
+                        </p>
+                      </div>
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400 font-mono">Difficulty: Moderate</span>
+                        <button className="text-[#008060] hover:text-emerald-800 font-bold text-xs flex items-center gap-1 cursor-pointer">
+                          <span>Deploy Strategy</span>
+                          <ArrowRight size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* MODE 4: AI NOTIFICATION DATA LOG (KEEPING TIME, DATE & DAY) */}
+              {insightView === 'notification-data' && (() => {
+                const filteredNotifLogs = notificationLogs.filter(log => {
+                  if (!notifSearchFilter.trim()) return true;
+                  const query = notifSearchFilter.toLowerCase().trim();
+                  return (
+                    log.title.toLowerCase().includes(query) ||
+                    log.summary.toLowerCase().includes(query) ||
+                    log.sentDate.toLowerCase().includes(query) ||
+                    log.dayOfWeek.toLowerCase().includes(query) ||
+                    log.sentTime.toLowerCase().includes(query) ||
+                    log.type.toLowerCase().includes(query)
+                  );
+                });
+
+                return (
+                  <div className="space-y-6">
+                    {/* Search Bar for Keywords, Date, or Day */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center gap-3">
+                      <div className="relative flex-1">
+                        <input 
+                          type="text"
+                          value={notifSearchFilter}
+                          onChange={(e) => setNotifSearchFilter(e.target.value)}
+                          placeholder="Search by keywords, date, or day (e.g. shipping, 2026-08-01, Monday)..."
+                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-[#008060] focus:bg-white rounded-xl text-xs font-semibold text-slate-900 outline-none transition-all shadow-inner"
+                        />
+                        <Filter size={16} className="absolute left-3.5 top-3 text-slate-400" />
+                      </div>
+                      {notifSearchFilter && (
+                        <button
+                          type="button"
+                          onClick={() => setNotifSearchFilter('')}
+                          className="px-3.5 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                        >
+                          Clear Search
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Notification Data Logs Table / Cards */}
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                      <div className="divide-y divide-slate-100">
+                        {filteredNotifLogs.length === 0 ? (
+                          <div className="p-8 text-center space-y-2">
+                            <p className="text-sm font-bold text-slate-700">No matching notification logs found</p>
+                            <p className="text-xs text-slate-400">Try searching for keywords like "shipping", a date like "2026-08-01", or a day like "Monday".</p>
+                          </div>
+                        ) : (
+                          filteredNotifLogs.map((log) => (
+                            <div key={log.id} className="p-5 hover:bg-slate-50/80 transition-all space-y-2.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="p-2 bg-emerald-50 text-[#008060] rounded-xl border border-emerald-100 text-sm shrink-0">
+                                    <Bell size={16} />
+                                  </span>
+                                  <div>
+                                    <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-2 font-mono">
+                                      <span>{log.sentDate}, {log.dayOfWeek} - {log.sentTime}</span>
+                                    </h4>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed font-medium">
+                                {log.summary}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
             </motion.div>
           )}
 
@@ -2244,7 +2594,7 @@ export default function Dashboard({
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="h-8 w-8 bg-green-50 text-green-600 rounded-lg flex items-center justify-center font-bold text-xs">S</div>
-                      <span className="text-xs font-semibold text-slate-800">Shopify 1-Click install</span>
+                      <span className="text-xs font-semibold text-slate-800">Shopify Fast and Easy install</span>
                     </div>
                     <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-mono uppercase font-bold">Auto</span>
                   </button>
@@ -2510,7 +2860,7 @@ async function makeSurvey() {
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                       <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Survey Blueprints</h1>
-                      <p className="text-slate-500 text-xs">Create, manage, and inspect all deployed exit-intent survey widgets active on your domains.</p>
+                      <p className="text-slate-500 text-xs">Create, manage, and inspect all deployed customer feedback survey widgets active on your domains.</p>
                     </div>
                     
                     <button
@@ -3008,7 +3358,7 @@ async function makeSurvey() {
 
                             <div className="grid grid-cols-2 gap-2.5">
                               {[
-                                { label: 'Exit Intent Popup', desc: 'Triggered upon tracking user pointer exit boundary.' },
+                                { label: 'In-Page Popup', desc: 'Triggered upon page load or user button click.' },
                                 { label: 'Popup After X Seconds', desc: 'Auto triggers after 5 seconds delay.' },
                                 { label: 'Floating Widget', desc: 'Launches from bottom corner tab click.' },
                                 { label: 'Embedded Form', desc: 'Renders static within webpage layout.' },
@@ -4332,7 +4682,7 @@ async function makeSurvey() {
                 sentimentScore: 48,
                 suggestions: [
                   { issue: "High abandonment due to Shipping Costs (28%)", recommendation: "Introduce a 'Free Shipping over $50' banner in the header to set clear expectations.", impact: "High Impact" },
-                  { issue: "Price Friction (43%)", recommendation: "Configure an exit-intent discount code offering 10% off to finalize cart checkout.", impact: "High Impact" }
+                  { issue: "Price Friction (43%)", recommendation: "Configure a targeted discount code offering 10% off to finalize cart checkout.", impact: "High Impact" }
                 ]
               },
               july16: {
@@ -4364,7 +4714,7 @@ async function makeSurvey() {
                 triggers: 320,
                 responseRate: "41.2%",
                 revenue: "$2,900.00",
-                insight: "Google Ads traffic has a 3.5x higher exit intent rate compared to Organic search. Suggestion: add an instant coupon code specifically for ad traffic.",
+                insight: "Google Ads traffic has a 3.5x higher bounce rate compared to Organic search. Suggestion: add an instant coupon code specifically for ad traffic.",
                 reasons: [
                   { reason: 'Price too high', percentage: 35 },
                   { reason: 'Just exploring', percentage: 30 },
@@ -4589,7 +4939,7 @@ async function makeSurvey() {
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">1. Pricing Concerns</span>
                           <p className="text-sm font-bold text-slate-900">Hesitancy & Coupon Searching</p>
                           <p className="text-slate-500 text-xs leading-relaxed">
-                            43% of exit-intents occur when visitors scroll down to input discount codes, indicating active price-hunting.
+                            43% of bounces occur when visitors scroll down to input discount codes, indicating active price-hunting.
                           </p>
                           <span className="inline-flex px-2 py-0.5 bg-rose-50 text-rose-700 font-bold text-[9px] rounded-full uppercase">Impact: High</span>
                         </div>
@@ -4742,7 +5092,7 @@ async function makeSurvey() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm flex flex-col justify-between">
                     <div>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">Identified Exit Intents</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">Identified High-Bounce Pages</span>
                       <h2 className="text-3xl font-extrabold text-slate-900 mt-1 font-mono">{activeData.sessions}</h2>
                     </div>
                     <span className="text-[10px] text-emerald-600 font-extrabold mt-4">↑ 14.2% vs prev week</span>
@@ -4963,7 +5313,7 @@ async function makeSurvey() {
                     <Sparkles className="text-indigo-600" /> AI Connected Website Intelligence
                   </h1>
                   <p className="text-slate-500 text-xs">
-                    Connect any external website URL and let CustomerLens AI automatically analyze page-drop hotspots, friction vectors, and suggest custom exit-intent surveys.
+                    Connect any external website URL and let CustomerLens AI automatically analyze page-drop hotspots, friction vectors, and suggest custom customer feedback surveys.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -5117,7 +5467,7 @@ async function makeSurvey() {
                       <span className="text-3xl">🔌</span>
                       <h4 className="text-sm font-bold text-slate-700">Waiting for AI workspace connection...</h4>
                       <p className="text-slate-400 text-xs max-w-sm mx-auto">
-                        Enter a website URL in the left-hand form to retrieve a comprehensive strategic review and auto-generated exit-intent questions.
+                        Enter a website URL in the left-hand form to retrieve a comprehensive strategic review and auto-generated customer feedback questions.
                       </p>
                     </div>
                   )}
@@ -5163,7 +5513,7 @@ async function makeSurvey() {
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-slate-100">
                           <div>
                             <h3 className="font-bold text-sm text-slate-900">
-                              Generated Exit-Intent Survey Questions
+                              Generated Customer Feedback Survey Questions
                             </h3>
                             <p className="text-slate-500 text-[11px] font-medium">
                               Ready-to-deploy questions designed for behavioral optimization.
@@ -5269,7 +5619,7 @@ async function makeSurvey() {
                     <div>
                       <span className="text-[10px] font-bold uppercase text-slate-400">Sandbox</span>
                       <h3 className="font-bold text-slate-900 text-lg mt-1">14-Day Free Trial</h3>
-                      <p className="text-xs text-slate-500 mt-1">Perfect for prototyping exit-intent widget functionality.</p>
+                      <p className="text-xs text-slate-500 mt-1">Perfect for prototyping customer survey widget functionality.</p>
                       
                       <div className="my-5 flex items-baseline gap-1">
                         <span className="text-2xl font-extrabold text-slate-900">$0</span>
@@ -5278,7 +5628,7 @@ async function makeSurvey() {
 
                       <ul className="space-y-2.5 text-xs text-slate-600 border-t border-slate-100 pt-5">
                         <li className="flex items-center gap-2">✔ Standard JavaScript Embed</li>
-                        <li className="flex items-center gap-2">✔ Exit Intent Triggering</li>
+                        <li className="flex items-center gap-2">✔ Targeted Feedback Triggering</li>
                         <li className="flex items-center gap-2">✔ Up to 50 feedback responses</li>
                         <li className="flex items-center gap-2 text-slate-400">❌ White-Labeling Settings</li>
                       </ul>
@@ -5377,14 +5727,30 @@ async function makeSurvey() {
               {/* Secure Payment Checkout Modal */}
               <AnimatePresence>
                 {billingModalOpen && selectedPlanForUpgrade && (
-                  <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                  <div 
+                    className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget) setBillingModalOpen(false);
+                    }}
+                  >
                     <motion.div 
                       initial={{ scale: 0.95, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.95, opacity: 0 }}
-                      className="bg-white rounded-3xl p-8 max-w-md w-full border border-slate-200 shadow-2xl text-slate-900"
+                      className="bg-white rounded-3xl p-8 max-w-md w-full border border-slate-200 shadow-2xl text-slate-900 relative my-auto"
                     >
-                      <h3 className="font-bold text-slate-900 text-lg mb-1">Confirm Subscription</h3>
+                      {/* Prominent Close Button */}
+                      <button 
+                        type="button"
+                        onClick={() => setBillingModalOpen(false)}
+                        className="absolute right-4 top-4 z-20 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 p-2 rounded-full transition-all flex items-center justify-center cursor-pointer shadow-xs"
+                        title="Close Checkout"
+                        aria-label="Close Checkout"
+                      >
+                        <X size={20} />
+                      </button>
+
+                      <h3 className="font-bold text-slate-900 text-lg mb-1 pr-8">Confirm Subscription</h3>
                       <p className="text-xs text-slate-500 mb-4">Set up your secure CustomerLens payment routing ledger.</p>
                       
                       {/* Plan and Price Breakdown */}
@@ -5550,9 +5916,44 @@ async function makeSurvey() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">White-Label & Custom Domains</h1>
-                <p className="text-slate-500 text-xs">Configure custom domain CNAME records and design brand colors/header logos. (Reserved for Business Plan).</p>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Settings, White-Label & Project Export</h1>
+                <p className="text-slate-500 text-xs">Export your full source code bundle, configure custom CNAME domain records, and adjust brand logo settings.</p>
               </div>
+
+              {/* AI Studio Export Instructions & Quick Code Exporter */}
+              <div className="bg-slate-900 text-white rounded-2xl p-6 space-y-4 shadow-xl border border-slate-800">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30 shrink-0">
+                    <Code size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      📦 How to Export Code in Google AI Studio
+                    </h3>
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                      If you clicked the <strong>Gear icon ⚙️</strong> in the Google AI Studio platform header, that menu opens <strong>Project Settings</strong> (API Keys, Permissions, and Environment Variables).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                  <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-1.5">
+                    <span className="text-[10px] font-bold text-indigo-400 uppercase font-mono tracking-wider block">Option A: Top Menu Export / Share</span>
+                    <p className="text-xs text-slate-300 font-medium">
+                      Look at the top right header bar of Google AI Studio (above this preview). Click the <strong>Share</strong> button or project dropdown to select <strong>Export to GitHub</strong> or <strong>Download ZIP</strong>.
+                    </p>
+                  </div>
+                  <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-1.5">
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase font-mono tracking-wider block">Option B: Direct Code Exporter Below</span>
+                    <p className="text-xs text-slate-300 font-medium">
+                      Use the interactive <strong>Code Exporter</strong> below to download a complete <strong>.ZIP Archive</strong> of all source files or download individual code files directly!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Code & ZIP Exporter Component */}
+              <CodeExporter />
 
               {user.plan !== 'Business' && (
                 <div className="bg-indigo-50 border border-indigo-200 p-6 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4">

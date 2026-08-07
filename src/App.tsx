@@ -20,7 +20,6 @@ import { User, Workspace, Survey } from './types';
 import OnboardingWizard from './components/OnboardingWizard';
 import Dashboard from './components/Dashboard';
 import LandingPage from './components/LandingPage';
-import ExitIntentSurvey from './components/ExitIntentSurvey';
 
 import { 
   onAuthStateChanged, 
@@ -90,7 +89,7 @@ export default function App() {
                     setInitialSurvey({
                       id: 'srv-init',
                       title: 'Onboarding Survey',
-                      displayOption: 'Exit Intent Popup',
+                      displayOption: 'In-Page Popup',
                       headline: 'Before you go...',
                       questions: [],
                       colors: { background: '#ffffff', text: '#111827', accent: '#6366f1' },
@@ -200,214 +199,6 @@ export default function App() {
   const triggerToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToast({ text, type });
     setTimeout(() => setToast(null), 3000);
-  };
-
-  // Exit Intent Survey states
-  const [showExitSurvey, setShowExitSurvey] = useState(false);
-  const [exitSurveyTriggered, setExitSurveyTriggered] = useState(false);
-  const [exitSurveyViewCount, setExitSurveyViewCount] = useState<number>(0);
-  const [triggerReason, setTriggerReason] = useState<string>('Standard Exit Intent');
-  const [lastActiveTime, setLastActiveTime] = useState<number>(Date.now());
-
-  // Listen for user actions to detect when they are "doing something"
-  useEffect(() => {
-    const updateActivity = () => {
-      setLastActiveTime(Date.now());
-    };
-    document.addEventListener('click', updateActivity);
-    document.addEventListener('keydown', updateActivity);
-    document.addEventListener('submit', updateActivity);
-    return () => {
-      document.removeEventListener('click', updateActivity);
-      document.removeEventListener('keydown', updateActivity);
-      document.removeEventListener('submit', updateActivity);
-    };
-  }, []);
-
-  // Load exit survey view count on startup & reset if months later
-  useEffect(() => {
-    const stored = localStorage.getItem('cl_exit_survey_views');
-    const lastClosed = localStorage.getItem('cl_exit_survey_last_closed');
-
-    if (lastClosed) {
-      const timeSinceClosed = Date.now() - parseInt(lastClosed, 10);
-      const resetThreshold = 30 * 24 * 60 * 60 * 1000; // 30 days (months later)
-      if (timeSinceClosed > resetThreshold) {
-        // Reset view limit and closed state since it is months later
-        localStorage.removeItem('cl_exit_survey_views');
-        localStorage.removeItem('cl_exit_survey_last_closed');
-        setExitSurveyViewCount(0);
-        return;
-      }
-    }
-
-    if (stored) {
-      setExitSurveyViewCount(parseInt(stored, 10));
-    }
-  }, []);
-
-  const triggerSurveyWithReason = (reason: string, isManualSimulation = false) => {
-    const isNew = !user;
-    let currentViews = 0;
-    
-    // Check persisted 8-hour cooldown (if they closed it, don't show for 8 hours)
-    if (!isManualSimulation) {
-      const lastClosed = localStorage.getItem('cl_exit_survey_last_closed');
-      if (lastClosed) {
-        const timeSinceClosed = Date.now() - parseInt(lastClosed, 10);
-        const cooldownMs = 8 * 60 * 60 * 1000; // 8 hours cooldown
-        if (timeSinceClosed < cooldownMs) {
-          console.log(`Exit intent survey within 8-hour cooldown. Skipped.`);
-          return;
-        }
-      }
-    }
-
-    if (isNew) {
-      const stored = localStorage.getItem('cl_exit_survey_views');
-      currentViews = stored ? parseInt(stored, 10) : 0;
-      
-      // Strict 2-times limit for new guest user
-      if (currentViews >= 2 && !isManualSimulation) {
-        console.log('Standard exit intent popup skipped - reached 2-time view limit for new guest user.');
-        return;
-      }
-
-      // Only increment if we are actually opening the survey
-      if (!showExitSurvey) {
-        const nextViews = currentViews + 1;
-        localStorage.setItem('cl_exit_survey_views', String(nextViews));
-        setExitSurveyViewCount(nextViews);
-      }
-    }
-
-    setTriggerReason(reason);
-    setShowExitSurvey(true);
-    setExitSurveyTriggered(true);
-  };
-
-  // Listen for Exit Intent (mouse leaving top of viewport)
-  useEffect(() => {
-    const handleMouseLeave = (e: MouseEvent) => {
-      if (currentView !== 'landing') return;
-      if (exitSurveyTriggered || showExitSurvey) return;
-
-      // DO NOT trigger if user is actively viewing details, checking out or doing actions
-      if ((window as any).cl_is_user_actively_engaged) {
-        console.log('User is actively buying, viewing details or doing something. Skipping exit intent.');
-        return;
-      }
-
-      // DO NOT trigger if user is actively focusing an input field (typing or selecting)
-      const isInputFocused = document.activeElement && (
-        document.activeElement.tagName === 'INPUT' || 
-        document.activeElement.tagName === 'TEXTAREA' || 
-        document.activeElement.tagName === 'SELECT'
-      );
-      if (isInputFocused) {
-        console.log('User is actively focusing an input. Skipping exit intent.');
-        return;
-      }
-
-      // DO NOT trigger if they clicked or typed very recently (within last 20 seconds)
-      const timeSinceLastInteraction = Date.now() - lastActiveTime;
-      if (timeSinceLastInteraction < 20000) {
-        console.log('User is actively doing something on the page. Skipping exit intent.');
-        return;
-      }
-
-      if (e.clientY < 15) {
-        const isNew = !user;
-        const stored = localStorage.getItem('cl_exit_survey_views');
-        const views = stored ? parseInt(stored, 10) : 0;
-
-        if (isNew && views >= 2) {
-          console.log('New user exit-intent limit reached. Skipped.');
-          return;
-        }
-
-        const reason = (isNew && views > 0) ? 'Returning Visitor Hesitation' : 'Standard Exit Intent';
-        triggerSurveyWithReason(reason);
-      }
-    };
-    document.addEventListener('mouseleave', handleMouseLeave);
-    return () => {
-      document.removeEventListener('mouseleave', handleMouseLeave);
-    };
-  }, [exitSurveyTriggered, showExitSurvey, user, currentView, lastActiveTime]);
-
-  // AI-Triggered Behavioral Engine: Scrolling confusion pattern detection
-  useEffect(() => {
-    if (currentView !== 'landing' || showExitSurvey) return;
-    let scrollCount = 0;
-    let lastScrollY = window.scrollY;
-    let lastDir = '';
-    
-    const handleScroll = () => {
-      if ((window as any).cl_is_user_actively_engaged) return;
-      const currentScrollY = window.scrollY;
-      const dir = currentScrollY > lastScrollY ? 'down' : 'up';
-      if (dir !== lastDir) {
-        scrollCount++;
-        lastDir = dir;
-        if (scrollCount >= 6) { // 3 rapid scroll direction changes
-          const isInputFocused = document.activeElement && (
-            document.activeElement.tagName === 'INPUT' || 
-            document.activeElement.tagName === 'TEXTAREA'
-          );
-          const timeSinceLastInteraction = Date.now() - lastActiveTime;
-          if (!isInputFocused && timeSinceLastInteraction > 20000 && !(window as any).cl_is_user_actively_engaged) {
-            triggerSurveyWithReason('Scrolled Confused Pattern');
-          }
-          scrollCount = 0;
-        }
-      }
-      lastScrollY = currentScrollY;
-    };
-    
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [currentView, showExitSurvey, lastActiveTime]);
-
-  // AI-Triggered Behavioral Engine: Hesitation trigger on page
-  useEffect(() => {
-    if (currentView !== 'landing' || showExitSurvey) return;
-    const timer = setTimeout(() => {
-      if ((window as any).cl_is_user_actively_engaged) return;
-      const isInputFocused = document.activeElement && (
-        document.activeElement.tagName === 'INPUT' || 
-        document.activeElement.tagName === 'TEXTAREA'
-      );
-      const timeSinceLastInteraction = Date.now() - lastActiveTime;
-      if (!isInputFocused && timeSinceLastInteraction > 20000 && !(window as any).cl_is_user_actively_engaged) {
-        triggerSurveyWithReason('Pricing Page Hesitation (45s)');
-      }
-    }, 45000); // 45 seconds stay
-    return () => clearTimeout(timer);
-  }, [currentView, showExitSurvey, lastActiveTime]);
-
-  const handleCloseExitSurvey = () => {
-    setShowExitSurvey(false);
-    // Persist closed state and closed timestamp (no longer reset exitSurveyTriggered so it won't trigger again in the same page-load)
-    localStorage.setItem('cl_exit_survey_last_closed', String(Date.now()));
-  };
-
-  const handleNewExitSurveySubmit = async (feedback: { reason: string; comment: string }) => {
-    const feedbackId = `fb-${Date.now()}`;
-    const feedbackData = {
-      id: feedbackId,
-      selectedReason: feedback.reason,
-      otherReasonText: feedback.comment,
-      timestamp: new Date().toISOString(),
-      userId: user?.id || 'anonymous',
-      triggerReason: triggerReason
-    };
-
-    try {
-      await setDoc(doc(db, 'exitFeedbacks', feedbackId), feedbackData);
-    } catch (err) {
-      console.warn('Could not write exit feedback to Firestore:', err);
-    }
   };
 
   // Persist session changes
@@ -655,7 +446,6 @@ export default function App() {
           onNavigate={(view) => setCurrentView(view)} 
           onLaunchDemo={handleLaunchDemo}
           onGetStartedFree={handleGetStartedFree}
-          onTriggerAISurvey={(reason) => triggerSurveyWithReason(reason, true)}
         />
       )}
 
@@ -872,6 +662,7 @@ export default function App() {
           onComplete={handleOnboardingComplete} 
           userEmail={user.email} 
           onBack={handleLogout}
+          onGoToLanding={() => setCurrentView('landing')}
         />
       )}
 
@@ -917,7 +708,7 @@ export default function App() {
 
                     {walkthroughStep === 2 && (
                       <p className="text-[11px] text-slate-400 leading-relaxed">
-                        <strong>Live Simulator Runs</strong>: Go to the <strong>Exit Intent Simulator</strong> tab to run actual cursors movements and trigger feedback surveys inside the sandbox frame!
+                        <strong>Live Simulator Runs</strong>: Go to the <strong>Survey Simulator</strong> tab to run live interactions and trigger feedback surveys inside the sandbox frame!
                       </p>
                     )}
 
@@ -959,19 +750,6 @@ export default function App() {
 
         </div>
       )}
-
-      {/* GLOBAL EXIT INTENT SURVEY MODAL */}
-      <AnimatePresence>
-        {showExitSurvey && (
-          <ExitIntentSurvey 
-            onClose={handleCloseExitSurvey}
-            onSubmit={handleNewExitSurveySubmit}
-            triggerReason={triggerReason}
-            isNewUser={!user}
-            viewCount={exitSurveyViewCount}
-          />
-        )}
-      </AnimatePresence>
 
     </div>
   );

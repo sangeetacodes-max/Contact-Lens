@@ -30,7 +30,7 @@ export interface Workspace {
 }
 
 export type SurveyDisplayOption =
-  | 'Exit Intent Popup'
+  | 'In-Page Popup'
   | 'Popup After X Seconds'
   | 'Floating Widget'
   | 'Embedded Form'

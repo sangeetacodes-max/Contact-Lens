@@ -22,6 +22,7 @@ window.chatWithAI = async function(userMsg: string, siteId?: string): Promise<st
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ newMessage: userMsg, siteId: siteId || 'default_site', option: 'General AI Chat' })
     });
+    if (!res.ok) throw new Error('Response error');
     const data = await res.json();
     return data.reply || "Thank you! CustomerLens AI has processed your message.";
   } catch (err) {
@@ -36,6 +37,7 @@ window.getAIInsights = async function(siteId?: string): Promise<string> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ siteId: siteId || 'default_site', businessName: 'My Business', websiteUrl: window.location.hostname, businessType: 'eCommerce' })
     });
+    if (!res.ok) throw new Error('Response error');
     const data = await res.json();
     if (data && data.insightsSummary) {
       return `<strong>AI Insights:</strong> ${data.insightsSummary}`;
@@ -59,6 +61,7 @@ window.generateSurvey = async function(siteId?: string, businessType?: string): 
         goal: 'Understand visitor drop-offs'
       })
     });
+    if (!res.ok) throw new Error('Response error');
     const data = await res.json();
     if (data && data.suggestedQuestions && Array.isArray(data.suggestedQuestions)) {
       return data.suggestedQuestions.map((q: any) => typeof q === 'string' ? q : (q.questionText || q.title || JSON.stringify(q)));

@@ -389,7 +389,7 @@ export default function LandingPage({ isLoggedIn, hasWorkspace, userEmail, onNav
       name: 'CUSTOMERLENS',
       category: 'FLAGSHIP CRO SAAS',
       type: 'SAAS APPLICATION',
-      description: 'Engineered for entrepreneurs to make smart decisions. Features advanced self-service exit-intent cursor tracking, live-simulator customer feedback modals, and server-side Gemini AI model loops for absolute strategic clarity.',
+      description: 'Engineered for entrepreneurs to make smart decisions. Features custom survey creation, live-simulator customer feedback modals, and server-side Gemini AI model loops for absolute strategic clarity.',
       icon: Eye,
       color: 'bg-indigo-600 text-white',
       tag: 'NEW FLAGSHIP',
@@ -1360,7 +1360,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
           </h2>
           <div className="w-12 h-1 bg-indigo-600 mx-auto rounded" />
           <p className="text-slate-500 text-sm leading-relaxed">
-            Select the perfect subscription tier designed to track exit intent, analyze feedback, and optimize your conversion rate metrics.
+            Select the perfect subscription tier designed to capture responses, analyze feedback, and optimize your conversion rate metrics.
           </p>
         </div>
 
@@ -1649,7 +1649,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
                         <tbody className="divide-y divide-slate-850 text-xs text-slate-300">
                           {[
                             { feat: "Interactive conversational flow", typeform: "✕", hotjar: "✕", lens: "✓ AI Chat" },
-                            { feat: "Behavioral & exit-intent triggers", typeform: "Limited", hotjar: "✕ Passive", lens: "✓ Real-time" },
+                            { feat: "Targeted survey triggers", typeform: "Limited", hotjar: "✕ Passive", lens: "✓ Real-time" },
                             { feat: "Dynamic discount / action offers", typeform: "✕", hotjar: "✕", lens: "✓ Auto-incentives" },
                             { feat: "Immediate user-hesitation response", typeform: "✕", hotjar: "✕", lens: "✓ Direct Chat" },
                             { feat: "Average campaign response rate", typeform: "3% - 5%", hotjar: "1% - 3%", lens: "50%+" }
@@ -1735,7 +1735,7 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
                   content: `We build CRO solutions on three key pillars:
 
 1. COMPASSIONATE FEEDBACK
-Modern users are exhausted by intrusive popups. We model elegant micro-surveys triggered only by active intention cues (exit velocity, window switching) to respect consumer attention windows.
+Modern users are exhausted by intrusive popups. We model elegant micro-surveys triggered by clean user interaction events to respect consumer attention windows.
 
 2. INSIGHT-DRIVEN ACCELERATION
 Raw metrics tell you WHAT happened. Authentic text responses and live behavior simulator runs explain WHY it happened. We replace guessing with intelligence.
@@ -1777,7 +1777,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
             </p>
 
             <p className="text-slate-600 text-xs md:text-sm leading-relaxed">
-              This transition allows our software products to scale to their ultimate potential under elite guidance, while the Sandhills team focuses directly on community conservation reserves, wild-ale brewing, and custom software like our AI exit-intent system CustomerLens.
+              This transition allows our software products to scale to their ultimate potential under elite guidance, while the Sandhills team focuses directly on community conservation reserves, wild-ale brewing, and custom software like CustomerLens AI.
             </p>
 
             <div className="pt-2">
@@ -1863,7 +1863,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 size={14} className="text-indigo-500 shrink-0" />
-                  <span>Exit Intent Surveys</span>
+                  <span>Customer Feedback Surveys</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 size={14} className="text-indigo-500 shrink-0" />
@@ -2098,7 +2098,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                 {selectedProject.id === 'customerlens' ? (
                   <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-indigo-900 text-[11px] space-y-2">
                     <span className="font-extrabold uppercase font-mono block text-indigo-700">⚡ ACTIVE SaaS PLAYGROUND</span>
-                    <p className="leading-relaxed">You can instantly experience the entire live CustomerLens SaaS dashboard including exit-intent simulations, custom integrations, white labeling, and real AI analytics right now without an account.</p>
+                    <p className="leading-relaxed">You can instantly experience the entire live CustomerLens SaaS dashboard including survey simulations, custom integrations, white labeling, and real AI analytics right now without an account.</p>
                     <button 
                       onClick={() => {
                         setSelectedProject(null);
@@ -2186,22 +2186,33 @@ The best brands don't stay still. By connecting direct web reviews with custom a
       {/* PAYPAL CHECKOUT MODAL */}
       <AnimatePresence>
         {activeCheckoutPlan && (
-          <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setActiveCheckoutPlan(null);
+                setPaypalSimStep('details');
+              }
+            }}
+          >
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl relative border border-slate-100 overflow-hidden"
+              className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl relative border border-slate-100 overflow-hidden my-auto"
             >
-              {/* Close Button */}
+              {/* Prominent Close Button */}
               <button 
+                type="button"
                 onClick={() => {
                   setActiveCheckoutPlan(null);
                   setPaypalSimStep('details');
                 }}
-                className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-50 rounded-full transition-all"
+                className="absolute right-4 top-4 z-20 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 p-2 rounded-full transition-all flex items-center justify-center cursor-pointer shadow-xs"
+                title="Close Checkout"
+                aria-label="Close Checkout"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
 
               {/* PayPal Branded Logo Header */}
@@ -2219,115 +2230,99 @@ The best brands don't stay still. By connecting direct web reviews with custom a
 
               {/* Step 1: Selection & Checkout Options */}
               {paypalSimStep === 'details' && (
-                <div className="space-y-5">
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 space-y-2">
-                    <span className="text-[9px] uppercase font-bold text-indigo-600 font-mono tracking-wider block">
-                      {activeCheckoutPlan.isTrial ? '14-DAY FREE TRIAL SELECTION' : 'YOUR SELECTION'}
-                    </span>
-                    <h4 className="text-base font-black text-slate-900">{activeCheckoutPlan.name}</h4>
-                    
-                    {activeCheckoutPlan.isTrial ? (
-                      <div className="bg-indigo-50/80 border border-indigo-200/60 p-3 rounded-xl space-y-1 mt-2">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="font-bold text-slate-700">Due Today (14-Day Trial):</span>
-                          <span className="font-black text-emerald-600 text-sm">$0.00 USD</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[11px] text-slate-500">
-                          <span>Billing After 14 Days:</span>
-                          <span className="font-bold text-slate-800">$20.00 USD / month</span>
-                        </div>
-                        <p className="text-[10px] text-indigo-900 pt-1 leading-snug font-medium border-t border-indigo-100/60 mt-1">
-                          ✨ Put your PayPal account to start the 14-day trial. If you continue using CustomerLens Standard for more than 14 days, your PayPal account will be charged $20 USD/month. Cancel anytime during the trial with zero cost.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex items-baseline gap-1 mt-1.5 font-sans">
-                        {checkoutDiscountApplied ? (
-                          <>
-                            <span className="text-2xl font-black text-slate-900">${(activeCheckoutPlan.price * 0.85).toFixed(2)}</span>
-                            <span className="text-slate-400 text-xs line-through ml-1.5">${activeCheckoutPlan.price}.00</span>
-                            <span className="text-emerald-600 font-mono font-bold text-[10px] ml-1.5 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">15% OFF</span>
-                          </>
-                        ) : (
-                          <span className="text-2xl font-black text-slate-900">${activeCheckoutPlan.price}.00</span>
-                        )}
-                        <span className="text-slate-500 text-xs">USD / Month</span>
-                      </div>
-                    )}
+                <div className="space-y-4 text-center">
+                  <div className="space-y-1">
+                    <h4 className="text-lg font-black text-slate-900">{activeCheckoutPlan.name}</h4>
+                    <p className="text-xs text-slate-500 font-bold font-sans">
+                      {checkoutDiscountApplied ? `$${(activeCheckoutPlan.price * 0.85).toFixed(2)} USD / month (15% OFF applied)` : `$${activeCheckoutPlan.price}.00 USD / month`}
+                    </p>
+                  </div>
 
-                    <div className="mt-2 pt-2 border-t border-slate-200/50 text-[10px] text-slate-500 leading-relaxed">
-                      🔒 Merchant PayPal Email:<br />
-                      <strong className="text-slate-700 font-mono font-bold">sangeeta.codes@gmail.com</strong>
-                    </div>
+                  {/* Simple text above PayPal button as requested */}
+                  <div className="p-3.5 bg-indigo-50/80 border border-indigo-100 rounded-2xl text-xs text-indigo-950 leading-relaxed font-medium text-left shadow-2xs">
+                    {activeCheckoutPlan.isTrial ? (
+                      <>
+                        <p className="font-extrabold text-indigo-900 mb-1 flex items-center gap-1.5">
+                          <span>⏳</span>
+                          <span>Billing will start after 14 days</span>
+                        </p>
+                        <p className="text-[11px] text-slate-600 leading-normal">
+                          Link your PayPal account to start your 14-day free trial ($0.00 today). If you continue using CustomerLens for more than 14 days, your PayPal account will be charged automatically.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-extrabold text-indigo-900 mb-1 flex items-center gap-1.5">
+                          <span>💳</span>
+                          <span>Monthly Subscription Plan</span>
+                        </p>
+                        <p className="text-[11px] text-slate-600 leading-normal">
+                          Link your PayPal account to activate your subscription. You will be billed ${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD/month starting today.
+                        </p>
+                      </>
+                    )}
                   </div>
 
                   {/* Survey Promo Code Prompt */}
-                  <div className="bg-indigo-50/50 border border-indigo-100/80 p-4 rounded-2xl space-y-2.5">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider font-mono">🎁 CLAIM 15% SURVEY DISCOUNT</span>
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        Did you complete our Exit Intent Survey? Paste your exclusive coupon code below:
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="e.g. LENS15-XXXX"
-                        value={checkoutCouponCode}
-                        onChange={(e) => {
-                          setCheckoutCouponCode(e.target.value);
-                          setCheckoutCouponError('');
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Survey Promo Code (e.g. LENS15)"
+                      value={checkoutCouponCode}
+                      onChange={(e) => {
+                        setCheckoutCouponCode(e.target.value);
+                        setCheckoutCouponError('');
+                      }}
+                      disabled={checkoutDiscountApplied}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs uppercase outline-none font-mono focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-500 transition-all"
+                    />
+                    {!checkoutDiscountApplied ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const code = checkoutCouponCode.trim().toUpperCase();
+                          if (code.startsWith('LENS15') || code.includes('LENS15')) {
+                            setCheckoutDiscountApplied(true);
+                            setCheckoutCouponError('');
+                          } else {
+                            setCheckoutCouponError('Invalid code. Complete the survey to get LENS15!');
+                          }
                         }}
-                        disabled={checkoutDiscountApplied}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs uppercase outline-none font-mono focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-500 transition-all"
-                      />
-                      {!checkoutDiscountApplied ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const code = checkoutCouponCode.trim().toUpperCase();
-                            if (code.startsWith('LENS15') || code.includes('LENS15')) {
-                              setCheckoutDiscountApplied(true);
-                              setCheckoutCouponError('');
-                            } else {
-                              setCheckoutCouponError('Invalid code. Complete the survey to get your LENS15 code!');
-                            }
-                          }}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-sm shrink-0"
-                        >
-                          Apply
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCheckoutDiscountApplied(false);
-                            setCheckoutCouponCode('');
-                          }}
-                          className="bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-600 font-bold text-xs px-3.5 py-2 rounded-xl transition-all shrink-0"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    {checkoutDiscountApplied && (
-                      <p className="text-[11px] font-bold text-emerald-600 flex items-center gap-1 font-sans">
-                        ✓ 15% discount code applied successfully!
-                      </p>
-                    )}
-                    {checkoutCouponError && (
-                      <p className="text-[11px] font-semibold text-rose-500 font-sans">
-                        ✕ {checkoutCouponError}
-                      </p>
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm shrink-0 cursor-pointer"
+                      >
+                        Apply 15%
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCheckoutDiscountApplied(false);
+                          setCheckoutCouponCode('');
+                        }}
+                        className="bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-600 font-bold text-xs px-3 py-2 rounded-xl transition-all shrink-0 cursor-pointer"
+                      >
+                        Remove
+                      </button>
                     )}
                   </div>
+                  {checkoutDiscountApplied && (
+                    <p className="text-[11px] font-bold text-emerald-600 font-sans text-left">
+                      ✓ 15% survey discount applied!
+                    </p>
+                  )}
 
-                  <div className="space-y-4">
-                    {/* Live PayPal Smart Button SDK Component */}
-                    <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-2 font-mono text-center">
-                        ⚡ Official PayPal Smart Checkout
-                      </span>
+                  {/* PayPal Button / Actions */}
+                  <div className="space-y-2.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setPaypalSimStep('login')}
+                      className="w-full bg-[#0070ba] hover:bg-[#005ea6] text-white font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm font-sans"
+                    >
+                      <span className="italic font-black text-sm">Pay<span className="text-[#0079C1]">Pal</span></span>
+                      <span>{activeCheckoutPlan.isTrial ? 'Link Account & Start 14-Day Trial' : `Pay $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} with PayPal`}</span>
+                    </button>
+
+                    <div className="pt-1">
                       <PayPalSmartButton 
                         planId={activeCheckoutPlan.id} 
                         onSuccess={() => {
@@ -2335,22 +2330,21 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                         }}
                       />
                     </div>
-
-                    {/* Direct PayPal Subscription Fallback */}
-                    <a 
-                      href={`https://www.paypal.com/cgi-bin/webscr?cmd=_xclick-subscriptions&business=sangeeta.codes@gmail.com&item_name=CustomerLens+Advance+14-Day+Free+Trial&a3=${checkoutDiscountApplied ? '17.00' : '20.00'}&p3=1&t3=M&a1=0.00&p1=14&t1=D&currency_code=USD`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-sm font-sans"
-                    >
-                      <span>Alternative Direct Link ($0.00 Today)</span>
-                      <ArrowRight size={14} />
-                    </a>
                   </div>
 
-                  <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-                    By linking your PayPal account, you start a 14-day free trial. If kept active beyond 14 days, $20 USD/month will apply. Cancel anytime.
-                  </p>
+                  <div className="pt-2 border-t border-slate-100">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setActiveCheckoutPlan(null);
+                        setPaypalSimStep('details');
+                      }}
+                      className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-slate-200/80 shadow-2xs"
+                    >
+                      <X size={15} />
+                      <span>Cancel</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -2359,7 +2353,11 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                 <div className="space-y-4">
                   <div className="text-center space-y-1">
                     <h4 className="text-sm font-bold text-slate-800">Enter Your PayPal Account</h4>
-                    <p className="text-[11px] text-slate-500">Provide your PayPal account email to activate your 14-day free trial ($0 today).</p>
+                    <p className="text-[11px] text-slate-500">
+                      {activeCheckoutPlan.isTrial 
+                        ? "Provide your PayPal account email to activate your 14-day free trial ($0 today)."
+                        : `Provide your PayPal account email to set up your $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price}/month subscription.`}
+                    </p>
                   </div>
 
                   <div className="space-y-3">
@@ -2386,13 +2384,17 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                   </div>
 
                   <div className="p-3 bg-amber-50 border border-amber-200/60 rounded-xl text-[11px] text-amber-900 leading-snug">
-                    ℹ️ $0.00 will be charged today. If you continue using CustomerLens Advance for more than 14 days, $20.00 USD/month will be billed automatically to your PayPal account.
+                    {activeCheckoutPlan.isTrial ? (
+                      `ℹ️ $0.00 will be charged today. If you continue using ${activeCheckoutPlan.name} for more than 14 days, $20.00 USD/month will be billed automatically to your PayPal account.`
+                    ) : (
+                      `ℹ️ You will be charged $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD today for your ${activeCheckoutPlan.name} plan.`
+                    )}
                   </div>
 
                   <div className="flex gap-2 pt-1">
                     <button 
                       onClick={() => setPaypalSimStep('details')}
-                      className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition-all"
+                      className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
                     >
                       Back
                     </button>
@@ -2401,9 +2403,9 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                         if (!paypalUserEmail) setPaypalUserEmail('user-paypal@customerlens.com');
                         setPaypalSimStep('review');
                       }}
-                      className="w-1/2 bg-[#0070ba] hover:bg-[#005ea6] text-white font-bold text-xs py-2.5 rounded-xl transition-all"
+                      className="w-1/2 bg-[#0070ba] hover:bg-[#005ea6] text-white font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
                     >
-                      Next: Authorize Trial
+                      {activeCheckoutPlan.isTrial ? 'Next: Authorize Trial' : 'Next: Authorize Payment'}
                     </button>
                   </div>
                 </div>
@@ -2413,8 +2415,8 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               {paypalSimStep === 'review' && (
                 <div className="space-y-5">
                   <div className="text-center space-y-1">
-                    <h4 className="text-sm font-bold text-slate-800">Confirm PayPal Account Link</h4>
-                    <p className="text-[11px] text-slate-500 font-mono text-indigo-600">Trial Auth ID: PAY-14DAY-TRIAL-92015</p>
+                    <h4 className="text-sm font-bold text-slate-800">Confirm PayPal Payment</h4>
+                    <p className="text-[11px] text-slate-500 font-mono text-indigo-600">Auth ID: PAY-{activeCheckoutPlan.isTrial ? 'TRIAL' : 'SUB'}-92015</p>
                   </div>
 
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 text-xs">
@@ -2424,23 +2426,31 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                     </div>
                     <div className="flex justify-between font-medium">
                       <span className="text-slate-500">Charge Due Today:</span>
-                      <span className="text-emerald-600 font-mono font-bold">$0.00 USD (14-Day Free Trial)</span>
+                      <span className="text-emerald-600 font-mono font-bold">
+                        {activeCheckoutPlan.isTrial ? '$0.00 USD (14-Day Free Trial)' : `$${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD`}
+                      </span>
                     </div>
                     <div className="flex justify-between font-medium">
-                      <span className="text-slate-500">Recurring Price (After 14 Days):</span>
+                      <span className="text-slate-500">Recurring Price:</span>
                       <span className="text-slate-800 font-mono font-bold">
-                        ${checkoutDiscountApplied ? '17.00' : '20.00'} USD / month
+                        ${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD / month
                       </span>
                     </div>
-                    <div className="flex justify-between font-medium text-[11px]">
-                      <span className="text-slate-500">First Billing Date:</span>
-                      <span className="text-indigo-600 font-mono font-semibold">
-                        {new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </span>
-                    </div>
+                    {activeCheckoutPlan.isTrial && (
+                      <div className="flex justify-between font-medium text-[11px]">
+                        <span className="text-slate-500">First Billing Date:</span>
+                        <span className="text-indigo-600 font-mono font-semibold">
+                          {new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+                    )}
                     <div className="h-px bg-slate-200/50" />
                     <p className="text-[10px] text-slate-500 leading-snug font-sans">
-                      Notice: By clicking below, you authorize CustomerLens to bill $20 USD/month to your linked PayPal account <strong>only if you continue using CustomerLens Advance after 14 days</strong>. Cancel anytime during the 14-day trial without paying anything.
+                      {activeCheckoutPlan.isTrial ? (
+                        `Notice: By clicking below, you authorize CustomerLens to bill $20 USD/month to your linked PayPal account only if you continue using ${activeCheckoutPlan.name} after 14 days. Cancel anytime during the 14-day trial without paying anything.`
+                      ) : (
+                        `Notice: By clicking below, you authorize CustomerLens to bill $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD/month to your linked PayPal account. Cancel anytime.`
+                      )}
                     </p>
                   </div>
 
@@ -2448,7 +2458,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                     <button 
                       disabled={simulatedPaying}
                       onClick={() => setPaypalSimStep('login')}
-                      className="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-3 rounded-xl transition-all"
+                      className="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-3 rounded-xl transition-all cursor-pointer"
                     >
                       Back
                     </button>
@@ -2461,16 +2471,16 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                           setPaypalSimStep('success');
                         }, 1800);
                       }}
-                      className="w-2/3 bg-[#0070ba] hover:bg-[#005ea6] text-white font-bold text-xs py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow"
+                      className="w-2/3 bg-[#0070ba] hover:bg-[#005ea6] text-white font-bold text-xs py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow cursor-pointer"
                     >
                       {simulatedPaying ? (
                         <>
                           <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Linking Account...</span>
+                          <span>Processing...</span>
                         </>
                       ) : (
                         <>
-                          <span>Link PayPal & Start 14-Day Free Trial</span>
+                          <span>{activeCheckoutPlan.isTrial ? 'Link PayPal & Start 14-Day Free Trial' : `Confirm & Pay $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price}`}</span>
                         </>
                       )}
                     </button>
@@ -2486,17 +2496,25 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                   </div>
 
                   <div className="space-y-1">
-                    <h4 className="text-lg font-black text-slate-900 tracking-tight">PayPal Account Linked & Trial Activated!</h4>
-                    <p className="text-xs text-slate-500">Trial Auth Token: <span className="font-mono font-bold text-slate-700">TRIAL-PAYPAL-2026</span></p>
+                    <h4 className="text-lg font-black text-slate-900 tracking-tight">
+                      {activeCheckoutPlan.isTrial ? 'PayPal Account Linked & Trial Activated!' : 'Payment Completed & Subscription Active!'}
+                    </h4>
+                    <p className="text-xs text-slate-500">Transaction Ref: <span className="font-mono font-bold text-slate-700">PAYPAL-REC-2026</span></p>
                   </div>
 
                   <div className="p-4 bg-slate-50 rounded-2xl text-xs text-slate-600 leading-relaxed text-left space-y-2 border">
-                    <p className="font-semibold text-slate-800">✅ 14-Day Free Trial Active for CustomerLens Standard!</p>
-                    <p>Your PayPal account (<strong className="text-slate-900">{paypalUserEmail}</strong>) is set up. $0.00 was charged today.</p>
-                    <p className="text-slate-700">
-                      If you continue to use CustomerLens Standard for more than 14 days, your PayPal account will be charged <strong className="text-slate-900">$20.00 USD/month</strong> starting on <strong>{new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong>.
-                    </p>
-                    <p className="text-[10px] text-slate-400">You may cancel your trial at any time in account settings prior to the 14 days to avoid being charged.</p>
+                    <p className="font-semibold text-slate-800">✅ Plan Activated: {activeCheckoutPlan.name}</p>
+                    <p>Your PayPal account (<strong className="text-slate-900">{paypalUserEmail}</strong>) is connected.</p>
+                    {activeCheckoutPlan.isTrial ? (
+                      <p className="text-slate-700">
+                        If you continue to use CustomerLens for more than 14 days, your PayPal account will be charged <strong className="text-slate-900">$20.00 USD/month</strong> starting on <strong>{new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong>.
+                      </p>
+                    ) : (
+                      <p className="text-slate-700">
+                        $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD/month has been authorized via PayPal.
+                      </p>
+                    )}
+                    <p className="text-[10px] text-slate-400">You may manage or cancel your subscription anytime in account settings.</p>
                   </div>
 
                   <button 

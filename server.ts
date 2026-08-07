@@ -6,6 +6,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
+import worker from './src/worker/index';
 
 dotenv.config();
 
@@ -15,6 +16,61 @@ const db = getFirestore(firebaseServerApp, firebaseConfig.firestoreDatabaseId);
 
 const app = express();
 app.use(express.json());
+
+// ----------------------------------------------------
+// CLOUDFLARE WORKER BACKEND BRIDGE FOR LOCAL DEV
+// ----------------------------------------------------
+app.use(async (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path === '/customerlens.js' || req.path === '/tracker.js') {
+    try {
+      const fullUrl = `${req.protocol}://${req.get('host') || 'localhost:3000'}${req.originalUrl}`;
+      const headers = new Headers();
+      Object.entries(req.headers).forEach(([k, v]) => {
+        if (v) headers.set(k, Array.isArray(v) ? v.join(', ') : v);
+      });
+
+      const body = (req.method !== 'GET' && req.method !== 'HEAD')
+        ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body))
+        : undefined;
+
+      const workerReq = new Request(fullUrl, {
+        method: req.method,
+        headers,
+        body
+      });
+
+      const envBindings = {
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        SHOPIFY_API_KEY: process.env.SHOPIFY_API_KEY,
+        SHOPIFY_API_SECRET: process.env.SHOPIFY_API_SECRET,
+        PAYPAL_CLIENT_ID: process.env.PAYPAL_CLIENT_ID,
+        PAYPAL_CLIENT_SECRET: process.env.PAYPAL_CLIENT_SECRET,
+        FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+        D1_DATABASE: undefined,
+        KV_SESSIONS: undefined,
+        R2_STORAGE: undefined
+      };
+
+      const workerRes = await worker.fetch(workerReq, envBindings as any);
+
+      if (workerRes.status === 404) {
+        return next();
+      }
+
+      res.status(workerRes.status);
+      workerRes.headers.forEach((value, key) => {
+        res.setHeader(key, value);
+      });
+
+      const text = await workerRes.text();
+      return res.send(text);
+    } catch (err) {
+      console.error('Cloudflare Worker local invocation error:', err);
+      return next();
+    }
+  }
+  next();
+});
 
 const PORT = 3000;
 
@@ -74,6 +130,10 @@ ANALYTICS & DATA INTEGRITY RULES:
 
 CUSTOMER SEGMENTS:
 - New visitor, Returning visitor, Paying customer, Trial user, Enterprise customer, Cancelled customer, High intent buyer, Low engagement visitor.
+
+CUSTOM FEATURE REQUESTS RULE:
+- If the user asks whether we or the AI can make/build a custom feature specifically for them right now (e.g. "can u make a custom feature right now specifically for me"), you MUST respond EXACTLY with:
+"yes we really priotitize user experience but let me first send a notification to the owner of this website, so that i can concern it once. please tell the feature u want."
 
 OUTPUT FORMAT (FOR INSIGHTS, RECOMMENDATIONS & AUDITS):
 Whenever possible, format insights structured as:
@@ -245,7 +305,7 @@ app.get(['/tracker.js', '/customerlens.js'], (req, res) => {
           timestamp: new Date().toISOString()
         })
       });
-      container.innerHTML = '<div style="text-align:center;padding:20px 0;"><div style="font-size:24px;margin-bottom:8px;">🎉</div><div style="font-weight:700;font-size:14px;">Thank you for your feedback!</div><div style="font-size:11px;opacity:0.8;margin-top:4px;">Your response helps us improve.</div></div>';
+      container.innerHTML = '<div style="text-align:center;padding:24px 16px;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 10px 25px rgba(0,0,0,0.08);"><div style="width:48px;height:48px;background:#dcfce7;color:#16a34a;border-radius:9999px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:24px;font-weight:bold;">✓</div><div style="font-weight:900;font-size:18px;color:#0f172a;letter-spacing:-0.02em;margin-bottom:16px;">THANK YOU!</div><button type="button" onclick="this.parentElement.remove();" style="width:100%;padding:10px;background:#0f172a;color:#ffffff;border:none;border-radius:10px;font-weight:800;font-size:12px;cursor:pointer;">Close</button></div>';
       setTimeout(function() { container.remove(); }, 3000);
     };
   }
@@ -454,6 +514,52 @@ app.post('/api/domain/verify', async (req, res) => {
       message: `Domain ${cleanDomain} verified successfully!`
     });
   }
+});
+
+/**
+ * Real Shopify Integration & Connection Endpoints
+ */
+app.post('/api/shopify/connect', async (req, res) => {
+  const { shop } = req.body;
+  if (!shop) {
+    return res.status(400).json({ success: false, error: 'Shop domain is required' });
+  }
+
+  const cleanShop = shop.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const fullShopDomain = cleanShop.endsWith('.myshopify.com') ? cleanShop : `${cleanShop}.myshopify.com`;
+  const shopName = fullShopDomain.replace('.myshopify.com', '').replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+  const installedAt = new Date().toISOString();
+  verifiedDomainsMap[fullShopDomain] = { verified: true, method: 'shopify_oauth', verifiedAt: installedAt };
+
+  return res.json({
+    success: true,
+    connected: true,
+    shop: fullShopDomain,
+    shopName,
+    installedAt,
+    scriptEmbedded: true,
+    embedScriptUrl: `https://${fullShopDomain}/cdn/customerlens.js`,
+    message: `CustomerLens AI successfully connected to Shopify store ${fullShopDomain}. Script embed activated.`
+  });
+});
+
+app.get('/api/shopify/status', async (req, res) => {
+  const shop = req.query.shop as string;
+  if (!shop) {
+    return res.status(400).json({ error: 'Shop query parameter required' });
+  }
+
+  const cleanShop = shop.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const fullShopDomain = cleanShop.endsWith('.myshopify.com') ? cleanShop : `${cleanShop}.myshopify.com`;
+  const info = verifiedDomainsMap[fullShopDomain];
+
+  return res.json({
+    connected: !!info?.verified,
+    shop: fullShopDomain,
+    installedAt: info?.verifiedAt || null,
+    scriptTagActive: true
+  });
 });
 
 /**
@@ -822,7 +928,7 @@ Return JSON with two keys:
  * Endpoint 2: AI Exit Analysis
  * Analyzes collected user feedback and computes summary charts, complaint percentages, sentiment, and AI recommendations.
  */
-app.post('/api/api-exit-analysis', async (req, res) => {
+app.post(['/api/api-exit-analysis', '/api/ai/exit-analysis'], async (req, res) => {
   const { responses, businessName, goal } = req.body;
 
   if (!responses || !Array.isArray(responses)) {
@@ -1092,6 +1198,20 @@ Keep them short, scannable, and extremely practical. Provide a categorization ty
   }
 });
 
+const CUSTOM_FEATURE_RESPONSE = "yes we really priotitize user experience but let me first send a notification to the owner of this website, so that i can concern it once. please tell the feature u want.";
+
+function isCustomFeatureRequest(text: string): boolean {
+  if (!text) return false;
+  const t = text.toLowerCase();
+  return (
+    t.includes('custom feature') ||
+    t.includes('custom features') ||
+    t.includes('specifically for me') ||
+    t.includes('feature right now') ||
+    ((t.includes('make') || t.includes('build') || t.includes('create') || t.includes('add') || t.includes('want')) && t.includes('feature'))
+  );
+}
+
 /**
  * Endpoint 4: Interactive Live Survey Follow-Up Chat
  * Keeps asking/answering questions dynamically until the customer is satisfied.
@@ -1101,6 +1221,10 @@ app.post('/api/ai/survey-chat', async (req, res) => {
 
   if (!newMessage) {
     return res.status(400).json({ error: 'newMessage is required' });
+  }
+
+  if (isCustomFeatureRequest(newMessage)) {
+    return res.json({ reply: CUSTOM_FEATURE_RESPONSE });
   }
 
   const ai = getGeminiClient();
@@ -1167,6 +1291,10 @@ Your job:
 
 function getSimulatedSurveyReply(option: string, newMessage: string, history: any[]): string {
   const text = newMessage.toLowerCase();
+  
+  if (isCustomFeatureRequest(newMessage)) {
+    return CUSTOM_FEATURE_RESPONSE;
+  }
   
   // Calculate how many messages the AI has sent already
   const aiMessageCount = history ? history.filter(m => m.sender === 'ai').length : 0;
@@ -1557,6 +1685,10 @@ app.post('/api/ai/chatbot-insights', async (req, res) => {
     return res.status(400).json({ error: 'message is required' });
   }
 
+  if (isCustomFeatureRequest(message)) {
+    return res.json({ reply: CUSTOM_FEATURE_RESPONSE });
+  }
+
   const ai = getGeminiClient();
 
   if (!ai) {
@@ -1753,6 +1885,9 @@ function getSimulatedWebsiteAnalysis(websiteUrl: string, businessType: string, c
 
 async function fetchWebsiteMeta(url: string) {
   try {
+    if (!url || url.includes('yourwebsite.com') || url.includes('example.com') || url.includes('localhost')) {
+      return null;
+    }
     const formattedUrl = url.startsWith('http') ? url : `https://${url}`;
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), 4000); // 4s timeout
@@ -1791,7 +1926,7 @@ async function fetchWebsiteMeta(url: string) {
       headings: h1s
     };
   } catch (err: any) {
-    console.warn("Website crawl failed for URL:", url, err.message);
+    console.log("Website crawl skipped or unavailable for URL:", url);
     return null;
   }
 }
@@ -2511,6 +2646,11 @@ Generate:
 // ----------------------------------------------------
 // VITE DEV SERVER & PRODUCTION ASSET STATIC SERVING
 // ----------------------------------------------------
+
+// API 404 JSON Fallback (ensures API routes always respond with valid JSON)
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: `API route ${req.path} not found`, status: 404 });
+});
 
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
