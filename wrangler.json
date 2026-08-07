@@ -1,25 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "customerlens-backend",
+  "name": "customer----lens",
   "main": "src/worker/index.ts",
   "compatibility_date": "2024-11-01",
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  "d1_databases": [
-    {
-      "binding": "D1_DATABASE",
-      "database_name": "customerlens-db",
-      "database_id": "00000000-0000-0000-0000-000000000000"
-    }
-  ],
-  "kv_namespaces": [
-    {
-      "binding": "KV_SESSIONS",
-      "id": "00000000000000000000000000000000"
-    }
-  ],
   "observability": {
     "enabled": true
   }
 }
+
