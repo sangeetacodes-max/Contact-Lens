@@ -1,3 +1,14 @@
+export interface Env {
+  ASSETS: Fetcher;
+  OPENAI_API_KEY: string;
+  SHOPIFY_API_KEY: string;
+  SHOPIFY_API_SECRET: string;
+  PAYPAL_CLIENT_ID: string;
+  PAYPAL_CLIENT_SECRET: string;
+  FIREBASE_PROJECT_ID: string;
+  GEMINI_API_KEY: string;
+}
+
 export type BusinessType = 'Shopify' | 'WooCommerce' | 'SaaS' | 'Startup' | 'Agency' | 'Ecommerce' | 'Other';
 
 export interface User {
