@@ -58,6 +58,9 @@ export default {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         });
+      } else if (env.ASSETS) {
+        // Serve frontend SPA static assets (index.html, JS, CSS) built into ./dist
+        return await env.ASSETS.fetch(request);
       } else {
         response = new Response('Not Found', { status: 404 });
       }
