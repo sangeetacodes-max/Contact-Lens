@@ -59,10 +59,10 @@ export default {
           headers: { 'Content-Type': 'application/json' }
         });
       } else if (env.ASSETS) {
-        // Serve frontend SPA static assets (index.html, JS, CSS) built into ./dist
-        return await env.ASSETS.fetch(request);
+        // Serve frontend (HTML/CSS/JS) for all non-API routes
+        response = await env.ASSETS.fetch(request);
       } else {
-        response = new Response('Not Found', { status: 404 });
+        response = new Response("Not Found", { status: 404 });
       }
 
       // 5. Append CORS Headers to Response
