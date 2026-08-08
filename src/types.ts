@@ -1,3 +1,7 @@
+export type Fetcher = {
+  fetch(request: Request | string | URL, init?: any): Promise<Response>;
+};
+
 export interface Env {
   ASSETS: Fetcher;
   OPENAI_API_KEY: string;

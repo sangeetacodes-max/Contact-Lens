@@ -816,6 +816,7 @@ interface OnboardingWizardProps {
 export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoToLanding }: OnboardingWizardProps) {
   // Wizard Steps: 1 | 2 | 3
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [maxStepReached, setMaxStepReached] = useState<1 | 2 | 3>(1);
 
   // --- PERSISTENT SIDEBAR & MODE STATES ---
   const [activeSidebarItem, setActiveSidebarItem] = useState<string>('Surveys');
@@ -833,6 +834,15 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   const [shopifyDomainInput, setShopifyDomainInput] = useState('my-boutique.myshopify.com');
   const [isInstallingShopify, setIsInstallingShopify] = useState(false);
   const [shopifyInstallStep, setShopifyInstallStep] = useState<'prompt' | 'installing' | 'success'>('prompt');
+
+  // Step 1 completion check: Completed if shopify is installed, custom domain is set, or maxStepReached >= 2
+  const isStep1Completed = useMemo(() => {
+    return (
+      shopifyInstallStep === 'success' ||
+      (Boolean(websiteUrl) && websiteUrl !== 'https://yourwebsite.com' && websiteUrl.trim().length > 0) ||
+      maxStepReached >= 2
+    );
+  }, [shopifyInstallStep, websiteUrl, maxStepReached]);
 
   // Dynamic connected app / store name (from Shopify integration or website URL)
   const connectedAppName = useMemo(() => {
@@ -1050,6 +1060,57 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
     { id: 'q2', type: 'Rating', title: 'How easy was it to find what you were looking for?', choices: ['1', '2', '3', '4', '5'] },
     { id: 'q3', type: 'Text Answer', title: 'Is there anything stopping you from making a purchase today?', choices: [] },
   ]);
+
+  // Step 2 completion check: Completed if at least 1 question is configured or maxStepReached >= 3
+  const isStep2Completed = useMemo(() => {
+    return surveyQuestions.length > 0 || maxStepReached >= 3;
+  }, [surveyQuestions.length, maxStepReached]);
+
+  // Strict Navigation Control: Cannot go forward without completing current step, but CAN go back!
+  const handleGoToStep = (targetStep: 1 | 2 | 3) => {
+    if (targetStep === step) return;
+
+    // GOING BACK: Always permitted!
+    if (targetStep < step) {
+      setStep(targetStep);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // GOING NEXT: Must complete current step before advancing
+    if (step === 1 && targetStep >= 2) {
+      if (!isStep1Completed) {
+        setShowShopifyModal(true);
+        return;
+      }
+      setMaxStepReached(prev => Math.max(prev, 2) as 1 | 2 | 3);
+      setStep(targetStep);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (step === 2 && targetStep === 3) {
+      if (!isStep2Completed) {
+        alert("Please select at least 1 survey question in Step 2 before proceeding to Step 3.");
+        return;
+      }
+      setMaxStepReached(prev => Math.max(prev, 3) as 1 | 2 | 3);
+      setStep(3);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (targetStep <= maxStepReached) {
+      setStep(targetStep);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      if (!isStep1Completed) {
+        setShowShopifyModal(true);
+      } else {
+        alert("Please complete the current step before advancing.");
+      }
+    }
+  };
 
   // --- STEP 3 BEHAVIOR TOGGLES & SURVEY CREATION STATES ---
   const [allowEdits, setAllowEdits] = useState<boolean>(false);
@@ -1727,7 +1788,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
               {/* Step 1 with Green Tick Mark */}
               <button
                 type="button"
-                onClick={() => setStep(1)}
+                onClick={() => handleGoToStep(1)}
                 className={`w-full px-3 py-2 rounded-lg text-xs font-semibold text-left flex items-center justify-between transition-all cursor-pointer ${
                   step === 1 ? 'bg-[#132238] text-white font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                 }`}
@@ -1736,16 +1797,18 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                   <span className="text-slate-400 font-mono">1.</span>
                   <span>Connect Website</span>
                 </span>
-                <span className="h-4 w-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-[10px] font-black">
-                  ✓
-                </span>
+                {isStep1Completed && (
+                  <span className="h-4 w-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-[10px] font-black">
+                    ✓
+                  </span>
+                )}
               </button>
 
               {/* Step 2: AI Survey Setup */}
               <div className="space-y-0.5">
                 <button
                   type="button"
-                  onClick={() => setStep(2)}
+                  onClick={() => handleGoToStep(2)}
                   className={`w-full px-3 py-2 rounded-lg text-xs font-black text-left flex items-center justify-between transition-all cursor-pointer ${
                     step === 2
                       ? 'bg-[#132238] text-white border-l-2 border-emerald-400'
@@ -1811,7 +1874,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
               {/* Step 3: Publish Workspace */}
               <button
                 type="button"
-                onClick={() => setStep(3)}
+                onClick={() => handleGoToStep(3)}
                 className={`w-full px-3 py-2 rounded-lg text-xs font-semibold text-left flex items-center justify-between transition-all cursor-pointer ${
                   step === 3 ? 'bg-[#132238] text-white font-bold border-l-2 border-emerald-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                 }`}
@@ -1831,7 +1894,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
         <div className="pt-4 border-t border-slate-800/80">
           <button
             type="button"
-            onClick={() => setStep(1)}
+            onClick={() => handleGoToStep(1)}
             className="w-full text-left text-xs font-extrabold text-slate-400 hover:text-white transition-colors flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-900/60 cursor-pointer"
           >
             <span>←</span>
@@ -1923,7 +1986,17 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                   </button>
                 </div>
 
-
+                {/* Bottom Step 1 Next Step Bar */}
+                <div className="pt-4 border-t border-slate-200 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={() => handleGoToStep(2)}
+                    className="px-8 py-3.5 bg-[#008060] hover:bg-[#004c3f] text-white rounded-2xl text-xs font-extrabold transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>Next Step: AI Survey Setup</span>
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}
@@ -3710,7 +3783,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                       setStep2SubSection('questions');
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     } else {
-                      setStep(1);
+                      handleGoToStep(1);
                     }
                   }}
                   className="px-5 py-2.5 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-700 transition-all cursor-pointer flex items-center gap-1.5"
@@ -3731,8 +3804,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                       setStep2SubSection('behavior');
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     } else {
-                      setStep(3);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      handleGoToStep(3);
                     }
                   }}
                   className="px-8 py-3 bg-[#0266c8] hover:bg-[#0052a3] text-white rounded-xl text-xs font-extrabold transition-all shadow-sm flex items-center gap-2 cursor-pointer"
@@ -4022,100 +4094,155 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
         </AnimatePresence>
       </main>
 
-      {/* SHOPIFY OAUTH APP AUTHORIZATION MODAL */}
+      {/* SHOPIFY.COM ADMIN OAUTH AUTHORIZATION PERMISSION MODAL */}
       <AnimatePresence>
         {showShopifyModal && (
-          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 overflow-y-auto">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl space-y-5 relative my-8"
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-slate-100 border border-slate-300 rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden relative my-6 text-slate-900"
             >
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-1 bg-white border border-slate-200 rounded-xl shadow-xs">
-                    <ShopifyLogo className="w-8 h-8 shrink-0" />
+              {/* Simulated Shopify Admin Address Bar */}
+              <div className="bg-slate-900 px-4 py-2.5 flex items-center justify-between text-xs font-mono text-slate-300 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
                   </div>
-                  <div>
-                    <h3 className="font-black text-slate-900 text-base">Shopify App Installation</h3>
-                    <p className="text-xs text-slate-500 font-medium">Connect CustomerLens AI to your Shopify store</p>
-                  </div>
+                  <span className="text-[11px] text-slate-400 ml-2 font-mono flex items-center gap-1 bg-slate-800/80 px-2.5 py-0.5 rounded-md border border-slate-700">
+                    <span className="text-emerald-400">🔒 https://</span>admin.shopify.com/store/{shopifyDomainInput ? shopifyDomainInput.replace('.myshopify.com', '') : 'my-boutique'}/oauth/authorize?app=CustomerLens+AI
+                  </span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setShowShopifyModal(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all cursor-pointer"
+                  className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               </div>
 
-              {shopifyInstallStep === 'prompt' && (
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider font-mono">Enter Your Shopify Store Domain</label>
-                    <div className="relative">
-                      <input 
-                        type="text"
-                        value={shopifyDomainInput}
-                        onChange={(e) => setShopifyDomainInput(e.target.value)}
-                        placeholder="my-boutique.myshopify.com"
-                        className="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 focus:border-[#008060] focus:bg-white rounded-xl text-xs font-mono font-bold text-slate-900 outline-none"
-                      />
+              {/* Shopify Admin Top Navigation Header */}
+              <div className="bg-[#1a1a1a] px-6 py-3 flex items-center justify-between text-white border-b border-slate-800">
+                <div className="flex items-center gap-3">
+                  <ShopifyLogo className="w-7 h-7 shrink-0 text-[#95bf47]" />
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-sm tracking-tight text-white font-sans">Shopify Admin</span>
+                    <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono font-semibold">Store Dashboard</span>
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400 font-mono">
+                  {shopifyDomainInput || 'my-boutique.myshopify.com'}
+                </div>
+              </div>
+
+              {/* Shopify App Permission Card */}
+              <div className="p-6 md:p-8 space-y-6">
+                {shopifyInstallStep === 'prompt' && (
+                  <div className="space-y-6">
+                    {/* Grant Permission Banner */}
+                    <div className="flex items-start gap-4 bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm">
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-100 rounded-2xl shrink-0">
+                        <ShopifyLogo className="w-9 h-9" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md font-mono">Official App Store Request</span>
+                        </div>
+                        <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                          Install & Authorize CustomerLens AI
+                        </h3>
+                        <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                          CustomerLens AI is requesting permission to access your Shopify store dashboard and theme assets to enable automated AI surveys and analytics.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Store Domain Input Field */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
+                      <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">
+                        Target Shopify Store Domain
+                      </label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text"
+                          value={shopifyDomainInput}
+                          onChange={(e) => setShopifyDomainInput(e.target.value)}
+                          placeholder="my-boutique.myshopify.com"
+                          className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-[#008060] focus:bg-white rounded-xl text-xs font-mono font-bold text-slate-900 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Permissions Requested Breakdown */}
+                    <div className="bg-white border border-slate-200/90 p-5 rounded-2xl space-y-3 shadow-2xs">
+                      <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider font-mono flex items-center justify-between border-b border-slate-100 pb-2">
+                        <span>Permissions Requested by CustomerLens AI</span>
+                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded">Verified Safe</span>
+                      </h4>
+                      <ul className="space-y-2.5 text-xs text-slate-700 font-medium">
+                        <li className="flex items-start gap-2.5">
+                          <CheckCircle2 size={16} className="text-[#008060] shrink-0 mt-0.5" />
+                          <span><strong>Theme Integration:</strong> Automatically insert CustomerLens AI survey widget script into store theme</span>
+                        </li>
+                        <li className="flex items-start gap-2.5">
+                          <CheckCircle2 size={16} className="text-[#008060] shrink-0 mt-0.5" />
+                          <span><strong>Customer Analytics:</strong> Track cart abandonment, scroll hesitation, and checkout exit triggers</span>
+                        </li>
+                        <li className="flex items-start gap-2.5">
+                          <CheckCircle2 size={16} className="text-[#008060] shrink-0 mt-0.5" />
+                          <span><strong>Promotions & Rewards:</strong> Generate and display single-use discount codes to survey respondents</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Action Buttons: Grant Permission on Shopify */}
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowShopifyModal(false)}
+                        className="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs py-3.5 rounded-2xl transition-all cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleApproveShopifyInstallation}
+                        className="w-2/3 bg-[#008060] hover:bg-[#004c3f] text-white font-extrabold text-sm py-3.5 rounded-2xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 cursor-pointer border border-emerald-500/30"
+                      >
+                        <ShopifyLogo className="w-5 h-5 shrink-0" />
+                        <span>Grant Permission & Install App</span>
+                        <ArrowRight size={16} />
+                      </button>
                     </div>
                   </div>
+                )}
 
-                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Permissions Granted to CustomerLens AI</span>
-                    <ul className="space-y-2 text-xs text-slate-700 font-medium">
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 size={14} className="text-[#008060] shrink-0" />
-                        <span>Automatically inject CustomerLens AI script embed into theme header</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 size={14} className="text-[#008060] shrink-0" />
-                        <span>Track cart drop-off, scroll hesitation, and checkout exit events</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 size={14} className="text-[#008060] shrink-0" />
-                        <span>Display personalized surveys and smart discount offers to visitors</span>
-                      </li>
-                    </ul>
+                {shopifyInstallStep === 'installing' && (
+                  <div className="py-12 text-center space-y-4">
+                    <RefreshCw className="h-10 w-10 text-[#008060] animate-spin mx-auto" />
+                    <div>
+                      <h4 className="font-extrabold text-slate-900 text-base">Granting Permission on Shopify Admin...</h4>
+                      <p className="text-xs text-slate-600 font-medium mt-1">Connecting {shopifyDomainInput || 'your Shopify store'} and redirecting to CustomerLens AI Step 2...</p>
+                    </div>
                   </div>
+                )}
 
-                  <button
-                    type="button"
-                    onClick={handleApproveShopifyInstallation}
-                    className="w-full bg-[#008060] hover:bg-[#004c3f] text-white font-extrabold text-sm py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2.5 cursor-pointer"
-                  >
-                    <ShopifyLogo className="w-5 h-5 shrink-0" />
-                    <span>Approve & Install App on Shopify</span>
-                    <ArrowRight size={15} />
-                  </button>
-                </div>
-              )}
-
-              {shopifyInstallStep === 'installing' && (
-                <div className="py-8 text-center space-y-4">
-                  <RefreshCw className="h-10 w-10 text-[#008060] animate-spin mx-auto" />
-                  <div>
-                    <h4 className="font-extrabold text-slate-900 text-sm">Authenticating with Shopify OAuth...</h4>
-                    <p className="text-xs text-slate-500 mt-1">Injecting script embed and activating behavioral sensors on {shopifyDomainInput}</p>
+                {shopifyInstallStep === 'success' && (
+                  <div className="py-8 text-center space-y-3">
+                    <div className="h-14 w-14 bg-[#008060] text-white rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-lg">
+                      ✓
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-slate-900 text-base">Permission Granted on Shopify!</h4>
+                      <p className="text-xs text-emerald-800 font-bold mt-1">Redirecting you to Step 2: Select Your Survey Questions...</p>
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {shopifyInstallStep === 'success' && (
-                <div className="py-6 text-center space-y-3">
-                  <div className="h-12 w-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-md">
-                    ✓
-                  </div>
-                  <div>
-                    <h4 className="font-extrabold text-slate-900 text-sm">Shopify App Successfully Installed!</h4>
-                    <p className="text-xs text-emerald-700 font-semibold mt-1">Script embed verified and active on {shopifyDomainInput}.</p>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </motion.div>
           </div>
         )}
