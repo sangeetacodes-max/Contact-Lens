@@ -2232,7 +2232,6 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               {paypalSimStep === 'details' && (
                 <div className="space-y-4 text-center">
                   <div className="space-y-1">
-                    <h4 className="text-lg font-black text-slate-900">{activeCheckoutPlan.name}</h4>
                     <p className="text-xs text-slate-500 font-bold font-sans">
                       {checkoutDiscountApplied ? `$${(activeCheckoutPlan.price * 0.85).toFixed(2)} USD / month (15% OFF applied)` : `$${activeCheckoutPlan.price}.00 USD / month`}
                     </p>
@@ -2321,15 +2320,6 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                       <span className="italic font-black text-sm">Pay<span className="text-[#0079C1]">Pal</span></span>
                       <span>{activeCheckoutPlan.isTrial ? 'Link Account & Start 14-Day Trial' : `Pay $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} with PayPal`}</span>
                     </button>
-
-                    <div className="pt-1">
-                      <PayPalSmartButton 
-                        planId={activeCheckoutPlan.id} 
-                        onSuccess={() => {
-                          setPaypalSimStep('success');
-                        }}
-                      />
-                    </div>
                   </div>
 
                   <div className="pt-2 border-t border-slate-100">

@@ -1,11 +1,22 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import baseAppletConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
-export const auth = getAuth();
+const effectiveConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || baseAppletConfig.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || baseAppletConfig.authDomain || "customer-lens-bd503.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || baseAppletConfig.projectId || "customer-lens-bd503",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || baseAppletConfig.appId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || baseAppletConfig.storageBucket || "customer-lens-bd503.appspot.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || baseAppletConfig.messagingSenderId,
+  measurementId: baseAppletConfig.measurementId
+};
+
+const app = initializeApp(effectiveConfig);
+export const db = getFirestore(app, baseAppletConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+export const auth = getAuth(app);
+
 
 export enum OperationType {
   CREATE = 'create',
