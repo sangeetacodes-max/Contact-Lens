@@ -57,46 +57,62 @@ export default function App() {
   const [initialSurvey, setInitialSurvey] = useState<Survey | null>(null);
   const pendingLaunchOnAuthRef = useRef<boolean>(false);
 
-  // Check Shopify embedded app parameters on load
+  // Check Shopify embedded app parameters on load - only initialize App Bridge when valid shop & host exist
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
-    const shop = searchParams.get('shop');
+    const rawShop = searchParams.get('shop');
     const host = searchParams.get('host');
-    const embedded = searchParams.get('embedded');
 
-    if (shop || embedded) {
-      const cleanShop = shop ? shop.toLowerCase().trim() : localStorage.getItem('cl_shopify_shop') || 'myshop.myshopify.com';
-      if (shop) localStorage.setItem('cl_shopify_shop', cleanShop);
-      if (host) localStorage.setItem('cl_shopify_host', host);
+    if (rawShop && host) {
+      const cleanShop = rawShop.toLowerCase().trim();
+      if (cleanShop.includes('.')) {
+        // Dynamically initialize Shopify App Bridge ONLY in embedded context with valid shop & host
+        const apiKey = import.meta.env.VITE_SHOPIFY_API_KEY || '03b0ee31c378e592b1c5c9da3dbe6651';
 
-      const storeName = cleanShop.replace('.myshopify.com', '');
-      const shopifyWs: Workspace = {
-        id: `ws_shopify_${storeName.replace(/[^a-z0-9]/gi, '_')}`,
-        name: `${storeName} (Shopify)`,
-        businessType: 'Shopify',
-        goal: 'Conversion Optimization',
-        url: cleanShop.startsWith('http') ? cleanShop : `https://${cleanShop}`,
-        platform: 'Shopify',
-        siteId: `cl_shop_${storeName}`
-      };
+        if (!document.querySelector('meta[name="shopify-api-key"]')) {
+          const meta = document.createElement('meta');
+          meta.name = 'shopify-api-key';
+          meta.content = apiKey;
+          document.head.appendChild(meta);
+        }
 
-      const shopifyUser: User = {
-        id: `usr_shopify_${storeName}`,
-        email: `merchant@${cleanShop}`,
-        name: storeName.charAt(0).toUpperCase() + storeName.slice(1) + ' Store',
-        workspaceId: shopifyWs.id,
-        isEmailVerified: true,
-        plan: 'Pro',
-        billingPeriod: 'monthly',
-        subscriptionActive: true,
-        trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
-      };
+        if (!document.querySelector('script[src*="app-bridge.js"]')) {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
+          script.async = true;
+          document.head.appendChild(script);
+        }
 
-      setUser(shopifyUser);
-      setWorkspace(shopifyWs);
-      localStorage.setItem('cl_user', JSON.stringify(shopifyUser));
-      localStorage.setItem('cl_workspace', JSON.stringify(shopifyWs));
-      setCurrentView('dashboard');
+        localStorage.setItem('cl_shopify_shop', cleanShop);
+        localStorage.setItem('cl_shopify_host', host);
+
+        const storeName = cleanShop.replace('.myshopify.com', '');
+        const shopifyWs: Workspace = {
+          id: `ws_shopify_${storeName.replace(/[^a-z0-9]/gi, '_')}`,
+          name: `${storeName} (Shopify)`,
+          businessType: 'Shopify',
+          goal: 'Conversion Optimization',
+          url: cleanShop.startsWith('http') ? cleanShop : `https://${cleanShop}`,
+          platform: 'Shopify',
+          siteId: `cl_shop_${storeName}`
+        };
+
+        const shopifyUser: User = {
+          id: `usr_shopify_${storeName}`,
+          email: `merchant@${cleanShop}`,
+          name: storeName.charAt(0).toUpperCase() + storeName.slice(1) + ' Store',
+          workspaceId: shopifyWs.id,
+          isEmailVerified: true,
+          plan: 'Pro',
+          billingPeriod: 'monthly',
+          subscriptionActive: true,
+          trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
+        };
+
+        setUser(shopifyUser);
+        setWorkspace(shopifyWs);
+        setCurrentView('dashboard');
+      }
     }
   }, []);
 
