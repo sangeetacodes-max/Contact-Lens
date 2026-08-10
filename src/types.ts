@@ -31,8 +31,10 @@ export interface Workspace {
   id: string;
   name: string;
   businessType: BusinessType;
+  platform?: string;
   url: string;
   goal: string;
+  siteId?: string;
   industry?: string;
   customDomain?: string;
   customDomainStatus?: 'Pending' | 'Active' | 'Failed';

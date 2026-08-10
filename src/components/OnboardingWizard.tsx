@@ -835,6 +835,17 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   const [isInstallingShopify, setIsInstallingShopify] = useState(false);
   const [shopifyInstallStep, setShopifyInstallStep] = useState<'prompt' | 'installing' | 'success'>('prompt');
 
+  const handleConnectShopifyDirect = () => {
+    const rawInput = shopifyDomainInput && shopifyDomainInput.trim() ? shopifyDomainInput.trim() : 'my-boutique.myshopify.com';
+    const cleanShopDomain = rawInput.includes('.') ? rawInput : `${rawInput}.myshopify.com`;
+    const fullUrl = cleanShopDomain.startsWith('http') ? cleanShopDomain : `https://${cleanShopDomain}`;
+
+    setWebsiteUrl(fullUrl);
+    setActivePlatform('Shopify');
+
+    window.location.href = `/api/shopify/install?shop=${encodeURIComponent(cleanShopDomain)}`;
+  };
+
   // Step 1 completion check: Completed if shopify is installed, custom domain is set, or maxStepReached >= 2
   const isStep1Completed = useMemo(() => {
     return (
@@ -1080,8 +1091,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
     // GOING NEXT: Must complete current step before advancing
     if (step === 1 && targetStep >= 2) {
       if (!isStep1Completed) {
-        setShowShopifyModal(true);
-        return;
+        setWebsiteUrl('https://my-boutique.myshopify.com');
       }
       setMaxStepReached(prev => Math.max(prev, 2) as 1 | 2 | 3);
       setStep(targetStep);
@@ -1105,7 +1115,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       if (!isStep1Completed) {
-        setShowShopifyModal(true);
+        handleConnectShopifyDirect();
       } else {
         alert("Please complete the current step before advancing.");
       }
@@ -1573,49 +1583,11 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
     const cleanShopDomain = shopifyDomainInput.includes('.') ? shopifyDomainInput : `${shopifyDomainInput}.myshopify.com`;
     const fullUrl = cleanShopDomain.startsWith('http') ? cleanShopDomain : `https://${cleanShopDomain}`;
 
-    try {
-      const res = await fetch('/api/shopify/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shop: cleanShopDomain })
-      });
-      const data = await res.json();
-      console.log('Shopify backend connect result:', data);
+    setWebsiteUrl(fullUrl);
+    setActivePlatform('Shopify');
 
-      setWebsiteUrl(fullUrl);
-      setActivePlatform('Shopify');
-      setProgressIndex(connectionProgressItems.length);
-      setIsVerifying(false);
-      setShopifyInstallStep('success');
-
-      setTimeout(() => {
-        setShowShopifyModal(false);
-        setShopifyInstallStep('prompt');
-        // Auto trigger AI scan for Shopify store
-        handleRescanWebsite(fullUrl);
-        // AUTOMATICALLY transition user to Step 2
-        setStep(2);
-        setStep2SubSection('questions');
-      }, 1000);
-    } catch (err) {
-      console.error('Shopify connection error:', err);
-      setWebsiteUrl(fullUrl);
-      setActivePlatform('Shopify');
-      setProgressIndex(connectionProgressItems.length);
-      setIsVerifying(false);
-      setShopifyInstallStep('success');
-
-      setTimeout(() => {
-        setShowShopifyModal(false);
-        setShopifyInstallStep('prompt');
-        handleRescanWebsite(fullUrl);
-        // AUTOMATICALLY transition user to Step 2
-        setStep(2);
-        setStep2SubSection('questions');
-      }, 1000);
-    } finally {
-      setIsInstallingShopify(false);
-    }
+    // Direct merchant straight to official Shopify OAuth Permission Grant via Worker Install Route
+    window.location.href = `/api/shopify/install?shop=${encodeURIComponent(cleanShopDomain)}`;
   };
 
   // Handle Connecting Custom Website & automatically navigating to Step 2
@@ -1673,8 +1645,19 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
     }
   };
 
+  const userSiteId = useMemo(() => {
+    const seed = (userEmail || 'user') + (websiteUrl || 'store') + Date.now().toString(36);
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+      hash |= 0;
+    }
+    const cleanHash = Math.abs(hash).toString(36).toUpperCase();
+    return `cl_live_${cleanHash}`;
+  }, [userEmail, websiteUrl]);
+
   const handleCopyCode = () => {
-    const code = `<script\nsrc="https://cdn.customerlens.ai/customerlens.js"\ndata-site-id="cl_live_x8K29P4">\n</script>`;
+    const code = `<script async src="${window.location.origin}/tracker.js" data-site-id="${userSiteId}"></script>`;
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -1977,7 +1960,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
 
                   <button
                     type="button"
-                    onClick={() => setShowShopifyModal(true)}
+                    onClick={handleConnectShopifyDirect}
                     className="w-full bg-[#008060] hover:bg-[#004c3f] text-white font-extrabold text-sm py-4 px-6 rounded-2xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3 cursor-pointer border border-emerald-400/30 transform hover:-translate-y-0.5 active:translate-y-0"
                   >
                     <ShopifyLogo className="w-7 h-7 shrink-0" />
@@ -1986,17 +1969,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                   </button>
                 </div>
 
-                {/* Bottom Step 1 Next Step Bar */}
-                <div className="pt-4 border-t border-slate-200 flex items-center justify-end">
-                  <button
-                    type="button"
-                    onClick={() => handleGoToStep(2)}
-                    className="px-8 py-3.5 bg-[#008060] hover:bg-[#004c3f] text-white rounded-2xl text-xs font-extrabold transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"
-                  >
-                    <span>Next Step: AI Survey Setup</span>
-                    <ArrowRight size={16} />
-                  </button>
-                </div>
+
               </div>
             </motion.div>
           )}

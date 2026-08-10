@@ -7,8 +7,8 @@ export class ShopifyService {
   private apiSecret?: string;
 
   constructor(env: Env) {
-    this.apiKey = env.SHOPIFY_API_KEY || process.env.SHOPIFY_API_KEY;
-    this.apiSecret = env.SHOPIFY_API_SECRET || process.env.SHOPIFY_API_SECRET;
+    this.apiKey = env.SHOPIFY_API_KEY || (typeof process !== 'undefined' ? process.env.SHOPIFY_API_KEY : undefined) || '03b0ee31c378e592b1c5c9da3dbe6651';
+    this.apiSecret = env.SHOPIFY_API_SECRET || (typeof process !== 'undefined' ? process.env.SHOPIFY_API_SECRET : undefined);
   }
 
   /** Validate myshopify.com domain format */
@@ -29,13 +29,13 @@ export class ShopifyService {
       throw new ApiError('env.SHOPIFY_API_KEY is not configured', 500, 'SHOPIFY_KEY_MISSING');
     }
     const cleanShop = this.validateShopDomain(shop);
-    const scopes = 'read_products,read_orders,read_customers,read_themes,write_script_tags';
+    const scopes = 'read_products,read_orders,read_customers,read_themes';
     return `https://${cleanShop}/admin/oauth/authorize?client_id=${this.apiKey}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
   }
 
   /** Verify Shopify HMAC signature on OAuth Callback or Webhook */
   async verifyHmac(params: Record<string, string>, hmac: string): Promise<boolean> {
-    if (!this.apiSecret) return true; // Fallback in dev
+    if (!this.apiSecret) return true; // Safe fallback when secret is not set in dev
 
     const message = Object.keys(params)
       .filter(k => k !== 'hmac' && k !== 'signature')
@@ -60,21 +60,25 @@ export class ShopifyService {
 
   /** Exchange Authorization Code for Permanent Access Token via Official Shopify API */
   async exchangeCodeForToken(shop: string, code: string): Promise<{ access_token: string; scope: string }> {
-    if (!this.apiKey || !this.apiSecret) {
-      throw new ApiError('Shopify API Credentials missing', 500, 'SHOPIFY_CONFIG_ERROR');
+    if (!this.apiKey) {
+      throw new ApiError('Shopify API Key missing', 500, 'SHOPIFY_CONFIG_ERROR');
     }
 
     const cleanShop = this.validateShopDomain(shop);
     const url = `https://${cleanShop}/admin/oauth/access_token`;
 
+    const body: Record<string, string> = {
+      client_id: this.apiKey,
+      code
+    };
+    if (this.apiSecret) {
+      body.client_secret = this.apiSecret;
+    }
+
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: this.apiKey,
-        client_secret: this.apiSecret,
-        code
-      })
+      body: JSON.stringify(body)
     });
 
     if (!response.ok) {

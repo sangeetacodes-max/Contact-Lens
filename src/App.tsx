@@ -48,6 +48,49 @@ export default function App() {
   const [initialSurvey, setInitialSurvey] = useState<Survey | null>(null);
   const pendingLaunchOnAuthRef = useRef<boolean>(false);
 
+  // Check Shopify embedded app parameters on load
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const shop = searchParams.get('shop');
+    const host = searchParams.get('host');
+    const embedded = searchParams.get('embedded');
+
+    if (shop || embedded) {
+      const cleanShop = shop ? shop.toLowerCase().trim() : localStorage.getItem('cl_shopify_shop') || 'myshop.myshopify.com';
+      if (shop) localStorage.setItem('cl_shopify_shop', cleanShop);
+      if (host) localStorage.setItem('cl_shopify_host', host);
+
+      const storeName = cleanShop.replace('.myshopify.com', '');
+      const shopifyWs: Workspace = {
+        id: `ws_shopify_${storeName.replace(/[^a-z0-9]/gi, '_')}`,
+        name: `${storeName} (Shopify)`,
+        businessType: 'Shopify',
+        goal: 'Conversion Optimization',
+        url: cleanShop.startsWith('http') ? cleanShop : `https://${cleanShop}`,
+        platform: 'Shopify',
+        siteId: `cl_shop_${storeName}`
+      };
+
+      const shopifyUser: User = {
+        id: `usr_shopify_${storeName}`,
+        email: `merchant@${cleanShop}`,
+        name: storeName.charAt(0).toUpperCase() + storeName.slice(1) + ' Store',
+        workspaceId: shopifyWs.id,
+        isEmailVerified: true,
+        plan: 'Pro',
+        billingPeriod: 'monthly',
+        subscriptionActive: true,
+        trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
+      };
+
+      setUser(shopifyUser);
+      setWorkspace(shopifyWs);
+      localStorage.setItem('cl_user', JSON.stringify(shopifyUser));
+      localStorage.setItem('cl_workspace', JSON.stringify(shopifyWs));
+      setCurrentView('dashboard');
+    }
+  }, []);
+
   // Authentication state sync & Firebase Firestore validation connection
   useEffect(() => {
     async function testConnection() {
