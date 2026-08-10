@@ -63,56 +63,60 @@ export default function App() {
     const rawShop = searchParams.get('shop');
     const host = searchParams.get('host');
 
-    if (rawShop && host) {
-      const cleanShop = rawShop.toLowerCase().trim();
-      if (cleanShop.includes('.')) {
-        // Dynamically initialize Shopify App Bridge ONLY in embedded context with valid shop & host
-        const apiKey = import.meta.env.VITE_SHOPIFY_API_KEY || '03b0ee31c378e592b1c5c9da3dbe6651';
+    const isValidShop = Boolean(
+      rawShop && 
+      typeof rawShop === 'string' && 
+      rawShop.toLowerCase().trim().endsWith('.myshopify.com')
+    );
+    const isValidHost = Boolean(host && typeof host === 'string' && host.trim().length > 0);
 
-        if (!document.querySelector('meta[name="shopify-api-key"]')) {
-          const meta = document.createElement('meta');
-          meta.name = 'shopify-api-key';
-          meta.content = apiKey;
-          document.head.appendChild(meta);
-        }
+    if (isValidShop && isValidHost) {
+      const cleanShop = rawShop!.toLowerCase().trim();
+      const apiKey = import.meta.env.VITE_SHOPIFY_API_KEY || '03b0ee31c378e592b1c5c9da3dbe6651';
 
-        if (!document.querySelector('script[src*="app-bridge.js"]')) {
-          const script = document.createElement('script');
-          script.src = 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
-          script.async = true;
-          document.head.appendChild(script);
-        }
-
-        localStorage.setItem('cl_shopify_shop', cleanShop);
-        localStorage.setItem('cl_shopify_host', host);
-
-        const storeName = cleanShop.replace('.myshopify.com', '');
-        const shopifyWs: Workspace = {
-          id: `ws_shopify_${storeName.replace(/[^a-z0-9]/gi, '_')}`,
-          name: `${storeName} (Shopify)`,
-          businessType: 'Shopify',
-          goal: 'Conversion Optimization',
-          url: cleanShop.startsWith('http') ? cleanShop : `https://${cleanShop}`,
-          platform: 'Shopify',
-          siteId: `cl_shop_${storeName}`
-        };
-
-        const shopifyUser: User = {
-          id: `usr_shopify_${storeName}`,
-          email: `merchant@${cleanShop}`,
-          name: storeName.charAt(0).toUpperCase() + storeName.slice(1) + ' Store',
-          workspaceId: shopifyWs.id,
-          isEmailVerified: true,
-          plan: 'Pro',
-          billingPeriod: 'monthly',
-          subscriptionActive: true,
-          trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
-        };
-
-        setUser(shopifyUser);
-        setWorkspace(shopifyWs);
-        setCurrentView('dashboard');
+      if (!document.querySelector('meta[name="shopify-api-key"]')) {
+        const meta = document.createElement('meta');
+        meta.name = 'shopify-api-key';
+        meta.content = apiKey;
+        document.head.appendChild(meta);
       }
+
+      if (!document.querySelector('script[src*="app-bridge.js"]')) {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
+        script.async = true;
+        document.head.appendChild(script);
+      }
+
+      localStorage.setItem('cl_shopify_shop', cleanShop);
+      localStorage.setItem('cl_shopify_host', host!);
+
+      const storeName = cleanShop.replace('.myshopify.com', '');
+      const shopifyWs: Workspace = {
+        id: `ws_shopify_${storeName.replace(/[^a-z0-9]/gi, '_')}`,
+        name: `${storeName} (Shopify)`,
+        businessType: 'Shopify',
+        goal: 'Conversion Optimization',
+        url: cleanShop.startsWith('http') ? cleanShop : `https://${cleanShop}`,
+        platform: 'Shopify',
+        siteId: `cl_shop_${storeName}`
+      };
+
+      const shopifyUser: User = {
+        id: `usr_shopify_${storeName}`,
+        email: `merchant@${cleanShop}`,
+        name: storeName.charAt(0).toUpperCase() + storeName.slice(1) + ' Store',
+        workspaceId: shopifyWs.id,
+        isEmailVerified: true,
+        plan: 'Pro',
+        billingPeriod: 'monthly',
+        subscriptionActive: true,
+        trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
+      };
+
+      setUser(shopifyUser);
+      setWorkspace(shopifyWs);
+      setCurrentView('dashboard');
     }
   }, []);
 
