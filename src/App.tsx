@@ -27,6 +27,8 @@ import {
   createUserWithEmailAndPassword, 
   signOut, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider 
 } from 'firebase/auth';
 import { 
@@ -36,7 +38,14 @@ import {
   getDocFromServer,
   collection 
 } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { 
+  auth, 
+  db, 
+  handleFirestoreError, 
+  OperationType, 
+  verifyFirebaseConfig, 
+  getFirebaseIdToken 
+} from './lib/firebase';
 
 type AuthView = 'landing' | 'login' | 'register' | 'forgot' | 'verify' | 'dashboard';
 
@@ -101,12 +110,40 @@ export default function App() {
       }
     }
     testConnection();
+
+    // Check redirect result for Google Sign-In if popup was redirected
+    getRedirectResult(auth).then(async (result) => {
+      if (result && result.user) {
+        const firebaseUser = result.user;
+        try {
+          const token = await firebaseUser.getIdToken();
+          await fetch('/api/auth/verify', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        } catch (e) {
+          console.warn('Backend verify check on redirect:', e);
+        }
+      }
+    }).catch(err => {
+      console.warn('Firebase auth redirect error:', err);
+    });
   }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
+          const token = await firebaseUser.getIdToken();
+          try {
+            await fetch('/api/auth/verify', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+          } catch (e) {
+            console.warn('Backend token verify:', e);
+          }
+
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data() as User;
@@ -128,7 +165,6 @@ export default function App() {
                     setWorkspace(wsData);
                     hasWorkspaceSetup = true;
                     
-                    // Set default/dummy initialSurvey if none loaded
                     setInitialSurvey({
                       id: 'srv-init',
                       title: 'Onboarding Survey',
@@ -151,7 +187,6 @@ export default function App() {
                 }
               }
 
-              // Opens with workshop ONLY when user is signed in AND has setuped website
               if (hasWorkspaceSetup) {
                 setCurrentView('dashboard');
               } else {
@@ -159,68 +194,49 @@ export default function App() {
               }
             }
           } else {
-            const partialUser: User = {
+            const newUser: User = {
               id: firebaseUser.uid,
               email: firebaseUser.email || '',
-              name: firebaseUser.displayName || 'Valued Partner',
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'CustomerLens User',
               workspaceId: '',
-              isEmailVerified: true, // Always verify for frictionless demo
+              isEmailVerified: firebaseUser.emailVerified || true,
               plan: 'Free',
               billingPeriod: 'monthly',
               subscriptionActive: false,
               trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
             };
-            setUser(partialUser);
+            try {
+              await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+            } catch (err) {
+              console.warn('Firestore user save warning:', err);
+            }
+            setUser(newUser);
             setWorkspace(null);
             setInitialSurvey(null);
             pendingLaunchOnAuthRef.current = false;
-            // No website setup yet -> Start on landing page
             setCurrentView('landing');
           }
         } catch (error) {
-          console.warn('Firestore offline or fetch failed, falling back to cached session:', error);
-          const savedUser = localStorage.getItem('cl_user');
-          if (savedUser) {
-            setUser(JSON.parse(savedUser));
-            const savedWorkspace = localStorage.getItem('cl_workspace');
-            if (savedWorkspace) setWorkspace(JSON.parse(savedWorkspace));
-            const savedSurvey = localStorage.getItem('cl_initial_survey');
-            if (savedSurvey) setInitialSurvey(JSON.parse(savedSurvey));
-          } else {
-            const partialUser: User = {
-              id: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              name: firebaseUser.displayName || 'Valued Partner',
-              workspaceId: '',
-              isEmailVerified: true,
-              plan: 'Free',
-              billingPeriod: 'monthly',
-              subscriptionActive: false,
-              trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
-            };
-            setUser(partialUser);
-          }
+          console.warn('Firestore fetch failed, using authenticated session object:', error);
+          const partialUser: User = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'CustomerLens User',
+            workspaceId: '',
+            isEmailVerified: firebaseUser.emailVerified || true,
+            plan: 'Free',
+            billingPeriod: 'monthly',
+            subscriptionActive: false,
+            trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
+          };
+          setUser(partialUser);
         }
       } else {
-        const savedUser = localStorage.getItem('cl_user');
-        if (savedUser) {
-          const u = JSON.parse(savedUser);
-          if (u.id === 'usr-demo') {
-            setUser(u);
-            const savedWorkspace = localStorage.getItem('cl_workspace');
-            if (savedWorkspace) setWorkspace(JSON.parse(savedWorkspace));
-            const savedSurvey = localStorage.getItem('cl_initial_survey');
-            if (savedSurvey) setInitialSurvey(JSON.parse(savedSurvey));
-            setCurrentView('dashboard');
-          } else {
-            setCurrentView('landing');
-          }
-        } else {
-          setUser(null);
-          setWorkspace(null);
-          setInitialSurvey(null);
-          setCurrentView('landing');
-        }
+        // Do NOT use mock users when firebaseUser is null
+        setUser(null);
+        setWorkspace(null);
+        setInitialSurvey(null);
+        setCurrentView('landing');
       }
     });
     return () => unsubscribe();
@@ -277,20 +293,31 @@ export default function App() {
     }
 
     try {
-      triggerToast('Creating your secure account...', 'success');
+      verifyFirebaseConfig();
+      triggerToast('Creating your secure Firebase account...', 'success');
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
+      const token = await firebaseUser.getIdToken();
+
+      try {
+        await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch (e) {
+        console.warn('Backend verify:', e);
+      }
 
       const newUser: User = {
         id: firebaseUser.uid,
         email,
         name,
         workspaceId: '',
-        isEmailVerified: true, // Direct sign in without verification
+        isEmailVerified: firebaseUser.emailVerified || true,
         plan: 'Free',
         billingPeriod: 'monthly',
         subscriptionActive: false,
-        trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString() // 14-day free trial
+        trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
       };
 
       try {
@@ -306,7 +333,14 @@ export default function App() {
       setCurrentView('dashboard');
       triggerToast('🟢 Account created! Welcome to CustomerLens.', 'success');
     } catch (err: any) {
-      triggerToast(err.message || 'Registration failed.', 'error');
+      console.error('Registration error:', err);
+      let msg = err.message || 'Registration failed.';
+      if (err.code === 'auth/email-already-in-use') {
+        msg = 'An account with this email already exists. Please sign in instead.';
+      } else if (err.code === 'auth/weak-password') {
+        msg = 'Password should be at least 6 characters.';
+      }
+      triggerToast(msg, 'error');
     }
   };
 
@@ -318,49 +352,100 @@ export default function App() {
     }
 
     try {
+      verifyFirebaseConfig();
       triggerToast('Signing in...', 'success');
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+      const token = await firebaseUser.getIdToken();
+
+      try {
+        await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch (e) {
+        console.warn('Backend token verify:', e);
+      }
+
       triggerToast('Successfully signed in.', 'success');
     } catch (err: any) {
-      triggerToast(err.message || 'Sign in failed.', 'error');
+      console.error('Sign in error:', err);
+      let msg = err.message || 'Sign in failed.';
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        msg = 'Invalid email or password.';
+      }
+      triggerToast(msg, 'error');
     }
   };
 
   const handleGoogleLogin = async () => {
-    triggerToast('Connecting to secure Google Account auth...', 'success');
     try {
+      verifyFirebaseConfig();
+      triggerToast('Connecting to Google Account auth...', 'success');
       const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
-      const firebaseUser = userCredential.user;
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
 
-      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-      let userData: User;
-
-      if (!userDoc.exists()) {
-        userData = {
-          id: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          name: firebaseUser.displayName || 'Sangeeta Codes',
-          workspaceId: '',
-          isEmailVerified: true, // Google login is pre-verified
-          plan: 'Free',
-          billingPeriod: 'monthly',
-          subscriptionActive: false,
-          trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
-        };
-        try {
-          await setDoc(doc(db, 'users', firebaseUser.uid), userData);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, `users/${firebaseUser.uid}`);
+      let userCredential;
+      try {
+        userCredential = await signInWithPopup(auth, provider);
+      } catch (popupErr: any) {
+        console.warn('signInWithPopup error or blocked, attempting redirect:', popupErr);
+        if (
+          popupErr.code === 'auth/popup-blocked' || 
+          popupErr.code === 'auth/popup-closed-by-user' || 
+          popupErr.code === 'auth/cancelled-popup-request'
+        ) {
+          await signInWithRedirect(auth, provider);
+          return;
         }
-      } else {
-        userData = userDoc.data() as User;
+        throw popupErr;
       }
 
-      setUser(userData);
-      setCurrentView('dashboard');
-      triggerToast('🟢 Authenticated with Google Cloud securely.', 'success');
+      if (userCredential && userCredential.user) {
+        const firebaseUser = userCredential.user;
+        const token = await firebaseUser.getIdToken();
+
+        try {
+          await fetch('/api/auth/verify', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        } catch (e) {
+          console.warn('Backend token verify:', e);
+        }
+
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        let userData: User;
+
+        if (!userDoc.exists()) {
+          userData = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || 'CustomerLens Merchant',
+            workspaceId: '',
+            isEmailVerified: true,
+            plan: 'Free',
+            billingPeriod: 'monthly',
+            subscriptionActive: false,
+            trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
+          };
+          try {
+            await setDoc(doc(db, 'users', firebaseUser.uid), userData);
+          } catch (err) {
+            handleFirestoreError(err, OperationType.CREATE, `users/${firebaseUser.uid}`);
+          }
+        } else {
+          userData = userDoc.data() as User;
+        }
+
+        setUser(userData);
+        setCurrentView('dashboard');
+        triggerToast('🟢 Authenticated with Google Cloud securely.', 'success');
+      }
     } catch (err: any) {
+      console.error('Google Login error:', err);
       triggerToast(err.message || 'Google Login failed.', 'error');
     }
   };
