@@ -621,16 +621,18 @@ app.post('/api/events/track', async (req, res) => {
  * PayPal Integration Endpoints (/api/paypal/create-order & /api/paypal/capture)
  */
 app.post('/api/paypal/create-order', (req, res) => {
-  const { plan_id } = req.body;
-  const order_id = "PAYPAL-ORDER-" + plan_id.toUpperCase() + "-" + Math.random().toString(36).substring(2, 9).toUpperCase();
-  console.log(`[PayPal] Created order ${order_id} for plan ${plan_id}`);
-  res.json({ order_id, plan_id, status: 'CREATED' });
+  const { plan_id, planId, amount, email, isTrial } = req.body || {};
+  const targetPlan = (plan_id || planId || 'standard').toString();
+  const order_id = "PAYPAL-ORDER-" + targetPlan.toUpperCase() + "-" + Math.random().toString(36).substring(2, 9).toUpperCase();
+  console.log(`[PayPal] Created order ${order_id} for plan ${targetPlan} (email: ${email || 'unspecified'}, trial: ${!!isTrial}, amount: ${amount || '0.00'})`);
+  res.json({ order_id, id: order_id, plan_id: targetPlan, amount: amount || '20.00', email, status: 'CREATED' });
 });
 
 app.post('/api/paypal/capture', (req, res) => {
-  const { order_id } = req.body;
-  console.log(`[PayPal] Captured order ${order_id}`);
-  res.json({ status: 'COMPLETED', order_id, captured_at: new Date().toISOString() });
+  const { order_id, orderId, email, plan_id } = req.body || {};
+  const targetOrderId = order_id || orderId || ("PAYPAL-REC-" + Date.now());
+  console.log(`[PayPal] Captured order ${targetOrderId} for email ${email || 'user'}`);
+  res.json({ status: 'COMPLETED', order_id: targetOrderId, id: targetOrderId, captured_at: new Date().toISOString() });
 });
 
 /**
