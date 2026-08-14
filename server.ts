@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, Type } from '@google/genai';
+import { OpenAIService } from './src/worker/services/openai';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
@@ -74,24 +74,8 @@ app.use(async (req, res, next) => {
 
 const PORT = 3000;
 
-// Lazy initialization of Gemini client
-let aiClient: GoogleGenAI | null = null;
-
-function getGeminiClient(): GoogleGenAI | null {
-  if (!aiClient) {
-    const key = process.env.GEMINI_API_KEY;
-    if (key && key !== 'MY_GEMINI_API_KEY') {
-      aiClient = new GoogleGenAI({
-        apiKey: key,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
-    }
-  }
-  return aiClient;
+function getOpenAIService(): OpenAIService {
+  return new OpenAIService(process.env as any);
 }
 
 // ----------------------------------------------------
@@ -728,86 +712,12 @@ app.post('/api/ai/wizard', async (req, res) => {
     return res.status(400).json({ error: 'businessType and goal are required' });
   }
 
-  const ai = getGeminiClient();
-
-  if (!ai) {
-    // Graceful fallback if GEMINI_API_KEY is not configured/valid
-    console.log('Gemini API key not configured, returning custom high-quality simulated setup');
-    return res.json(getSimulatedWizardResponse(businessType, goal));
-  }
-
   try {
-    const prompt = `You are CustomerLens, an AI customer experience specialist. 
-Create an initial survey layout and structure for a brand new customer who has just onboarded.
-Business Type: ${businessType}
-Website URL: ${websiteUrl || 'Not specified'}
-Business Goal: ${goal}
-
-Generate:
-1. A captivating headline.
-2. A sequence of 3 highly effective feedback/exit-intent questions. Make them highly relevant to their business type and goal.
-3. Suggest a complementary aesthetic design (primary hex colors for background, text, accent) matching their industry.
-4. Recommend the absolute best survey placement (e.g. Exit Intent Popup, Slide In, etc.) based on their goal.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: CUSTOMERLENS_AI_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          required: ['headline', 'questions', 'colors', 'recommendedPlacement'],
-          properties: {
-            headline: {
-              type: Type.STRING,
-              description: 'An engaging headline for the survey, e.g. "Wait! Before you go...", "Help us improve!"',
-            },
-            questions: {
-              type: Type.ARRAY,
-              description: 'Array of 3 questions tailored to their goal.',
-              items: {
-                type: Type.OBJECT,
-                required: ['id', 'type', 'questionText', 'options'],
-                properties: {
-                  id: { type: Type.STRING, description: 'Unique slug ID like "q1", "q2"' },
-                  type: { type: Type.STRING, description: 'Type of question: "multiple-choice", "text", "rating"' },
-                  questionText: { type: Type.STRING, description: 'The exact question text' },
-                  options: {
-                    type: Type.ARRAY,
-                    description: 'Options array if multiple-choice. Keep empty if text or rating.',
-                    items: { type: Type.STRING },
-                  },
-                },
-              },
-            },
-            colors: {
-              type: Type.OBJECT,
-              required: ['background', 'text', 'accent'],
-              properties: {
-                background: { type: Type.STRING, description: 'Hex code for background, e.g. "#ffffff"' },
-                text: { type: Type.STRING, description: 'Hex code for text, e.g. "#1e293b"' },
-                accent: { type: Type.STRING, description: 'Hex code for accent/buttons, e.g. "#2563eb"' },
-              },
-            },
-            recommendedPlacement: {
-              type: Type.STRING,
-              description: 'Recommended survey placement: "Exit Intent Popup", "Popup After X Seconds", "Floating Widget", "Embedded Form", "Slide In", "Bottom Bar"',
-            },
-          },
-        },
-      },
-    });
-
-    if (response.text) {
-      const data = JSON.parse(response.text.trim());
-      return res.json(data);
-    } else {
-      throw new Error('No content returned from Gemini');
-    }
-  } catch (error: any) {
-    console.warn('Gemini Wizard Warning (using fallback):', error.message || error);
-    return res.json(getSimulatedWizardResponse(businessType, goal));
+    const openai = getOpenAIService();
+    const result = await openai.generateSurvey(businessType, websiteUrl || 'mysite.com', goal);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || 'OpenAI API request failed' });
   }
 });
 
@@ -823,105 +733,25 @@ app.post('/api/ai/edit-surveys', async (req, res) => {
     return res.status(400).json({ error: 'instruction and surveys array are required' });
   }
 
-  const ai = getGeminiClient();
-  const lowerInstr = instruction.toLowerCase();
+  try {
+    const openai = getOpenAIService();
+    const promptMessage = `The user wants to edit these surveys: ${JSON.stringify(surveys)}. Instruction: "${instruction}". Output modified surveys array in JSON key "updatedSurveys".`;
+    const replyJson = await openai.chatAssistant([{ role: 'user', content: promptMessage }]);
 
-  // If instruction is about design consistency, unify colors, position, and branding
-  if (lowerInstr.includes('consistent') || lowerInstr.includes('same design') || lowerInstr.includes('unify') || lowerInstr.includes('match style')) {
-    const unifiedColor = surveys[0]?.accentColor || '#6366f1';
-    const unifiedLogo = surveys[0]?.logoDoodle || '⚡';
-    const unifiedPosition = surveys[0]?.sizePosition || 'Bottom Right Widget';
-
-    const updatedSurveys = surveys.map((srv: any) => ({
-      ...srv,
-      accentColor: unifiedColor,
-      logoDoodle: unifiedLogo,
-      sizePosition: unifiedPosition
-    }));
+    let updatedSurveys = surveys;
+    try {
+      const parsed = JSON.parse(replyJson);
+      if (parsed.updatedSurveys) updatedSurveys = parsed.updatedSurveys;
+    } catch {}
 
     return res.json({
       status: 'success',
-      message: `✨ AI standardized design consistency across all ${surveys.length} surveys (Unified Color: ${unifiedColor}, Layout: ${unifiedPosition}).`,
+      message: `✨ AI updated surveys based on: "${instruction}"`,
       surveys: updatedSurveys
     });
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || 'OpenAI API request failed' });
   }
-
-  if (ai) {
-    try {
-      const prompt = `You are an AI UX & Survey Design Assistant. 
-The user wants to edit/update their generated surveys according to this instruction: "${instruction}"
-
-Current Surveys JSON:
-${JSON.stringify(surveys, null, 2)}
-
-Modify the array of surveys to satisfy the user's instruction.
-Return JSON with two keys:
-1. "summaryMessage": A friendly one-sentence summary of changes made.
-2. "updatedSurveys": The updated array of survey objects with modified accentColor, sizePosition, headline, questionText, or options as instructed.`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction: CUSTOMERLENS_AI_SYSTEM_PROMPT,
-          responseMimeType: 'application/json'
-        }
-      });
-
-      const result = JSON.parse(response.text || '{}');
-      if (result.updatedSurveys && Array.isArray(result.updatedSurveys)) {
-        return res.json({
-          status: 'success',
-          message: result.summaryMessage || `✨ AI applied instruction: "${instruction}"`,
-          surveys: result.updatedSurveys
-        });
-      }
-    } catch (err: any) {
-      console.error('Gemini error in /api/ai/edit-surveys:', err);
-    }
-  }
-
-  // Fallback smart rule handler
-  let summary = `✨ AI applied instruction: "${instruction}"`;
-  const updatedSurveys = surveys.map((srv: any) => {
-    const updated = { ...srv };
-
-    if (lowerInstr.includes('emerald') || lowerInstr.includes('green')) {
-      updated.accentColor = '#10b981';
-      summary = '✨ Applied Emerald Green color theme to all surveys.';
-    } else if (lowerInstr.includes('indigo') || lowerInstr.includes('blue')) {
-      updated.accentColor = '#6366f1';
-      summary = '✨ Applied Indigo Blue color theme to all surveys.';
-    } else if (lowerInstr.includes('purple') || lowerInstr.includes('violet')) {
-      updated.accentColor = '#8b5cf6';
-      summary = '✨ Applied Purple color theme to all surveys.';
-    } else if (lowerInstr.includes('dark') || lowerInstr.includes('black')) {
-      updated.accentColor = '#0f172a';
-      summary = '✨ Applied Dark Slate aesthetic to all surveys.';
-    }
-
-    if (lowerInstr.includes('short') || lowerInstr.includes('concise')) {
-      if (updated.headline.length > 20) {
-        updated.headline = updated.headline.split('?')[0].substring(0, 24) + '?';
-      }
-      summary = '✨ Shortened headlines & questions for faster completion.';
-    }
-
-    if (lowerInstr.includes('discount') || lowerInstr.includes('code') || lowerInstr.includes('coupon')) {
-      if (!updated.options.some((o: string) => o.toLowerCase().includes('discount'))) {
-        updated.options = [...updated.options, 'Want a 15% discount code'];
-      }
-      summary = '✨ Added discount/promo code option to all surveys.';
-    }
-
-    return updated;
-  });
-
-  return res.json({
-    status: 'success',
-    message: summary,
-    surveys: updatedSurveys
-  });
 });
 
 /**
@@ -935,90 +765,12 @@ app.post(['/api/api-exit-analysis', '/api/ai/exit-analysis'], async (req, res) =
     return res.status(400).json({ error: 'An array of responses is required' });
   }
 
-  const ai = getGeminiClient();
-
-  if (!ai) {
-    console.log('Gemini API key not configured, returning custom simulated exit analysis');
-    return res.json(getSimulatedExitAnalysis(responses, businessName, goal));
-  }
-
   try {
-    const formattedResponses = responses.slice(0, 40).map((r, i) => {
-      const ansStr = r.answers?.map((a: any) => `${a.questionId}: ${a.answer}`).join(' | ');
-      return `Response ${i + 1}: [Answers: ${ansStr}]`;
-    }).join('\n');
-
-    const prompt = `You are a Customer Experience Data Analyst. Analyze the following exit-intent survey responses for the business "${businessName || 'Our Business'}" (Goal: ${goal || 'Feedback'}).
-Based on these responses:
-1. Provide the breakdown of Top Exit Reasons (must sum to 100%).
-2. List the Top 3 Most Common Complaints.
-3. Assess the overall sentiment (e.g. Positive, Neutral, Negative) as a string and a score out of 100.
-4. Give 3 professional conversion rate optimization (CRO) suggestions based on this data.
-
-Survey responses to analyze:
-${formattedResponses || 'No live responses collected yet. Provide a general template analysis based on popular industry trends.'}`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: CUSTOMERLENS_AI_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          required: ['topExitReasons', 'mostCommonComplaints', 'sentiment', 'sentimentScore', 'aiSuggestions'],
-          properties: {
-            topExitReasons: {
-              type: Type.ARRAY,
-              description: 'Array of objects mapping reason to percentage.',
-              items: {
-                type: Type.OBJECT,
-                required: ['reason', 'percentage'],
-                properties: {
-                  reason: { type: Type.STRING, description: 'e.g. "Price Too High", "Shipping Cost"' },
-                  percentage: { type: Type.INTEGER, description: 'Percentage integer value, e.g. 43' },
-                },
-              },
-            },
-            mostCommonComplaints: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: 'Top 3 most common user complaints.',
-            },
-            sentiment: {
-              type: Type.STRING,
-              description: 'Overall sentiment description, e.g., "Mostly Neutral with frustration on checkout friction"',
-            },
-            sentimentScore: {
-              type: Type.INTEGER,
-              description: 'Sentiment index from 0 (extremely negative) to 100 (extremely positive)',
-            },
-            aiSuggestions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                required: ['issue', 'recommendation', 'impact'],
-                properties: {
-                  issue: { type: Type.STRING, description: 'Identified problem' },
-                  recommendation: { type: Type.STRING, description: 'Actionable fix' },
-                  impact: { type: Type.STRING, description: 'Expected benefit, e.g., "High", "Medium"' },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (response.text) {
-      const data = JSON.parse(response.text.trim());
-      return res.json(data);
-    } else {
-      throw new Error('Empty response from model');
-    }
-  } catch (error: any) {
-    console.warn('Gemini Exit Analysis Warning (using fallback):', error.message || error);
-    return res.json(getSimulatedExitAnalysis(responses, businessName, goal));
+    const openai = getOpenAIService();
+    const data = await openai.analyzeExit(responses, businessName, goal);
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || 'OpenAI API request failed' });
   }
 });
 
@@ -1033,109 +785,12 @@ app.post('/api/ai/workspace-analytics', async (req, res) => {
     return res.status(400).json({ error: 'businessName is required' });
   }
 
-  const ai = getGeminiClient();
-
-  if (!ai) {
-    console.log('Gemini API key not configured, returning custom high-quality simulated workspace analytics');
-    return res.json(getSimulatedWorkspaceAnalytics(businessName, websiteUrl || '', businessType || 'SaaS', goal || 'Feedback'));
-  }
-
   try {
-    const prompt = `You are a Conversion Rate Optimization (CRO) expert. Generate a realistic 4-day analytics report dashboard for a website workspace.
-Business Name: ${businessName}
-Website URL: ${websiteUrl || 'Not specified'}
-Business Type: ${businessType || 'General'}
-Main Conversion Goal: ${goal || 'Feedback / Growth'}
-
-You MUST generate a JSON structure containing four keys exactly: "today", "yesterday", "july16", and "july15".
-Each of these four keys must contain the following properties:
-1. "sessions": An integer representing simulated daily visitor sessions (e.g. between 250 and 600).
-2. "triggers": An integer representing survey trigger events (e.g. between 200 and 500, must be less than sessions).
-3. "responseRate": A percentage string, e.g., "42.5%".
-4. "revenue": A formatted currency string, e.g., "$2,150.00" (or "$0.00" if goal is non-monetary).
-5. "insight": A highly realistic, professional, and personalized 2-sentence analytical insight about this specific website (${websiteUrl}) and brand (${businessName}). Mention real conversion hurdles (e.g., checkout speed, pricing tiers clarity, navigation clicks, sign-up forms, mobile responsive issues) that are typical for their industry (${businessType}). Do not use placeholder names or refer to other companies.
-6. "reasons": An array of 4 objects representing exit/drop-off reasons customized to this company, each object having:
-   - "reason" (e.g. "Pricing too high", "Needed custom options", "Friction in form")
-   - "percentage" (an integer percentage, the 4 percentages MUST sum to exactly 100%).
-7. "complaints": An array of 3 realistic quotes/complaints from visitors of this specific website (${websiteUrl}) explaining their friction. Make them highly specific to ${businessName}'s products/services and goal (${goal}).
-8. "sentiment": A text description of the overall visitor mood, e.g. "Slightly frustrated with subscription boundaries".
-9. "sentimentScore": An integer from 0 to 100.
-10. "suggestions": An array of 2 actionable CRO suggestions, each having:
-    - "issue" (description of the bottleneck)
-    - "recommendation" (the concrete actionable fix)
-    - "impact" (either "High Impact" or "Medium Impact")
-
-Ensure ALL content is specific, cohesive, and deeply relevant to ${businessName} and its domain/URL ${websiteUrl}. Under no circumstances mention "barrel sours", "beer", "taproom", or "brewery" unless the business type is explicitly alcohol or brewing related.`;
-
-    const reportItemSchema = {
-      type: Type.OBJECT,
-      required: ['sessions', 'triggers', 'responseRate', 'revenue', 'insight', 'reasons', 'complaints', 'sentiment', 'sentimentScore', 'suggestions'],
-      properties: {
-        sessions: { type: Type.INTEGER },
-        triggers: { type: Type.INTEGER },
-        responseRate: { type: Type.STRING },
-        revenue: { type: Type.STRING },
-        insight: { type: Type.STRING },
-        reasons: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            required: ['reason', 'percentage'],
-            properties: {
-              reason: { type: Type.STRING },
-              percentage: { type: Type.INTEGER }
-            }
-          }
-        },
-        complaints: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING }
-        },
-        sentiment: { type: Type.STRING },
-        sentimentScore: { type: Type.INTEGER },
-        suggestions: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            required: ['issue', 'recommendation', 'impact'],
-            properties: {
-              issue: { type: Type.STRING },
-              recommendation: { type: Type.STRING },
-              impact: { type: Type.STRING }
-            }
-          }
-        }
-      }
-    };
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: CUSTOMERLENS_AI_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          required: ['today', 'yesterday', 'july16', 'july15'],
-          properties: {
-            today: reportItemSchema,
-            yesterday: reportItemSchema,
-            july16: reportItemSchema,
-            july15: reportItemSchema
-          }
-        }
-      }
-    });
-
-    if (response.text) {
-      const data = JSON.parse(response.text.trim());
-      return res.json(data);
-    } else {
-      throw new Error('No content from Gemini');
-    }
+    const openai = getOpenAIService();
+    const data = await openai.generateWorkspaceAnalytics(businessName, websiteUrl || '', businessType || 'SaaS', goal || 'Feedback');
+    return res.json(data);
   } catch (err: any) {
-    console.warn("Gemini Workspace Analytics Warning (using fallback):", err.message || err);
-    return res.json(getSimulatedWorkspaceAnalytics(businessName, websiteUrl || '', businessType || 'SaaS', goal || 'Feedback'));
+    return res.status(err.status || 500).json({ error: err.message || 'OpenAI API request failed' });
   }
 });
 
@@ -1146,55 +801,12 @@ Ensure ALL content is specific, cohesive, and deeply relevant to ${businessName}
 app.post('/api/ai/recommendations', async (req, res) => {
   const { businessType, goal } = req.body;
 
-  const ai = getGeminiClient();
-
-  if (!ai) {
-    return res.json(getSimulatedRecommendations(businessType, goal));
-  }
-
   try {
-    const prompt = `Generate exactly 4 high-value customer feedback optimization recommendations for a ${businessType || 'SaaS'} business whose core goal is "${goal || 'Increase sales'}".
-These should read like weekly system insights generated from survey behavior, e.g. "Customers frequently mention shipping costs." or "Most customers request faster delivery."
-Keep them short, scannable, and extremely practical. Provide a categorization type for each ('info', 'warning', 'success').`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: CUSTOMERLENS_AI_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            required: ['title', 'description', 'type'],
-            properties: {
-              title: { type: Type.STRING, description: 'Short summary e.g. "Pricing Friction Detected"' },
-              description: { type: Type.STRING, description: 'Details and action, e.g., "43% of exit-intent surveys cited high price. Offer a 10% coupon." ' },
-              type: { type: Type.STRING, description: 'Value must be "info", "warning", or "success"' },
-            },
-          },
-        },
-      },
-    });
-
-    if (response.text) {
-      const data = JSON.parse(response.text.trim());
-      // Append generated ID and Date
-      const enriched = data.map((item: any, idx: number) => ({
-        id: `rec-${idx + 1}-${Date.now()}`,
-        title: item.title,
-        description: item.description,
-        type: item.type || 'info',
-        date: new Date().toLocaleDateString(),
-      }));
-      return res.json(enriched);
-    } else {
-      throw new Error('Empty response from model');
-    }
-  } catch (error: any) {
-    console.warn('Gemini Weekly Recs Warning (using fallback):', error.message || error);
-    return res.json(getSimulatedRecommendations(businessType, goal));
+    const openai = getOpenAIService();
+    const enriched = await openai.generateRecommendations(businessType || 'SaaS', goal || 'Increase sales');
+    return res.json(enriched);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || 'OpenAI API request failed' });
   }
 });
 
@@ -1227,61 +839,12 @@ app.post('/api/ai/survey-chat', async (req, res) => {
     return res.json({ reply: CUSTOM_FEATURE_RESPONSE });
   }
 
-  const ai = getGeminiClient();
-
-  if (!ai) {
-    console.log('Gemini API key not configured, returning custom high-quality simulated chat reply');
-    const reply = getSimulatedSurveyReply(option, newMessage, history);
-    return res.json({ reply });
-  }
-
   try {
-    const historyText = history && Array.isArray(history)
-      ? history.map((m: any) => `${m.sender === 'ai' ? 'AI' : 'User'}: ${m.text}`).join('\n')
-      : '';
-
-    const prompt = `You are a friendly, consultative Customer Experience Specialist for "CustomerLens", a next-generation exit-intent SaaS platform. 
-The user is currently on the Landing Page and is participating in an interactive feedback survey.
-Their initial hesitation was: "${option}".
-
-Conversation history so far:
-${historyText}
-
-User's latest message:
-"${newMessage}"
-
-CRITICAL RULES FOR RESPONDING (STRICTLY FOLLOW THESE GUIDELINES):
-1. RESPONDING TO REVIEWS / TESTIMONIALS / TRUST CONCERNS: We are a brand new product and we DO NOT have reviews or testimonials yet. When asked for reviews, proof, or trust, respond clearly and directly:
-   "We are new, thus we don't have reviews yet! But you can see for yourself the profits and results of this app directly on your own website with our free trial. Try it risk-free and let the performance speak for itself!"
-   Never lie or invent fake reviews.
-
-2. COMPARING WITH COMPETITORS (like Zigpoll, Hotjar, etc.): If the user asks about competitors, comparisons, or specifically "Why choose you over Zigpoll?", respond clearly with true facts about our uniqueness:
-   "Zigpoll is a great product. We're taking a different approach by focusing on AI that decides when to ask questions and uncovers the reasons behind customer behavior, not just collecting more survey responses. We are still being shaped with your feedbacks, ensuring we solve the real, deep issues you face."
-
-3. MONTHLY PRICING ONLY: The pricing for CustomerLens is strictly billed monthly (not yearly). Do not refer to yearly billing.
-
-Your job:
-1. Address their concern directly, politely, and with great empathy using the rules above.
-2. Provide a helpful, constructive, and concise response. Keep it under 2 or 3 short sentences.
-3. Sound human, energetic, empathetic, and highly professional.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: CUSTOMERLENS_AI_SYSTEM_PROMPT,
-      }
-    });
-
-    if (response.text) {
-      return res.json({ reply: response.text.trim() });
-    } else {
-      throw new Error('No content returned from Gemini');
-    }
-  } catch (error: any) {
-    console.warn('Gemini Survey Chat Warning (using fallback):', error.message || error);
-    const reply = getSimulatedSurveyReply(option, newMessage, history);
+    const openai = getOpenAIService();
+    const reply = await openai.surveyChat(newMessage, option, history);
     return res.json({ reply });
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || 'OpenAI API request failed' });
   }
 });
 
@@ -1572,105 +1135,23 @@ app.post('/api/ai/analyze-website', async (req, res) => {
     return res.status(400).json({ error: 'websiteUrl is required' });
   }
 
-  // Attempt to crawl the real website URL!
-  const crawlData = await fetchWebsiteMeta(websiteUrl);
-
-  const ai = getGeminiClient();
-
-  if (!ai) {
-    console.log('Gemini API key not configured, returning custom high-quality simulated website analysis using crawled metadata');
-    return res.json(getSimulatedWebsiteAnalysis(websiteUrl, businessType || 'SaaS', crawlData));
+  const cleanUrl = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`;
+  let scrapedHtml = '';
+  try {
+    const fetchRes = await fetch(cleanUrl, { headers: { 'User-Agent': 'CustomerLens-Scanner/1.0' } });
+    if (fetchRes.ok) {
+      scrapedHtml = await fetchRes.text();
+    }
+  } catch (err) {
+    scrapedHtml = `<h1>${websiteUrl}</h1><p>Website scan for ${businessType || 'General'}</p>`;
   }
 
   try {
-    const cleanUrl = websiteUrl.replace(/https?:\/\/(www\.)?/, '');
-    
-    let crawlDetailsPromptPart = '';
-    if (crawlData) {
-      crawlDetailsPromptPart = `
-We successfully performed a live HTTP crawl on the user's real website and extracted the following meta-information:
-- Page Title: "${crawlData.title}"
-- Page Description: "${crawlData.description}"
-- Found Key Headings (H1): ${JSON.stringify(crawlData.headings)}
-
-Use this real metadata (products, services, and branding keywords found on the page) to tailor all questions, CRO suggestions, and insights specifically to this actual business.
-`;
-    }
-
-    const prompt = `You are CustomerLens Core AI, an advanced SaaS customer behavior & behavioral psychology model.
-A user wants to connect their website to CustomerLens.
-Website URL: ${websiteUrl} (Cleaned domain: ${cleanUrl})
-Business Type / Category: ${businessType || 'General'}
-${crawlDetailsPromptPart}
-
-Analyze this website for customer hesitation, user journey friction, drop-off hotspots, and purchase/engagement intent signals.
-Generate:
-1. A captivating headline to ask on exit intent customized for this brand.
-2. Exactly 3 custom, hyper-relevant feedback questions (multiple-choice or text) perfect for their specific audience.
-3. Three AI behavioral tracking insights describing how visitors act on this specific site (pauses, clicks, scroll hesitation).
-4. A 2-sentence conversion rate optimization (CRO) strategic review.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: CUSTOMERLENS_AI_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          required: ['headline', 'suggestedQuestions', 'behavioralInsights', 'overallStrategy'],
-          properties: {
-            headline: {
-              type: Type.STRING,
-              description: 'A custom, persuasive exit-intent headline, e.g. "Wait! Before you leave [Cleaned domain]..."',
-            },
-            suggestedQuestions: {
-              type: Type.ARRAY,
-              description: '3 custom survey questions',
-              items: {
-                type: Type.OBJECT,
-                required: ['id', 'type', 'questionText', 'options'],
-                properties: {
-                  id: { type: Type.STRING },
-                  type: { type: Type.STRING, description: '"multiple-choice" or "text"' },
-                  questionText: { type: Type.STRING },
-                  options: {
-                    type: Type.ARRAY,
-                    items: { type: Type.STRING },
-                  },
-                },
-              },
-            },
-            behavioralInsights: {
-              type: Type.ARRAY,
-              description: '3 detailed behavioral observations/predictions',
-              items: {
-                type: Type.OBJECT,
-                required: ['title', 'description'],
-                properties: {
-                  title: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                },
-              },
-            },
-            overallStrategy: {
-              type: Type.STRING,
-              description: 'A 2-sentence overall strategic summary',
-            },
-          },
-        },
-      },
-    });
-
-    if (response.text) {
-      const data = JSON.parse(response.text.trim());
-      return res.json(data);
-    } else {
-      throw new Error('No content returned from Gemini');
-    }
-  } catch (error: any) {
-    console.warn('Gemini Analyze Website Warning (using fallback):', error.message || error);
-    return res.json(getSimulatedWebsiteAnalysis(websiteUrl, businessType || 'SaaS'));
+    const openai = getOpenAIService();
+    const analysis = await openai.scanWebsite(cleanUrl, scrapedHtml, businessType);
+    return res.json(analysis);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || 'OpenAI API request failed' });
   }
 });
 
@@ -1689,103 +1170,12 @@ app.post('/api/ai/chatbot-insights', async (req, res) => {
     return res.json({ reply: CUSTOM_FEATURE_RESPONSE });
   }
 
-  const ai = getGeminiClient();
-
-  if (!ai) {
-    console.log('Gemini API key not configured, returning simulated premium chatbot analysis');
-    const text = message.toLowerCase();
-    let reply = "";
-    
-    if (text.includes('trend') || text.includes('30 days') || text.includes('last 30')) {
-      reply = `Here are the key response trends from the last 30 days:
-
-**Usage Purpose**
-- Respondents are diverse, with mentions of customer surveys, AI/software testing, eCommerce, and feedback collection.
-- Notable peaks around January 26-27, indicating increased activity or campaigns.
-
-**How Did You Hear About Us?**
-- Main channels: Google Search (30%), Facebook/Instagram (16%), and ChatGPT/Claude (16%).
-- Consistent mentions from January 6 onward showing high growth.`;
-    } else if (text.includes('where') || text.includes('from') || text.includes('location') || text.includes('country') || text.includes('people')) {
-      reply = `Based on the latest IP routing and user-agent geotargeting of the 1,660 survey responses:
-
-**North America (54%)**
-- The majority of your respondents are located in the United States and Canada, with concentrated hotspots in California, New York, Texas, and Ontario.
-
-**Europe (28%)**
-- Concentrated heavily in Western Europe, including the United Kingdom, Germany, France, and the Netherlands.
-
-**Asia-Pacific (12%)**
-- Australian and Singaporean commercial hubs make up the bulk of APAC responses.
-
-**Rest of World (6%)**
-- Distributed across South America and Africa.`;
-    } else if (text.includes('price') || text.includes('expensive') || text.includes('cost') || text.includes('budget')) {
-      reply = `Analyzing pricing-related feedback within your 1,660 response records reveals:
-
-- **43% of exit-intent drop-offs** are directly related to cart price or shipping fee thresholds.
-- Customers find our $49 Pro Plan extremely competitive but express hesitation on custom domain locks on lower tiers.
-- A recommended strategy is to dynamically trigger a 10% discount to users showing high dwell times on checkout pages.`;
-    } else {
-      reply = `I have scanned your 1,660 visitor response records. Here is what I found:
-
-- **Top Channel**: Google Search is the primary traffic source driving feedback, representing 22.7% of all submissions.
-- **Top Goal**: Most of your website visitors are trying to understand exit-intent behavior to optimize their conversion funnel.
-- **Main Friction Point**: Shipping fee thresholds are the leading driver for cart abandonment.
-
-Is there any specific data point, traffic source, or visitor sentiment you would like me to dive into?`;
-    }
-    return res.json({ reply });
-  }
-
   try {
-    const historyText = history && Array.isArray(history)
-      ? history.map((m: any) => `${m.sender === 'ai' ? 'AI' : 'User'}: ${m.text}`).join('\n')
-      : '';
-
-    const prompt = `You are "CustomerLens Survey Analyst Bot", an advanced AI assistant built into the CustomerLens Dashboard.
-Your job is to answer the dashboard owner's questions about their visitors' feedback surveys, responses, trends, and analytical insights.
-
-Below is the summary data of their 1,660 survey responses to analyze:
-- Total Submissions: 1,660
-- Question: "How did you hear about us?"
-- Breakdown: 
-  * Google Search: 377 Votes (22.7%)
-  * Facebook / Instagram: 324 Votes (19.5%)
-  * Shopify App Store: 259 Votes (15.6%)
-  * ChatGPT / Claude: 243 Votes (14.6%)
-  * LinkedIn: 194 Votes (11.6%)
-  * Perplexity: 193 Votes (11.6%)
-  * Other? Let us know!: 70 Votes (4.2%)
-- Timeframe: Last 30 days, with notable peaks around January 26-27.
-- Common sentiments: Highly satisfied but sensitive to shipping fees and pricing clarity.
-
-Dashboard Owner's Conversation History:
-${historyText}
-
-Dashboard Owner's Latest Question:
-"${message}"
-
-Provide a highly professional, accurate, and analytical answer in rich Markdown. Use bullet points and bold headers to keep it readable, just like a business intelligence analyst report:
-- Keep the tone helpful, objective, and deeply data-oriented.
-- Highlight specific percentages, channels, or dates when relevant.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: CUSTOMERLENS_AI_SYSTEM_PROMPT,
-      }
-    });
-
-    if (response.text) {
-      return res.json({ reply: response.text.trim() });
-    } else {
-      throw new Error('No content returned from Gemini');
-    }
-  } catch (error: any) {
-    console.warn('Gemini Chatbot Insights Warning (using fallback):', error.message || error);
-    return res.json({ reply: 'Sorry, I encountered an error analyzing the logs. Please try again.' });
+    const openai = getOpenAIService();
+    const reply = await openai.chatBotInsights(message, history);
+    return res.json({ reply });
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || 'OpenAI API request failed' });
   }
 });
 
@@ -2529,117 +1919,12 @@ app.post('/api/ai/generate-custom-survey', async (req, res) => {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
-  const ai = getGeminiClient();
-
-  if (!ai) {
-    console.log('Gemini API key not configured, returning simulated custom survey');
-    return res.json(getSimulatedCustomSurveyResponse(prompt));
-  }
-
   try {
-    const systemPrompt = `You are CustomerLens, an advanced AI conversion rate optimization (CRO) consultant. 
-Analyze the user's situation or problem statement and generate a comprehensive survey configuration.
-
-The user's problem:
-"${prompt}"
-
-You MUST recommend one of the following exact Survey Types that fits their case best:
-- "Exit Intent Survey"
-- "Cart Abandonment Survey"
-- "Post Purchase Survey"
-- "Customer Satisfaction Survey"
-- "Trial User Survey"
-- "Feature Feedback Survey"
-- "Cancellation Survey"
-- "Pricing Feedback Survey"
-- "NPS Survey"
-- "Bug Report Survey"
-
-Generate:
-1. "surveyName": A concise name for this survey (e.g. "Pricing Friction Audit").
-2. "goal": The exact objective of this survey based on the user's problem.
-3. "bestTrigger": An optimized description of when and why this survey should fire.
-4. "questions": An array of 2 to 3 questions tailored to this goal. Each question must have:
-   - "id": A unique string, e.g., "q1", "q2"
-   - "type": One of: "multiple-choice", "text", "rating"
-   - "questionText": The question asked
-   - "options": An array of strings (options) if multiple-choice; otherwise, keep empty []
-5. "logic": Recommend conditional/branching/behavioral rules, e.g. "If price too high, show 10% coupon."
-6. "design": A design recommendation including hex values for:
-   - "backgroundColor" (deep dark canvas for premium look, e.g., "#09090b" or "#0c0a09")
-   - "textColor" (highly readable white/slate, e.g., "#f4f4f5")
-   - "accentColor" (a gorgeous popping color, e.g., purple, emerald, or sapphire)
-   - "description" (a brief description of this look & feel)
-7. "estimatedCompletionTime": E.g. "45 seconds" or "30 seconds"
-8. "deliveryMethod": MUST be one of: "Exit Intent Popup", "Popup After X Seconds", "Floating Widget", "Embedded Form", "Slide In", "Full Page Survey"
-9. "recommendedSurveyType": One of the exact Survey Types listed above.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: systemPrompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          required: [
-            'surveyName',
-            'goal',
-            'bestTrigger',
-            'questions',
-            'logic',
-            'design',
-            'estimatedCompletionTime',
-            'deliveryMethod',
-            'recommendedSurveyType'
-          ],
-          properties: {
-            surveyName: { type: Type.STRING },
-            goal: { type: Type.STRING },
-            bestTrigger: { type: Type.STRING },
-            questions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                required: ['id', 'type', 'questionText', 'options'],
-                properties: {
-                  id: { type: Type.STRING },
-                  type: { type: Type.STRING },
-                  questionText: { type: Type.STRING },
-                  options: {
-                    type: Type.ARRAY,
-                    items: { type: Type.STRING }
-                  }
-                }
-              }
-            },
-            logic: { type: Type.STRING },
-            design: {
-              type: Type.OBJECT,
-              required: ['backgroundColor', 'textColor', 'accentColor', 'description'],
-              properties: {
-                backgroundColor: { type: Type.STRING },
-                textColor: { type: Type.STRING },
-                accentColor: { type: Type.STRING },
-                description: { type: Type.STRING }
-              }
-            },
-            estimatedCompletionTime: { type: Type.STRING },
-            deliveryMethod: { type: Type.STRING },
-            recommendedSurveyType: { type: Type.STRING }
-          }
-        }
-      }
-    });
-
-    if (response.text) {
-      const data = JSON.parse(response.text.trim());
-      return res.json(data);
-    } else {
-      throw new Error('No content returned from Gemini');
-    }
-  } catch (error: any) {
-    console.warn('Gemini Generate Custom Survey Warning (using fallback):', error.message || error);
-    return res.json(getSimulatedCustomSurveyResponse(prompt));
+    const openai = getOpenAIService();
+    const customSurvey = await openai.generateCustomSurvey(prompt);
+    return res.json(customSurvey);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || 'OpenAI API request failed' });
   }
 });
 

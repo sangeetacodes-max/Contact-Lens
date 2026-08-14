@@ -41,7 +41,7 @@ export default {
         response = await handleShopifyRoutes(request, env, pathname);
       } else if (pathname.startsWith('/api/website')) {
         response = await handleWebsiteRoutes(request, env, pathname);
-      } else if (pathname.startsWith('/api/ai')) {
+      } else if (pathname.startsWith('/api/ai') || pathname === '/api/api-exit-analysis') {
         response = await handleAiRoutes(request, env, pathname);
       } else if (pathname.startsWith('/api/surveys')) {
         response = await handleSurveyRoutes(request, env, pathname);

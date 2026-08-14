@@ -161,13 +161,12 @@ const PROJECT_FILES: CodeFile[] = [
   {
     name: 'server.ts',
     path: 'server.ts',
-    description: 'Express + Vite full-stack server entry with Gemini API integration & proxy routes',
+    description: 'Express + Vite full-stack server entry with OpenAI API integration & proxy routes',
     language: 'typescript',
     category: 'core',
     content: `import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
 
 async function startServer() {
   const app = express();
@@ -180,22 +179,32 @@ async function startServer() {
     res.json({ status: "ok", app: "CustomerLens AI" });
   });
 
-  // Gemini Proxy API Endpoint
+  // OpenAI Proxy API Endpoint
   app.post("/api/ai/survey-chat", async (req, res) => {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) {
-        return res.json({ reply: "CustomerLens AI engine active. (Set GEMINI_API_KEY for live responses)." });
+        return res.status(500).json({ error: "OPENAI_API_KEY environment variable missing" });
       }
-      const ai = new GoogleGenAI({ apiKey });
       const { newMessage } = req.body;
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: \`You are CustomerLens AI assistant for e-commerce and SaaS conversion optimization. Answer succinctly: \${newMessage}\`
+      const apiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": \`Bearer \${apiKey}\`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "You are CustomerLens AI assistant for e-commerce and SaaS conversion optimization." },
+            { role: "user", content: newMessage }
+          ]
+        })
       });
-      res.json({ reply: response.text });
+      const data = await apiRes.json();
+      res.json({ reply: data.choices?.[0]?.message?.content || "Thank you for your feedback!" });
     } catch (err: any) {
-      res.json({ reply: "CustomerLens AI received your request and logged your feedback." });
+      res.status(500).json({ error: err.message || "Failed to call OpenAI API" });
     }
   });
 
