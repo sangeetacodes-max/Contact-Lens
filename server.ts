@@ -12,7 +12,9 @@ dotenv.config();
 
 // Initialize Firebase App for backend tracking event storage in Firestore
 const firebaseServerApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const db = getFirestore(firebaseServerApp, firebaseConfig.firestoreDatabaseId);
+const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
+  ? getFirestore(firebaseServerApp, firebaseConfig.firestoreDatabaseId)
+  : getFirestore(firebaseServerApp);
 
 const app = express();
 app.use(express.json());

@@ -1,38 +1,21 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import baseAppletConfig from '../../firebase-applet-config.json';
 
-const effectiveConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || baseAppletConfig.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "customer-lens-bd503.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "customer-lens-bd503",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || baseAppletConfig.appId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "customer-lens-bd503.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || baseAppletConfig.messagingSenderId,
-  measurementId: baseAppletConfig.measurementId
+export const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAz3tH58dFmS_zKRcpSqFgvTnmvWnoQuVg",
+  authDomain: "customer-lens-bd503.firebaseapp.com",
+  projectId: "customer-lens-bd503",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:319695068430:web:c166213311221fb4850b5f",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "customer-lens-bd503.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "319695068430",
 };
 
-const app = !getApps().length ? initializeApp(effectiveConfig) : getApp();
+// Exactly one Firebase initialization for the frontend
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-let dbInstance;
-try {
-  if (
-    effectiveConfig.projectId === baseAppletConfig.projectId && 
-    baseAppletConfig.firestoreDatabaseId && 
-    baseAppletConfig.firestoreDatabaseId !== '(default)'
-  ) {
-    dbInstance = getFirestore(app, baseAppletConfig.firestoreDatabaseId);
-  } else {
-    dbInstance = getFirestore(app);
-  }
-} catch (e) {
-  console.warn('Fallback to default Firestore database instance:', e);
-  dbInstance = getFirestore(app);
-}
-
-export const db = dbInstance;
 export const auth = getAuth(app);
+export const db = getFirestore(app);
 
 export function verifyFirebaseConfig(): boolean {
   if (!auth || !auth.app || !auth.app.options) {
