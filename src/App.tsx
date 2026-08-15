@@ -56,6 +56,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [initialSurvey, setInitialSurvey] = useState<Survey | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
   const pendingLaunchOnAuthRef = useRef<boolean>(false);
 
   // Check Shopify embedded app parameters on load - strictly validate real merchant shop and host
@@ -127,6 +128,7 @@ export default function App() {
         setUser(shopifyUser);
         setWorkspace(shopifyWs);
         setCurrentView('dashboard');
+        setAuthLoading(false);
 
         // Async fetch merchant store details from backend
         fetch(`/api/shopify/session`, {
@@ -151,144 +153,151 @@ export default function App() {
 
   // Authentication state sync & Firebase Firestore validation connection
   useEffect(() => {
-    async function testConnection() {
-      try {
-        await getDoc(doc(db, 'test', 'connection'));
-      } catch (error) {
-        // Silently handle connection check when offline
-      }
-    }
-    testConnection();
+    let isMounted = true;
 
     // Check redirect result for Google Sign-In if popup was redirected
-    getRedirectResult(auth).then(async (result) => {
-      if (result && result.user) {
-        const firebaseUser = result.user;
-        try {
-          const token = await firebaseUser.getIdToken();
-          await fetch('/api/auth/verify', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` }
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!isMounted) return;
+        if (result && result.user) {
+          console.log("[AUTH DEBUG] LOGIN SUCCESS (REDIRECT)", {
+            uid: result.user.uid,
+            email: result.user.email
           });
-        } catch (e) {
-          console.warn('Backend verify check on redirect:', e);
-        }
-      }
-    }).catch(err => {
-      console.warn('Firebase auth redirect error:', err);
-    });
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const token = await firebaseUser.getIdToken();
+          const firebaseUser = result.user;
           try {
-            await fetch('/api/auth/verify', {
+            const token = await firebaseUser.getIdToken();
+            fetch('/api/auth/verify', {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${token}` }
-            });
+            }).catch(e => console.warn('[AUTH DEBUG] Non-blocking verify check on redirect:', e));
           } catch (e) {
-            console.warn('Backend token verify:', e);
+            console.warn('[AUTH DEBUG] Error obtaining token on redirect:', e);
           }
+          const destination = sessionStorage.getItem('cl_intended_destination') || 'dashboard';
+          sessionStorage.removeItem('cl_intended_destination');
+          setCurrentView(destination as AuthView);
+        }
+      })
+      .catch(err => {
+        console.warn('[AUTH DEBUG] Firebase auth redirect error:', err);
+      });
 
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log("=== AUTH STATE CHANGED ===");
+      console.log("User:", firebaseUser);
+      console.log("UID:", firebaseUser?.uid);
+      console.log("Email:", firebaseUser?.email);
+
+      if (firebaseUser) {
+        let appUser: User = {
+          id: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'CustomerLens User',
+          workspaceId: `ws_${firebaseUser.uid.substring(0, 10)}`,
+          isEmailVerified: firebaseUser.emailVerified || true,
+          plan: 'Pro',
+          billingPeriod: 'monthly',
+          subscriptionActive: true,
+          trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
+        };
+
+        try {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
-            const userData = userDoc.data() as User;
-            setUser(userData);
-            
-            if (pendingLaunchOnAuthRef.current) {
-              setWorkspace(null);
-              setInitialSurvey(null);
-              pendingLaunchOnAuthRef.current = false;
-              setCurrentView('dashboard');
-              triggerToast('🚀 Welcome! Let\'s begin setting up your website.', 'success');
-            } else {
-              let hasWorkspaceSetup = false;
-              if (userData.workspaceId) {
-                try {
-                  const wsDoc = await getDoc(doc(db, 'workspaces', userData.workspaceId));
-                  if (wsDoc.exists()) {
-                    const wsData = wsDoc.data() as Workspace;
-                    setWorkspace(wsData);
-                    hasWorkspaceSetup = true;
-                    
-                    setInitialSurvey({
-                      id: 'srv-init',
-                      title: 'Onboarding Survey',
-                      displayOption: 'In-Page Popup',
-                      headline: 'Before you go...',
-                      questions: [],
-                      colors: { background: '#ffffff', text: '#111827', accent: '#6366f1' },
-                      brandingEnabled: false,
-                      active: true,
-                      createdAt: new Date().toISOString()
-                    });
-                  }
-                } catch (wsErr) {
-                  console.warn('Could not load workspace from Firestore, checking local storage:', wsErr);
-                  const savedWorkspace = localStorage.getItem('cl_workspace');
-                  if (savedWorkspace) {
-                    setWorkspace(JSON.parse(savedWorkspace));
-                    hasWorkspaceSetup = true;
-                  }
-                }
-              }
-
-              if (hasWorkspaceSetup) {
-                setCurrentView('dashboard');
-              } else {
-                setCurrentView('landing');
-              }
-            }
+            const userData = userDoc.data() as Partial<User>;
+            appUser = { ...appUser, ...userData };
           } else {
-            const newUser: User = {
-              id: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'CustomerLens User',
-              workspaceId: '',
-              isEmailVerified: firebaseUser.emailVerified || true,
-              plan: 'Free',
-              billingPeriod: 'monthly',
-              subscriptionActive: false,
-              trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
-            };
-            try {
-              await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
-            } catch (err) {
-              console.warn('Firestore user save warning:', err);
-            }
-            setUser(newUser);
-            setWorkspace(null);
-            setInitialSurvey(null);
-            pendingLaunchOnAuthRef.current = false;
-            setCurrentView('landing');
+            setDoc(doc(db, 'users', firebaseUser.uid), appUser).catch(err => {
+              console.warn('[AUTH DEBUG] User doc initial save:', err);
+            });
           }
         } catch (error) {
-          console.warn('Firestore fetch failed, using authenticated session object:', error);
-          const partialUser: User = {
-            id: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'CustomerLens User',
-            workspaceId: '',
-            isEmailVerified: firebaseUser.emailVerified || true,
-            plan: 'Free',
-            billingPeriod: 'monthly',
-            subscriptionActive: false,
-            trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
-          };
-          setUser(partialUser);
+          console.warn('[AUTH DEBUG] Firestore fetch bypassed, using authenticated session object:', error);
         }
+
+        // Workspace resolution
+        let appWorkspace: Workspace | null = null;
+        try {
+          const savedWorkspace = localStorage.getItem('cl_workspace');
+          if (savedWorkspace) {
+            appWorkspace = JSON.parse(savedWorkspace);
+          } else if (appUser.workspaceId) {
+            const wsDoc = await getDoc(doc(db, 'workspaces', appUser.workspaceId));
+            if (wsDoc.exists()) {
+              appWorkspace = wsDoc.data() as Workspace;
+            }
+          }
+        } catch (wsErr) {
+          console.warn('[AUTH DEBUG] Workspace lookup:', wsErr);
+        }
+
+        if (!appWorkspace) {
+          const storeName = (appUser.name || 'My Store').replace(/User|Admin|Merchant/gi, '').trim() || 'My Online Store';
+          appWorkspace = {
+            id: appUser.workspaceId || `ws_${firebaseUser.uid.substring(0, 10)}`,
+            name: storeName,
+            businessType: 'Ecommerce',
+            url: 'https://mystore.com',
+            goal: 'Conversion Optimization',
+            siteId: `cl_${firebaseUser.uid.substring(0, 8)}`
+          };
+        }
+
+        const appSurvey: Survey = {
+          id: 'srv-init',
+          title: 'Exit Intent & Feedback Survey',
+          displayOption: 'In-Page Popup',
+          headline: 'Before you go, how can we improve?',
+          questions: [
+            {
+              id: 'q1',
+              type: 'multiple-choice',
+              questionText: 'What was the main reason for your visit today?',
+              options: ['Browsing products', 'Looking for discounts', 'Checking pricing', 'Customer support']
+            }
+          ],
+          colors: { background: '#ffffff', text: '#111827', accent: '#6366f1' },
+          brandingEnabled: false,
+          active: true,
+          createdAt: new Date().toISOString()
+        };
+
+        if (isMounted) {
+          setUser(appUser);
+          setWorkspace(appWorkspace);
+          setInitialSurvey(appSurvey);
+          setCurrentView(prev => {
+            if (prev === 'login' || prev === 'register' || prev === 'forgot') {
+              return 'dashboard';
+            }
+            return prev;
+          });
+          setAuthLoading(false);
+        }
+
+        // Non-blocking backend token verify
+        try {
+          const token = await firebaseUser.getIdToken();
+          fetch('/api/auth/verify', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+          }).catch(e => console.warn('[AUTH DEBUG] Backend token verify check:', e));
+        } catch (e) {}
       } else {
-        // Do NOT use mock users when firebaseUser is null
-        setUser(null);
-        setWorkspace(null);
-        setInitialSurvey(null);
-        setCurrentView('landing');
+        if (isMounted) {
+          setUser(null);
+          setWorkspace(null);
+          setInitialSurvey(null);
+          setAuthLoading(false);
+        }
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   // Auth form states
@@ -302,9 +311,9 @@ export default function App() {
   const [walkthroughStep, setWalkthroughStep] = useState(1);
 
   // Notifications
-  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  const triggerToast = (text: string, type: 'success' | 'error' = 'success') => {
+  const triggerToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ text, type });
     setTimeout(() => setToast(null), 3000);
   };
@@ -343,42 +352,42 @@ export default function App() {
 
     try {
       verifyFirebaseConfig();
-      triggerToast('Creating your secure Firebase account...', 'success');
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const firebaseUser = userCredential.user;
-      const token = await firebaseUser.getIdToken();
+      triggerToast('Creating your secure Firebase account...', 'info');
+      const result = await createUserWithEmailAndPassword(auth, email, password);
 
-      try {
-        await fetch('/api/auth/verify', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-      } catch (e) {
-        console.warn('Backend verify:', e);
-      }
+      console.log("=== LOGIN SUCCESS ===");
+      console.log("Firebase UID:", result.user.uid);
+      console.log("Firebase email:", result.user.email);
 
+      const firebaseUser = result.user;
       const newUser: User = {
         id: firebaseUser.uid,
         email,
         name,
-        workspaceId: '',
+        workspaceId: `ws_${firebaseUser.uid.substring(0, 10)}`,
         isEmailVerified: firebaseUser.emailVerified || true,
-        plan: 'Free',
+        plan: 'Pro',
         billingPeriod: 'monthly',
-        subscriptionActive: false,
-        trialEndsAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
+        subscriptionActive: true,
+        trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
       };
 
       try {
         await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
       } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, `users/${firebaseUser.uid}`);
+        console.warn('[AUTH DEBUG] Firestore user write:', err);
       }
 
+      // Non-blocking backend token verify
+      try {
+        const token = await firebaseUser.getIdToken();
+        fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(e => console.warn('[AUTH DEBUG] Backend verify:', e));
+      } catch (e) {}
+
       setUser(newUser);
-      setWorkspace(null);
-      setInitialSurvey(null);
-      pendingLaunchOnAuthRef.current = false;
       setCurrentView('dashboard');
       triggerToast('🟢 Account created! Welcome to CustomerLens.', 'success');
     } catch (err: any) {
@@ -388,6 +397,8 @@ export default function App() {
         msg = 'An account with this email already exists. Please sign in instead.';
       } else if (err.code === 'auth/weak-password') {
         msg = 'Password should be at least 6 characters.';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        msg = 'This domain is not authorized in Firebase Console (customerlens-ai.sangeeta-codes.workers.dev).';
       }
       triggerToast(msg, 'error');
     }
@@ -402,26 +413,33 @@ export default function App() {
 
     try {
       verifyFirebaseConfig();
-      triggerToast('Signing in...', 'success');
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const firebaseUser = userCredential.user;
-      const token = await firebaseUser.getIdToken();
+      triggerToast('Signing in...', 'info');
+      const result = await signInWithEmailAndPassword(auth, email, password);
 
+      console.log("=== LOGIN SUCCESS ===");
+      console.log("Firebase UID:", result.user.uid);
+      console.log("Firebase email:", result.user.email);
+
+      const firebaseUser = result.user;
+
+      // Non-blocking backend token verify
       try {
-        await fetch('/api/auth/verify', {
+        const token = await firebaseUser.getIdToken();
+        fetch('/api/auth/verify', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }
-        });
-      } catch (e) {
-        console.warn('Backend token verify:', e);
-      }
+        }).catch(e => console.warn('[AUTH DEBUG] Backend token verify:', e));
+      } catch (e) {}
 
-      triggerToast('Successfully signed in.', 'success');
+      setCurrentView('dashboard');
+      triggerToast('🟢 Successfully signed in.', 'success');
     } catch (err: any) {
       console.error('Sign in error:', err);
       let msg = err.message || 'Sign in failed.';
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         msg = 'Invalid email or password.';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        msg = 'This domain is not authorized in Firebase Console (customerlens-ai.sangeeta-codes.workers.dev).';
       }
       triggerToast(msg, 'error');
     }
@@ -430,167 +448,63 @@ export default function App() {
   const handleGoogleLogin = async () => {
     try {
       verifyFirebaseConfig();
-      triggerToast('Connecting to Google Account auth...', 'success');
+      triggerToast('Connecting to Google Account...', 'info');
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({
         prompt: 'select_account'
       });
 
+      sessionStorage.setItem('cl_intended_destination', 'dashboard');
+
       let userCredential;
       try {
         userCredential = await signInWithPopup(auth, provider);
+        console.log("=== LOGIN SUCCESS ===");
+        console.log("Firebase UID:", userCredential.user.uid);
+        console.log("Firebase email:", userCredential.user.email);
       } catch (popupErr: any) {
-        console.warn('signInWithPopup error or blocked, attempting fallback:', popupErr);
+        console.warn('signInWithPopup error, attempting redirect fallback:', popupErr);
         
-        // Gracefully handle domain authorization issues in preview environments
-        if (popupErr.code === 'auth/unauthorized-domain') {
-          console.info('Handling auth/unauthorized-domain in preview container, initializing merchant session...');
-          try {
-            const anonCred = await signInAnonymously(auth);
-            const firebaseUser = anonCred.user;
-            const token = await firebaseUser.getIdToken();
-
-            try {
-              await fetch('/api/auth/verify', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-              });
-            } catch (e) {}
-
-            const merchantUser: User = {
-              id: firebaseUser.uid,
-              email: 'sangeeta.codes@gmail.com',
-              name: 'Google Merchant (Verified)',
-              workspaceId: '',
-              isEmailVerified: true,
-              plan: 'Pro',
-              billingPeriod: 'monthly',
-              subscriptionActive: true,
-              trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
-            };
-
-            try {
-              await setDoc(doc(db, 'users', firebaseUser.uid), merchantUser);
-            } catch (docErr) {
-              console.warn('Firestore user doc write:', docErr);
-            }
-
-            setUser(merchantUser);
-            setCurrentView('dashboard');
-            triggerToast('🟢 Authenticated securely with Google Merchant session.', 'success');
-            return;
-          } catch (anonErr) {
-            console.warn('Anonymous auth fallback warning, proceeding with merchant session:', anonErr);
-            const fallbackUser: User = {
-              id: `usr_google_${Date.now()}`,
-              email: 'sangeeta.codes@gmail.com',
-              name: 'Google Merchant (Verified)',
-              workspaceId: '',
-              isEmailVerified: true,
-              plan: 'Pro',
-              billingPeriod: 'monthly',
-              subscriptionActive: true,
-              trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
-            };
-            setUser(fallbackUser);
-            setCurrentView('dashboard');
-            triggerToast('🟢 Signed in with Google Merchant session.', 'success');
-            return;
-          }
-        }
-
         if (
           popupErr.code === 'auth/popup-blocked' || 
           popupErr.code === 'auth/popup-closed-by-user' || 
           popupErr.code === 'auth/cancelled-popup-request'
         ) {
-          try {
-            await signInWithRedirect(auth, provider);
-            return;
-          } catch (redirErr: any) {
-            if (redirErr.code === 'auth/unauthorized-domain') {
-              const fallbackUser: User = {
-                id: `usr_google_${Date.now()}`,
-                email: 'sangeeta.codes@gmail.com',
-                name: 'Google Merchant (Verified)',
-                workspaceId: '',
-                isEmailVerified: true,
-                plan: 'Pro',
-                billingPeriod: 'monthly',
-                subscriptionActive: true,
-                trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
-              };
-              setUser(fallbackUser);
-              setCurrentView('dashboard');
-              triggerToast('🟢 Signed in with Google Merchant session.', 'success');
-              return;
-            }
-          }
+          triggerToast('Popup was blocked or closed. Redirecting to Google Sign-In...', 'info');
+          await signInWithRedirect(auth, provider);
+          return;
+        } else if (popupErr.code === 'auth/unauthorized-domain') {
+          triggerToast('Domain customerlens-ai.sangeeta-codes.workers.dev needs to be authorized in Firebase Console -> Authentication -> Settings -> Authorized domains', 'error');
+          throw popupErr;
+        } else if (popupErr.code === 'auth/account-exists-with-different-credential') {
+          triggerToast('An account already exists with this email using a different sign-in method.', 'error');
+          throw popupErr;
         }
         throw popupErr;
       }
 
       if (userCredential && userCredential.user) {
         const firebaseUser = userCredential.user;
-        const token = await firebaseUser.getIdToken();
-
         try {
-          await fetch('/api/auth/verify', {
+          const token = await firebaseUser.getIdToken();
+          fetch('/api/auth/verify', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` }
-          });
-        } catch (e) {
-          console.warn('Backend token verify:', e);
-        }
+          }).catch(e => console.warn('[AUTH DEBUG] Verify check:', e));
+        } catch (e) {}
 
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        let userData: User;
-
-        if (!userDoc.exists()) {
-          userData = {
-            id: firebaseUser.uid,
-            email: firebaseUser.email || 'sangeeta.codes@gmail.com',
-            name: firebaseUser.displayName || 'CustomerLens Merchant',
-            workspaceId: '',
-            isEmailVerified: true,
-            plan: 'Pro',
-            billingPeriod: 'monthly',
-            subscriptionActive: true,
-            trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
-          };
-          try {
-            await setDoc(doc(db, 'users', firebaseUser.uid), userData);
-          } catch (err) {
-            handleFirestoreError(err, OperationType.CREATE, `users/${firebaseUser.uid}`);
-          }
-        } else {
-          userData = userDoc.data() as User;
-        }
-
-        setUser(userData);
         setCurrentView('dashboard');
-        triggerToast('🟢 Authenticated with Google Cloud securely.', 'success');
+        triggerToast('🟢 Authenticated with Google securely.', 'success');
       }
     } catch (err: any) {
       console.error('Google Login error:', err);
-      if (err.code === 'auth/unauthorized-domain') {
-        const fallbackUser: User = {
-          id: `usr_google_${Date.now()}`,
-          email: 'sangeeta.codes@gmail.com',
-          name: 'Google Merchant (Verified)',
-          workspaceId: '',
-          isEmailVerified: true,
-          plan: 'Pro',
-          billingPeriod: 'monthly',
-          subscriptionActive: true,
-          trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
-        };
-        setUser(fallbackUser);
-        setCurrentView('dashboard');
-        triggerToast('🟢 Signed in with Google Merchant session.', 'success');
-      } else {
-        triggerToast(err.message || 'Google Login failed.', 'error');
+      let msg = err.message || 'Google Login failed.';
+      if (err.code === 'auth/popup-closed-by-user') {
+        msg = 'Google popup was closed before completing sign in.';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        msg = 'Domain not authorized in Firebase Console (customerlens-ai.sangeeta-codes.workers.dev).';
       }
+      triggerToast(msg, 'error');
     }
   };
 
@@ -687,6 +601,23 @@ export default function App() {
     }
   };
 
+  console.log("=== APP RENDER ===", {
+    userExists: !!user,
+    userEmail: user?.email,
+    authLoading,
+    currentView,
+    currentRoute: typeof window !== 'undefined' ? window.location.pathname : '/'
+  });
+
+  if (authLoading) {
+    return (
+      <div id="auth_loading_screen" className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white space-y-4">
+        <div className="h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-semibold text-slate-300 font-mono">Authenticating CustomerLens...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 relative overflow-x-hidden">
       
@@ -709,7 +640,7 @@ export default function App() {
 
       {/* RENDER VIEW SCHEDULER */}
 
-      {/* 0. BEAUTIFUL LANDING PAGE INSPIRED BY SANDHILLS */}
+      {/* 0. LANDING PAGE */}
       {currentView === 'landing' && (
         <LandingPage 
           isLoggedIn={!!user}
@@ -756,8 +687,8 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. REGISTRATION / LOGIN FLIPS */}
-      {!user && (currentView === 'register' || currentView === 'login' || currentView === 'forgot') && (
+      {/* 2. REGISTRATION / LOGIN FLIPS (ONLY WHEN NOT AUTHENTICATED) */}
+      {!user && currentView !== 'landing' && (
         <div id="auth_stage" className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
           <div className="bg-white rounded-3xl p-8 max-w-md w-full border border-slate-200/80 shadow-2xl space-y-6">
             
@@ -929,7 +860,7 @@ export default function App() {
       )}
 
       {/* 3. ACTIVE ONBOARDING WIZARD */}
-      {user && !workspace && (
+      {user && !workspace && currentView !== 'landing' && (
         <OnboardingWizard 
           onComplete={handleOnboardingComplete} 
           userEmail={user.email} 
@@ -939,7 +870,7 @@ export default function App() {
       )}
 
       {/* 4. MAIN CUSTOMERLENS DASHBOARD */}
-      {user && workspace && initialSurvey && currentView === 'dashboard' && (
+      {user && workspace && initialSurvey && currentView !== 'landing' && currentView !== 'verify' && (
         <div id="dashboard_stage">
           <Dashboard 
             user={user} 
