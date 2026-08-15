@@ -971,13 +971,27 @@ export default function Dashboard({
         shop = clean.endsWith('.myshopify.com') ? clean : `${clean}.myshopify.com`;
       }
     }
+    if (!shop && typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlShop = urlParams.get('shop');
+      if (urlShop) {
+        const clean = urlShop.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+        shop = clean.endsWith('.myshopify.com') ? clean : `${clean}.myshopify.com`;
+      }
+    }
 
     if (shop) {
       showNotification('Redirecting to official Shopify App authorization...', 'info');
-      window.location.href = `/api/shopify/install?shop=${encodeURIComponent(shop)}`;
+      window.location.href = `https://customerlens-ai.sangeeta-codes.workers.dev/api/shopify/install?shop=${encodeURIComponent(shop)}`;
     } else {
-      showNotification('Redirecting to Shopify App Store...', 'info');
-      window.location.href = 'https://apps.shopify.com/customerlens';
+      const input = prompt('Enter your Shopify Store domain (e.g. your-brand.myshopify.com):');
+      if (input && input.trim()) {
+        const clean = input.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+        const fullShop = clean.endsWith('.myshopify.com') ? clean : `${clean}.myshopify.com`;
+        localStorage.setItem('cl_shopify_shop', fullShop);
+        showNotification('Redirecting to official Shopify App authorization...', 'info');
+        window.location.href = `https://customerlens-ai.sangeeta-codes.workers.dev/api/shopify/install?shop=${encodeURIComponent(fullShop)}`;
+      }
     }
   };
 

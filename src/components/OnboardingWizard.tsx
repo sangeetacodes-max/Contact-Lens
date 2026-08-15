@@ -867,17 +867,42 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   const handleConnectShopifyDirect = () => {
     setIsRedirectingToShopify(true);
 
-    // If real shop context exists from Shopify Admin or previous session
-    if (shopifyShop && shopifyShop.trim()) {
-      const cleanShop = shopifyShop.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+    let targetShop = shopifyShop?.trim();
+    if (!targetShop && websiteUrl) {
+      const clean = websiteUrl.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      if (clean.includes('myshopify.com')) {
+        targetShop = clean.endsWith('.myshopify.com') ? clean : `${clean}.myshopify.com`;
+      }
+    }
+    if (!targetShop && typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlShop = urlParams.get('shop');
+      if (urlShop) {
+        const clean = urlShop.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+        targetShop = clean.endsWith('.myshopify.com') ? clean : `${clean}.myshopify.com`;
+      }
+    }
+
+    if (targetShop) {
+      const cleanShop = targetShop.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
       const fullShop = cleanShop.endsWith('.myshopify.com') ? cleanShop : `${cleanShop}.myshopify.com`;
       setWebsiteUrl(`https://${fullShop}`);
       setActivePlatform('Shopify');
-      window.location.href = `/api/shopify/install?shop=${encodeURIComponent(fullShop)}`;
+      localStorage.setItem('cl_shopify_shop', fullShop);
+      window.location.href = `https://customerlens-ai.sangeeta-codes.workers.dev/api/shopify/install?shop=${encodeURIComponent(fullShop)}`;
     } else {
-      // Standalone mode outside Shopify Admin: redirect to official Shopify App Store install page
-      setActivePlatform('Shopify');
-      window.location.href = 'https://apps.shopify.com/customerlens';
+      setIsRedirectingToShopify(false);
+      const input = prompt('Enter your Shopify Store domain to install CustomerLens (e.g. your-store.myshopify.com):');
+      if (input && input.trim()) {
+        const clean = input.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+        const fullShop = clean.endsWith('.myshopify.com') ? clean : `${clean}.myshopify.com`;
+        setShopifyShop(fullShop);
+        setWebsiteUrl(`https://${fullShop}`);
+        setActivePlatform('Shopify');
+        localStorage.setItem('cl_shopify_shop', fullShop);
+        setIsRedirectingToShopify(true);
+        window.location.href = `https://customerlens-ai.sangeeta-codes.workers.dev/api/shopify/install?shop=${encodeURIComponent(fullShop)}`;
+      }
     }
   };
 

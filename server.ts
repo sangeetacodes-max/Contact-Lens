@@ -512,7 +512,7 @@ const shopifyInstallationsMap: Record<string, any> = {};
 app.get('/api/shopify/install', (req, res) => {
   const rawShop = req.query.shop as string || req.query.domain as string;
   if (!rawShop) {
-    return res.redirect('https://apps.shopify.com/customerlens');
+    return res.status(400).json({ error: 'Shop query parameter is required. Example: /api/shopify/install?shop=your-store.myshopify.com' });
   }
 
   const cleanShop = rawShop.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
