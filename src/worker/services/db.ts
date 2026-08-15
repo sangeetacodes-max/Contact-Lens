@@ -213,6 +213,75 @@ export class DatabaseService {
     memoryWorkspaces.set(siteId, { verified, method, verifiedAt: new Date().toISOString() });
   }
 
+  /** Save Shopify Installation to Cloudflare D1 */
+  async saveShopifyInstallation(installation: {
+    shop: string;
+    accessToken: string;
+    scope?: string;
+    shopDetails: any;
+    host?: string;
+    userId?: string;
+    installedAt: string;
+  }): Promise<void> {
+    if (this.env.D1_DATABASE) {
+      try {
+        await this.env.D1_DATABASE.prepare(`
+          INSERT INTO shopify_installations (shop, access_token, scope, shop_details_json, host, user_id, installed_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(shop) DO UPDATE SET
+            access_token = excluded.access_token,
+            scope = excluded.scope,
+            shop_details_json = excluded.shop_details_json,
+            host = excluded.host,
+            user_id = excluded.user_id,
+            updated_at = excluded.updated_at
+        `).bind(
+          installation.shop,
+          installation.accessToken,
+          installation.scope || '',
+          JSON.stringify(installation.shopDetails || {}),
+          installation.host || '',
+          installation.userId || '',
+          installation.installedAt,
+          new Date().toISOString()
+        ).run();
+        Logger.info('Saved Shopify merchant installation to D1 Database', { shop: installation.shop });
+        return;
+      } catch (err: any) {
+        Logger.warn('D1 Database saveShopifyInstallation fallback:', err.message);
+      }
+    }
+
+    memoryWorkspaces.set(`shopify_installation:${installation.shop}`, installation);
+  }
+
+  /** Get Shopify Installation from Cloudflare D1 */
+  async getShopifyInstallation(shop: string): Promise<any | null> {
+    if (this.env.D1_DATABASE) {
+      try {
+        const row = await this.env.D1_DATABASE.prepare(`
+          SELECT * FROM shopify_installations WHERE shop = ? LIMIT 1
+        `).bind(shop).first<any>();
+
+        if (row) {
+          return {
+            shop: row.shop,
+            accessToken: row.access_token,
+            scope: row.scope,
+            shopDetails: JSON.parse(row.shop_details_json || '{}'),
+            host: row.host,
+            userId: row.user_id,
+            installedAt: row.installed_at
+          };
+        }
+      } catch (err: any) {
+        Logger.warn('D1 Database getShopifyInstallation fallback:', err.message);
+      }
+    }
+
+    return memoryWorkspaces.get(`shopify_installation:${shop}`) || null;
+  }
+
   /** Save Notification */
   async saveNotification(userId: string, title: string, message: string, type = 'info') {
     const notif = { id: 'notif_' + Math.random().toString(36).substring(2, 9), userId, title, message, type, isRead: false, createdAt: new Date().toISOString() };

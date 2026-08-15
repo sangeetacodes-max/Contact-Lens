@@ -831,12 +831,19 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   
   // Shopify Modal & OAuth Flow state
   const [showShopifyModal, setShowShopifyModal] = useState(false);
-  const [shopifyDomainInput, setShopifyDomainInput] = useState('my-boutique.myshopify.com');
+  const [shopifyDomainInput, setShopifyDomainInput] = useState(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('cl_shopify_shop') : null;
+    return saved || '';
+  });
   const [isInstallingShopify, setIsInstallingShopify] = useState(false);
   const [shopifyInstallStep, setShopifyInstallStep] = useState<'prompt' | 'installing' | 'success'>('prompt');
 
   const handleConnectShopifyDirect = () => {
-    const rawInput = shopifyDomainInput && shopifyDomainInput.trim() ? shopifyDomainInput.trim() : 'my-boutique.myshopify.com';
+    const rawInput = shopifyDomainInput && shopifyDomainInput.trim() ? shopifyDomainInput.trim() : '';
+    if (!rawInput) {
+      setShowShopifyModal(true);
+      return;
+    }
     const cleanShopDomain = rawInput.includes('.') ? rawInput : `${rawInput}.myshopify.com`;
     const fullUrl = cleanShopDomain.startsWith('http') ? cleanShopDomain : `https://${cleanShopDomain}`;
 
@@ -863,7 +870,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
         .replace(/\.myshopify\.com$/i, '')
         .split('/')[0]
         .trim();
-      if (cleaned) return cleaned;
+      if (cleaned) return cleaned.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
     if (websiteUrl && websiteUrl !== 'https://yourwebsite.com') {
       const cleaned = websiteUrl
@@ -871,9 +878,9 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
         .split('/')[0]
         .split('.')[0]
         .trim();
-      if (cleaned) return cleaned;
+      if (cleaned) return cleaned.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
-    return 'my-boutique';
+    return 'Your Store';
   }, [shopifyDomainInput, websiteUrl]);
   
   // Script verification progress state
@@ -1091,7 +1098,11 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
     // GOING NEXT: Must complete current step before advancing
     if (step === 1 && targetStep >= 2) {
       if (!isStep1Completed) {
-        setWebsiteUrl('https://my-boutique.myshopify.com');
+        if (websiteUrl && websiteUrl.trim().length > 0) {
+          setWebsiteUrl(websiteUrl);
+        } else {
+          setWebsiteUrl('https://your-store.myshopify.com');
+        }
       }
       setMaxStepReached(prev => Math.max(prev, 2) as 1 | 2 | 3);
       setStep(targetStep);
@@ -1547,7 +1558,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
 
   // Integration Platforms List
   const platforms = [
-    { name: 'Shopify', icon: '🛍', defaultUrl: 'https://my-boutique.myshopify.com', type: 'Shopify' as BusinessType, highlight: true },
+    { name: 'Shopify', icon: '🛍', defaultUrl: 'https://your-store.myshopify.com', type: 'Shopify' as BusinessType, highlight: true },
     { name: 'WooCommerce', icon: '🛒', defaultUrl: 'https://mywoocommerce-shop.com', type: 'WooCommerce' as BusinessType },
     { name: 'WordPress', icon: '🌐', defaultUrl: 'https://mywp-blog.org', type: 'Other' as BusinessType },
     { name: 'Wix', icon: '🟦', defaultUrl: 'https://mywix-site.wixsite.com', type: 'Other' as BusinessType },
@@ -4086,7 +4097,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
                   </div>
                   <span className="text-[11px] text-slate-400 ml-2 font-mono flex items-center gap-1 bg-slate-800/80 px-2.5 py-0.5 rounded-md border border-slate-700">
-                    <span className="text-emerald-400">🔒 https://</span>admin.shopify.com/store/{shopifyDomainInput ? shopifyDomainInput.replace('.myshopify.com', '') : 'my-boutique'}/oauth/authorize?app=CustomerLens+AI
+                    <span className="text-emerald-400">🔒 https://</span>admin.shopify.com/store/{shopifyDomainInput ? shopifyDomainInput.replace('.myshopify.com', '') : 'your-store'}/oauth/authorize?app=CustomerLens+AI
                   </span>
                 </div>
                 <button
@@ -4108,7 +4119,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                   </div>
                 </div>
                 <div className="text-xs text-slate-400 font-mono">
-                  {shopifyDomainInput || 'my-boutique.myshopify.com'}
+                  {shopifyDomainInput || 'your-store.myshopify.com'}
                 </div>
               </div>
 
@@ -4144,7 +4155,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                           type="text"
                           value={shopifyDomainInput}
                           onChange={(e) => setShopifyDomainInput(e.target.value)}
-                          placeholder="my-boutique.myshopify.com"
+                          placeholder="your-store.myshopify.com"
                           className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-[#008060] focus:bg-white rounded-xl text-xs font-mono font-bold text-slate-900 outline-none"
                         />
                       </div>

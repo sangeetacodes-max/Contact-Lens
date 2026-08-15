@@ -57,66 +57,94 @@ export default function App() {
   const [initialSurvey, setInitialSurvey] = useState<Survey | null>(null);
   const pendingLaunchOnAuthRef = useRef<boolean>(false);
 
-  // Check Shopify embedded app parameters on load - only initialize App Bridge when valid shop & host exist
+  // Check Shopify embedded app parameters on load - strictly validate real merchant shop and host
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
-    const rawShop = searchParams.get('shop');
+    const rawShop = searchParams.get('shop') || (typeof window !== 'undefined' && window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0 ? window.location.ancestorOrigins[0].replace(/^https?:\/\//, '') : null);
     const host = searchParams.get('host');
+    const idToken = searchParams.get('id_token');
 
-    const isValidShop = Boolean(
-      rawShop && 
-      typeof rawShop === 'string' && 
-      rawShop.toLowerCase().trim().endsWith('.myshopify.com')
-    );
-    const isValidHost = Boolean(host && typeof host === 'string' && host.trim().length > 0);
+    if (rawShop && typeof rawShop === 'string') {
+      const cleanShop = rawShop.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      const fullShop = cleanShop.endsWith('.myshopify.com') ? cleanShop : `${cleanShop}.myshopify.com`;
 
-    if (isValidShop && isValidHost) {
-      const cleanShop = rawShop!.toLowerCase().trim();
-      const apiKey = import.meta.env.VITE_SHOPIFY_API_KEY || '03b0ee31c378e592b1c5c9da3dbe6651';
+      // Strictly validate *.myshopify.com store domain structure
+      if (/^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/.test(fullShop)) {
+        const apiKey = import.meta.env.VITE_SHOPIFY_API_KEY || '03b0ee31c378e592b1c5c9da3dbe6651';
 
-      if (!document.querySelector('meta[name="shopify-api-key"]')) {
-        const meta = document.createElement('meta');
-        meta.name = 'shopify-api-key';
-        meta.content = apiKey;
-        document.head.appendChild(meta);
+        // Configure App Bridge meta headers
+        if (!document.querySelector('meta[name="shopify-api-key"]')) {
+          const meta = document.createElement('meta');
+          meta.name = 'shopify-api-key';
+          meta.content = apiKey;
+          document.head.appendChild(meta);
+        }
+
+        if (host && !document.querySelector('meta[name="shopify-host"]')) {
+          const metaHost = document.createElement('meta');
+          metaHost.name = 'shopify-host';
+          metaHost.content = host;
+          document.head.appendChild(metaHost);
+        }
+
+        // Inject App Bridge script
+        if (!document.querySelector('script[src*="app-bridge.js"]')) {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
+          script.async = true;
+          document.head.appendChild(script);
+        }
+
+        localStorage.setItem('cl_shopify_shop', fullShop);
+        if (host) localStorage.setItem('cl_shopify_host', host);
+
+        const storeSlug = fullShop.replace('.myshopify.com', '');
+        const formattedStoreName = storeSlug.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+        const shopifyWs: Workspace = {
+          id: `ws_shopify_${storeSlug.replace(/[^a-z0-9]/gi, '_')}`,
+          name: `${formattedStoreName} (Shopify)`,
+          businessType: 'Shopify',
+          goal: 'Conversion Optimization',
+          url: `https://${fullShop}`,
+          platform: 'Shopify',
+          siteId: `cl_shop_${storeSlug}`
+        };
+
+        const shopifyUser: User = {
+          id: `usr_shopify_${storeSlug}`,
+          email: `merchant@${fullShop}`,
+          name: `${formattedStoreName} Admin`,
+          workspaceId: shopifyWs.id,
+          isEmailVerified: true,
+          plan: 'Pro',
+          billingPeriod: 'monthly',
+          subscriptionActive: true,
+          trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
+        };
+
+        setUser(shopifyUser);
+        setWorkspace(shopifyWs);
+        setCurrentView('dashboard');
+
+        // Async fetch merchant store details from backend
+        fetch(`/api/shopify/session`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          },
+          body: JSON.stringify({ shop: fullShop, sessionToken: idToken })
+        })
+          .then(res => res.json())
+          .then((data: any) => {
+            if (data?.shopDetails?.name) {
+              setWorkspace(prev => prev ? ({ ...prev, name: `${data.shopDetails.name} (Shopify)` }) : prev);
+              setUser(prev => prev ? ({ ...prev, name: `${data.shopDetails.name} Admin`, email: data.shopDetails.email || prev.email }) : prev);
+            }
+          })
+          .catch(() => {});
       }
-
-      if (!document.querySelector('script[src*="app-bridge.js"]')) {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
-        script.async = true;
-        document.head.appendChild(script);
-      }
-
-      localStorage.setItem('cl_shopify_shop', cleanShop);
-      localStorage.setItem('cl_shopify_host', host!);
-
-      const storeName = cleanShop.replace('.myshopify.com', '');
-      const shopifyWs: Workspace = {
-        id: `ws_shopify_${storeName.replace(/[^a-z0-9]/gi, '_')}`,
-        name: `${storeName} (Shopify)`,
-        businessType: 'Shopify',
-        goal: 'Conversion Optimization',
-        url: cleanShop.startsWith('http') ? cleanShop : `https://${cleanShop}`,
-        platform: 'Shopify',
-        siteId: `cl_shop_${storeName}`
-      };
-
-      const shopifyUser: User = {
-        id: `usr_shopify_${storeName}`,
-        email: `merchant@${cleanShop}`,
-        name: storeName.charAt(0).toUpperCase() + storeName.slice(1) + ' Store',
-        workspaceId: shopifyWs.id,
-        isEmailVerified: true,
-        plan: 'Pro',
-        billingPeriod: 'monthly',
-        subscriptionActive: true,
-        trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
-      };
-
-      setUser(shopifyUser);
-      setWorkspace(shopifyWs);
-      setCurrentView('dashboard');
     }
   }, []);
 
