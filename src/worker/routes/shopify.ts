@@ -15,7 +15,7 @@ export async function handleShopifyRoutes(request: Request, env: Env, pathname: 
     const url = new URL(request.url);
     const rawShop = url.searchParams.get('shop') || url.searchParams.get('domain');
     if (!rawShop) {
-      throw new ApiError('Missing shop query parameter. Usage: /api/shopify/install?shop=your-store.myshopify.com', 400, 'MISSING_SHOP');
+      return Response.redirect('https://apps.shopify.com/customerlens', 302);
     }
 
     const cleanShop = shopifyService.validateShopDomain(rawShop);

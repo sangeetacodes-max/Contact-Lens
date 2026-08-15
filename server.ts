@@ -47,6 +47,8 @@ app.use(async (req, res, next) => {
         SHOPIFY_API_SECRET: process.env.SHOPIFY_API_SECRET,
         PAYPAL_CLIENT_ID: process.env.PAYPAL_CLIENT_ID,
         PAYPAL_CLIENT_SECRET: process.env.PAYPAL_CLIENT_SECRET,
+        PAYPAL_ENV: process.env.PAYPAL_ENV,
+        PAYPAL_WEBHOOK_ID: process.env.PAYPAL_WEBHOOK_ID,
         FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
         D1_DATABASE: undefined,
         KV_SESSIONS: undefined,
@@ -510,7 +512,7 @@ const shopifyInstallationsMap: Record<string, any> = {};
 app.get('/api/shopify/install', (req, res) => {
   const rawShop = req.query.shop as string || req.query.domain as string;
   if (!rawShop) {
-    return res.status(400).json({ error: 'Missing shop query parameter. Usage: /api/shopify/install?shop=your-store.myshopify.com' });
+    return res.redirect('https://apps.shopify.com/customerlens');
   }
 
   const cleanShop = rawShop.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
@@ -738,24 +740,6 @@ app.post('/api/events/track', async (req, res) => {
     eventId: event.id,
     triggerSurvey
   });
-});
-
-/**
- * PayPal Integration Endpoints (/api/paypal/create-order & /api/paypal/capture)
- */
-app.post('/api/paypal/create-order', (req, res) => {
-  const { plan_id, planId, amount, email, isTrial } = req.body || {};
-  const targetPlan = (plan_id || planId || 'standard').toString();
-  const order_id = "PAYPAL-ORDER-" + targetPlan.toUpperCase() + "-" + Math.random().toString(36).substring(2, 9).toUpperCase();
-  console.log(`[PayPal] Created order ${order_id} for plan ${targetPlan} (email: ${email || 'unspecified'}, trial: ${!!isTrial}, amount: ${amount || '0.00'})`);
-  res.json({ order_id, id: order_id, plan_id: targetPlan, amount: amount || '20.00', email, status: 'CREATED' });
-});
-
-app.post('/api/paypal/capture', (req, res) => {
-  const { order_id, orderId, email, plan_id } = req.body || {};
-  const targetOrderId = order_id || orderId || ("PAYPAL-REC-" + Date.now());
-  console.log(`[PayPal] Captured order ${targetOrderId} for email ${email || 'user'}`);
-  res.json({ status: 'COMPLETED', order_id: targetOrderId, id: targetOrderId, captured_at: new Date().toISOString() });
 });
 
 /**

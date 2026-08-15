@@ -204,28 +204,34 @@ export default function LandingPage({ isLoggedIn, hasWorkspace, userEmail, onNav
   const [emailInput, setEmailInput] = useState('');
   const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
   
-  // PayPal Checkout State
+  // Real PayPal Checkout State
   const [activeCheckoutPlan, setActiveCheckoutPlan] = useState<{ id: string; name: string; price: number; isTrial?: boolean } | null>(null);
-  const [paypalCheckoutSuccess, setPaypalCheckoutSuccess] = useState(false);
-  const [simulatedPaying, setSimulatedPaying] = useState(false);
-  const [paypalSimStep, setPaypalSimStep] = useState<'details' | 'login' | 'review' | 'success'>('details');
-  const [paypalUserEmail, setPaypalUserEmail] = useState('');
-  const [paypalUserPassword, setPaypalUserPassword] = useState('');
-  const [paypalTransactionRef, setPaypalTransactionRef] = useState('PAYPAL-REC-2026');
+  const [paypalStep, setPaypalStep] = useState<'details' | 'redirecting' | 'awaiting_approval' | 'capturing' | 'success' | 'error'>('details');
+  const [paypalOrderId, setPaypalOrderId] = useState<string>('');
+  const [paypalApproveUrl, setPaypalApproveUrl] = useState<string>('');
+  const [paypalCaptureData, setPaypalCaptureData] = useState<any>(null);
+  const [paypalErrorMessage, setPaypalErrorMessage] = useState<string>('');
+  const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
   const [checkoutCouponCode, setCheckoutCouponCode] = useState('');
   const [checkoutDiscountApplied, setCheckoutDiscountApplied] = useState(false);
   const [checkoutCouponError, setCheckoutCouponError] = useState('');
 
-  // Auto-detect if user completed the survey and pre-apply 15% discount
+  // Reset PayPal state when modal opens or closes
   useEffect(() => {
     if (activeCheckoutPlan) {
+      setPaypalStep('details');
+      setPaypalOrderId('');
+      setPaypalApproveUrl('');
+      setPaypalCaptureData(null);
+      setPaypalErrorMessage('');
+      setIsProcessingPayment(false);
+
       const savedCode = localStorage.getItem('cl_survey_completed_code');
       if (savedCode) {
         setCheckoutCouponCode(savedCode);
         setCheckoutDiscountApplied(true);
         setCheckoutCouponError('');
       } else {
-        // Reset states on fresh open if no saved code
         setCheckoutCouponCode('');
         setCheckoutDiscountApplied(false);
         setCheckoutCouponError('');
@@ -1461,9 +1467,9 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
               <button 
                 onClick={() => {
                   setActiveCheckoutPlan({ id: 'advance', name: 'CustomerLens Standard (14-Day Free Trial)', price: 20, isTrial: true });
-                  setPaypalSimStep('details');
+                  setPaypalStep('details');
                 }}
-                className="w-full bg-[#ffc439] hover:bg-[#f4b41a] text-[#003087] font-extrabold text-xs py-3.5 rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-lg shadow-yellow-400/20 font-sans"
+                className="w-full bg-[#ffc439] hover:bg-[#f4b41a] text-[#003087] font-extrabold text-xs py-3.5 rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-lg shadow-yellow-400/20 font-sans cursor-pointer"
               >
                 <span>Start Free Trial (PayPal Account)</span>
                 <ArrowRight size={14} />
@@ -1512,11 +1518,11 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
               <button 
                 onClick={() => {
                   setActiveCheckoutPlan({ id: 'premium', name: 'CustomerLens Premium', price: 90 });
-                  setPaypalSimStep('details');
+                  setPaypalStep('details');
                 }}
-                className="w-full bg-white hover:bg-slate-100 text-slate-900 font-extrabold text-xs py-3.5 rounded-xl transition-all text-center block"
+                className="w-full bg-white hover:bg-slate-100 text-slate-900 font-extrabold text-xs py-3.5 rounded-xl transition-all text-center block cursor-pointer"
               >
-                pay $90 via paypal
+                Pay $90 via PayPal
               </button>
             </div>
           </div>
@@ -1879,7 +1885,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               <button 
                 onClick={() => {
                   setActiveCheckoutPlan({ id: 'advance', name: 'CustomerLens Standard (14-Day Free Trial)', price: 20, isTrial: true });
-                  setPaypalSimStep('details');
+                  setPaypalStep('details');
                 }}
                 className="w-full bg-[#ffc439] hover:bg-[#f4b41a] text-[#003087] font-bold text-xs py-2.5 rounded-xl transition-all text-center block shadow-sm font-sans"
               >
@@ -1923,7 +1929,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
               <button 
                 onClick={() => {
                   setActiveCheckoutPlan({ id: 'premium', name: 'CustomerLens Premium', price: 90 });
-                  setPaypalSimStep('details');
+                  setPaypalStep('details');
                 }}
                 className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 rounded-xl transition-all text-center block"
               >
@@ -2192,7 +2198,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setActiveCheckoutPlan(null);
-                setPaypalSimStep('details');
+                setPaypalStep('details');
               }
             }}
           >
@@ -2207,7 +2213,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                 type="button"
                 onClick={() => {
                   setActiveCheckoutPlan(null);
-                  setPaypalSimStep('details');
+                  setPaypalStep('details');
                 }}
                 className="absolute right-4 top-4 z-20 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 p-2 rounded-full transition-all flex items-center justify-center cursor-pointer shadow-xs"
                 title="Close Checkout"
@@ -2223,47 +2229,48 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                     Pay<span className="text-[#0079C1]">Pal</span>
                   </span>
                   <span className="text-[10px] bg-slate-100 text-slate-500 font-mono px-1.5 py-0.5 rounded font-extrabold uppercase tracking-widest">
-                    SECURE GATEWAY
+                    OFFICIAL CHECKOUT
                   </span>
                 </div>
                 <div className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
               </div>
 
-              {/* Step 1: Selection & Checkout Options */}
-              {paypalSimStep === 'details' && (
+              {/* Step 1: Selection & Pricing Overview */}
+              {paypalStep === 'details' && (
                 <div className="space-y-4 text-center">
                   <div className="space-y-1">
+                    <h3 className="text-base font-bold text-slate-900">{activeCheckoutPlan.name} Plan</h3>
                     <p className="text-xs text-slate-500 font-bold font-sans">
                       {checkoutDiscountApplied ? `$${(activeCheckoutPlan.price * 0.85).toFixed(2)} USD / month (15% OFF applied)` : `$${activeCheckoutPlan.price}.00 USD / month`}
                     </p>
                   </div>
 
-                  {/* Simple text above PayPal button as requested */}
+                  {/* Pricing Description Banner */}
                   <div className="p-3.5 bg-indigo-50/80 border border-indigo-100 rounded-2xl text-xs text-indigo-950 leading-relaxed font-medium text-left shadow-2xs">
                     {activeCheckoutPlan.isTrial ? (
                       <>
                         <p className="font-extrabold text-indigo-900 mb-1 flex items-center gap-1.5">
                           <span>⏳</span>
-                          <span>Billing will start after 14 days</span>
+                          <span>14-Day Free Trial via PayPal</span>
                         </p>
                         <p className="text-[11px] text-slate-600 leading-normal">
-                          Link your PayPal account to start your 14-day free trial ($0.00 today). If you continue using CustomerLens for more than 14 days, your PayPal account will be charged automatically.
+                          Authorize with your official PayPal merchant or personal account. You will be billed $0.00 today, and ${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD/month after 14 days if not cancelled.
                         </p>
                       </>
                     ) : (
                       <>
                         <p className="font-extrabold text-indigo-900 mb-1 flex items-center gap-1.5">
                           <span>💳</span>
-                          <span>Monthly Subscription Plan</span>
+                          <span>Instant Subscription Activation</span>
                         </p>
                         <p className="text-[11px] text-slate-600 leading-normal">
-                          Link your PayPal account to activate your subscription. You will be billed ${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD/month starting today.
+                          You will be securely redirected to PayPal's official approval window. Upon approval, your subscription will be captured and verified immediately.
                         </p>
                       </>
                     )}
                   </div>
 
-                  {/* Survey Promo Code Prompt */}
+                  {/* Promo Code Prompt */}
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -2285,7 +2292,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                             setCheckoutDiscountApplied(true);
                             setCheckoutCouponError('');
                           } else {
-                            setCheckoutCouponError('Invalid code. Complete the survey to get LENS15!');
+                            setCheckoutCouponError('Invalid code. Complete survey for 15% discount!');
                           }
                         }}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm shrink-0 cursor-pointer"
@@ -2310,16 +2317,77 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                       ✓ 15% survey discount applied!
                     </p>
                   )}
+                  {checkoutCouponError && (
+                    <p className="text-[11px] font-bold text-rose-600 font-sans text-left">
+                      {checkoutCouponError}
+                    </p>
+                  )}
 
-                  {/* PayPal Button / Actions */}
+                  {/* Real PayPal Action Button */}
                   <div className="space-y-2.5 pt-1">
                     <button
                       type="button"
-                      onClick={() => setPaypalSimStep('login')}
+                      disabled={isProcessingPayment}
+                      onClick={async () => {
+                        setIsProcessingPayment(true);
+                        setPaypalStep('redirecting');
+                        setPaypalErrorMessage('');
+
+                        try {
+                          const finalPrice = (activeCheckoutPlan.price * (checkoutDiscountApplied ? 0.85 : 1)).toFixed(2);
+                          const res = await fetch('/api/paypal/create-order', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              plan_id: activeCheckoutPlan.id || activeCheckoutPlan.name.toLowerCase(),
+                              planId: activeCheckoutPlan.id || activeCheckoutPlan.name.toLowerCase(),
+                              amount: finalPrice,
+                              currency: 'USD',
+                              returnUrl: window.location.href,
+                              cancelUrl: window.location.href
+                            })
+                          });
+
+                          const json = await res.json() as any;
+                          if (!res.ok || !json.data?.id) {
+                            throw new Error(json.error?.message || json.message || 'Failed to create PayPal order');
+                          }
+
+                          const orderData = json.data;
+                          setPaypalOrderId(orderData.id);
+                          setPaypalApproveUrl(orderData.approveUrl || '');
+
+                          if (orderData.approveUrl) {
+                            // Open real PayPal checkout window
+                            const popup = window.open(
+                              orderData.approveUrl,
+                              'PayPalCheckout',
+                              'width=540,height=720,toolbar=no,menubar=no,location=no,status=no'
+                            );
+                            if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+                              // If popup blocked, direct redirect
+                              setPaypalStep('awaiting_approval');
+                            } else {
+                              setPaypalStep('awaiting_approval');
+                            }
+                          } else {
+                            setPaypalStep('awaiting_approval');
+                          }
+                        } catch (err: any) {
+                          setPaypalErrorMessage(err?.message || 'Could not connect to PayPal API.');
+                          setPaypalStep('error');
+                        } finally {
+                          setIsProcessingPayment(false);
+                        }
+                      }}
                       className="w-full bg-[#0070ba] hover:bg-[#005ea6] text-white font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm font-sans"
                     >
                       <span className="italic font-black text-sm">Pay<span className="text-[#0079C1]">Pal</span></span>
-                      <span>{activeCheckoutPlan.isTrial ? 'Link Account & Start 14-Day Trial' : `Pay $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} with PayPal`}</span>
+                      <span>
+                        {activeCheckoutPlan.isTrial 
+                          ? 'Continue to PayPal Checkout (Trial)' 
+                          : `Pay $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} with PayPal`}
+                      </span>
                     </button>
                   </div>
 
@@ -2328,7 +2396,7 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                       type="button"
                       onClick={() => {
                         setActiveCheckoutPlan(null);
-                        setPaypalSimStep('details');
+                        setPaypalStep('details');
                       }}
                       className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-slate-200/80 shadow-2xs"
                     >
@@ -2339,251 +2407,188 @@ The best brands don't stay still. By connecting direct web reviews with custom a
                 </div>
               )}
 
-              {/* Step 2: Simulated Login */}
-              {paypalSimStep === 'login' && (
-                <div className="space-y-4">
-                  <div className="text-center space-y-1">
-                    <h4 className="text-sm font-bold text-slate-800">Enter Your PayPal Account</h4>
-                    <p className="text-[11px] text-slate-500">
-                      {activeCheckoutPlan.isTrial 
-                        ? "Enter your PayPal account and password to activate your 14-day free trial ($0 today)."
-                        : `Enter your PayPal account and password to set up your $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price}/month subscription.`}
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wide font-mono">PayPal Account Email</label>
-                        {paypalUserEmail.includes('@') && paypalUserEmail.includes('.') && (
-                          <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">✓ Valid format</span>
-                        )}
-                      </div>
-                      <input 
-                        type="email"
-                        required
-                        value={paypalUserEmail}
-                        onChange={(e) => setPaypalUserEmail(e.target.value)}
-                        placeholder="your-paypal-email@paypal.com"
-                        className="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs outline-none focus:bg-white focus:border-indigo-500 transition-all font-mono text-slate-800"
-                      />
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wide font-mono">PayPal Account Password</label>
-                        {paypalUserPassword.length >= 4 && (
-                          <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">✓ Password entered</span>
-                        )}
-                      </div>
-                      <input 
-                        type="password"
-                        required
-                        value={paypalUserPassword}
-                        onChange={(e) => setPaypalUserPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs outline-none focus:bg-white focus:border-indigo-500 transition-all font-mono text-slate-800"
-                      />
-                    </div>
-                  </div>
-
-                  {(!paypalUserEmail.trim() || !paypalUserPassword.trim()) ? (
-                    <div className="p-2.5 bg-slate-100 rounded-xl text-[11px] text-slate-500 flex items-center gap-1.5">
-                      <span>🔒 Enter your real PayPal account email and password to proceed with verification.</span>
-                    </div>
-                  ) : (!paypalUserEmail.includes('@') || !paypalUserEmail.includes('.') || paypalUserPassword.length < 4) ? (
-                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-700 flex items-center gap-1.5">
-                      <span>⚠️ Please enter a valid email address and password (at least 4 characters).</span>
-                    </div>
-                  ) : null}
-
-                  <div className="p-3 bg-amber-50 border border-amber-200/60 rounded-xl text-[11px] text-amber-900 leading-snug">
-                    {activeCheckoutPlan.isTrial ? (
-                      `ℹ️ $0.00 will be charged today. If you continue using ${activeCheckoutPlan.name} for more than 14 days, $20.00 USD/month will be billed automatically to your PayPal account.`
-                    ) : (
-                      `ℹ️ You will be charged $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD today for your ${activeCheckoutPlan.name} plan.`
-                    )}
-                  </div>
-
-                  <div className="flex gap-2 pt-1">
-                    <button 
-                      onClick={() => setPaypalSimStep('details')}
-                      className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
-                    >
-                      Back
-                    </button>
-                    <button 
-                      disabled={!paypalUserEmail.trim() || !paypalUserPassword.trim() || !paypalUserEmail.includes('@') || !paypalUserEmail.includes('.') || paypalUserPassword.length < 4}
-                      onClick={() => {
-                        if (paypalUserEmail.includes('@') && paypalUserEmail.includes('.') && paypalUserPassword.length >= 4) {
-                          setPaypalSimStep('review');
-                        }
-                      }}
-                      className={`w-1/2 font-bold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                        (!paypalUserEmail.trim() || !paypalUserPassword.trim() || !paypalUserEmail.includes('@') || !paypalUserEmail.includes('.') || paypalUserPassword.length < 4)
-                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
-                          : 'bg-[#0070ba] hover:bg-[#005ea6] text-white cursor-pointer shadow-md'
-                      }`}
-                    >
-                      {activeCheckoutPlan.isTrial ? 'Next: Authorize Trial' : 'Next: Authorize Payment'}
-                    </button>
+              {/* Step 2: Redirecting / Creating Order */}
+              {paypalStep === 'redirecting' && (
+                <div className="space-y-4 text-center py-6">
+                  <div className="h-12 w-12 border-3 border-[#0070ba] border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-slate-800">Connecting to PayPal API...</h4>
+                    <p className="text-xs text-slate-500">Creating real PayPal Checkout Order v2...</p>
                   </div>
                 </div>
               )}
 
-              {/* Step 3: Review simulated payment */}
-              {paypalSimStep === 'review' && (
-                <div className="space-y-5">
-                  <div className="text-center space-y-1">
-                    <h4 className="text-sm font-bold text-slate-800">Confirm PayPal Payment</h4>
-                    <p className="text-[11px] text-slate-500 font-mono text-indigo-600">Backend API: Cloudflare Worker PayPal Gateway</p>
-                  </div>
-
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 text-xs">
-                    <div className="flex justify-between font-medium">
-                      <span className="text-slate-500">Linked PayPal Account:</span>
-                      <span className="text-slate-800 font-mono font-bold">{paypalUserEmail}</span>
+              {/* Step 3: Awaiting Customer Approval on PayPal */}
+              {paypalStep === 'awaiting_approval' && (
+                <div className="space-y-5 text-center py-2">
+                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl text-left space-y-2">
+                    <div className="flex items-center gap-2 text-blue-900 font-bold text-xs">
+                      <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+                      <span>Official PayPal Approval Window</span>
                     </div>
-                    <div className="flex justify-between font-medium">
-                      <span className="text-slate-500">Charge Due Today:</span>
-                      <span className="text-emerald-600 font-mono font-bold">
-                        {activeCheckoutPlan.isTrial ? '$0.00 USD (14-Day Free Trial)' : `$${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD`}
-                      </span>
-                    </div>
-                    <div className="flex justify-between font-medium">
-                      <span className="text-slate-500">Recurring Price:</span>
-                      <span className="text-slate-800 font-mono font-bold">
-                        ${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD / month
-                      </span>
-                    </div>
-                    {activeCheckoutPlan.isTrial && (
-                      <div className="flex justify-between font-medium text-[11px]">
-                        <span className="text-slate-500">First Billing Date:</span>
-                        <span className="text-indigo-600 font-mono font-semibold">
-                          {new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                      </div>
-                    )}
-                    <div className="h-px bg-slate-200/50" />
-                    <p className="text-[10px] text-slate-500 leading-snug font-sans">
-                      {activeCheckoutPlan.isTrial ? (
-                        `Notice: By clicking below, you authorize CustomerLens to bill $20 USD/month to your linked PayPal account only if you continue using ${activeCheckoutPlan.name} after 14 days. Cancel anytime during the 14-day trial without paying anything.`
-                      ) : (
-                        `Notice: By clicking below, you authorize CustomerLens to bill $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD/month to your linked PayPal account. Cancel anytime.`
-                      )}
+                    <p className="text-xs text-blue-800 leading-relaxed">
+                      Please log in and approve the payment in the opened PayPal checkout window. Once completed, click the button below to capture and verify the order.
                     </p>
+                    <div className="text-[10px] font-mono bg-blue-100/60 p-2 rounded-lg text-blue-900">
+                      PayPal Order ID: <span className="font-bold">{paypalOrderId}</span>
+                    </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button 
-                      disabled={simulatedPaying}
-                      onClick={() => setPaypalSimStep('login')}
-                      className="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-3 rounded-xl transition-all cursor-pointer"
-                    >
-                      Back
-                    </button>
-                    <button 
-                      disabled={simulatedPaying}
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      disabled={isProcessingPayment}
                       onClick={async () => {
-                        setSimulatedPaying(true);
-                        try {
-                          // Call backend PayPal API (Cloudflare / Express /api/paypal/create-order)
-                          const createRes = await fetch('/api/paypal/create-order', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              plan_id: activeCheckoutPlan.id || activeCheckoutPlan.name.toLowerCase(),
-                              planId: activeCheckoutPlan.id || activeCheckoutPlan.name.toLowerCase(),
-                              amount: (activeCheckoutPlan.price * (checkoutDiscountApplied ? 0.85 : 1)).toFixed(2),
-                              email: paypalUserEmail,
-                              password: paypalUserPassword,
-                              isTrial: activeCheckoutPlan.isTrial
-                            })
-                          });
-                          const orderData = await createRes.json().catch(() => ({}));
-                          const orderId = orderData.order_id || orderData.id || `PAYPAL-REC-${Date.now()}`;
+                        setIsProcessingPayment(true);
+                        setPaypalStep('capturing');
+                        setPaypalErrorMessage('');
 
-                          // Call backend PayPal capture endpoint (/api/paypal/capture)
-                          const captureRes = await fetch('/api/paypal/capture', {
+                        try {
+                          const res = await fetch('/api/paypal/capture', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                              order_id: orderId,
-                              orderId: orderId,
-                              plan_id: activeCheckoutPlan.id || activeCheckoutPlan.name.toLowerCase(),
-                              email: paypalUserEmail
+                              order_id: paypalOrderId,
+                              orderId: paypalOrderId
                             })
                           });
-                          const captureData = await captureRes.json().catch(() => ({}));
-                          setPaypalTransactionRef(captureData.order_id || orderId);
-                        } catch (err) {
-                          console.warn('PayPal backend call error (proceeding with fallback order ref):', err);
-                          setPaypalTransactionRef(`PAYPAL-REC-${Date.now()}`);
+
+                          const json = await res.json() as any;
+                          if (!res.ok || json.data?.status !== 'COMPLETED') {
+                            throw new Error(json.error?.message || json.message || 'Payment has not been approved or capture failed.');
+                          }
+
+                          setPaypalCaptureData(json.data);
+                          setPaypalStep('success');
+                        } catch (err: any) {
+                          setPaypalErrorMessage(err?.message || 'Failed to capture PayPal payment.');
+                          setPaypalStep('error');
                         } finally {
-                          setSimulatedPaying(false);
-                          setPaypalSimStep('success');
+                          setIsProcessingPayment(false);
                         }
                       }}
-                      className="w-2/3 bg-[#0070ba] hover:bg-[#005ea6] text-white font-bold text-xs py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow cursor-pointer"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow cursor-pointer flex items-center justify-center gap-2"
                     >
-                      {simulatedPaying ? (
-                        <>
-                          <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Calling PayPal Backend...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>{activeCheckoutPlan.isTrial ? 'Link PayPal & Start 14-Day Free Trial' : `Confirm & Pay $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price}`}</span>
-                        </>
-                      )}
+                      <CheckCircle2 size={16} />
+                      <span>I've Approved Payment on PayPal / Verify Capture</span>
+                    </button>
+
+                    {paypalApproveUrl && (
+                      <a
+                        href={paypalApproveUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 border"
+                      >
+                        <span>Reopen PayPal Window</span>
+                      </a>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setPaypalStep('details')}
+                      className="w-full text-slate-500 hover:text-slate-700 text-xs py-2 font-medium"
+                    >
+                      Back to Checkout Options
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Step 4: Success confirmation */}
-              {paypalSimStep === 'success' && (
-                <div className="space-y-5 text-center py-4">
-                  <div className="h-16 w-16 bg-emerald-50 rounded-full border border-emerald-100 flex items-center justify-center mx-auto text-emerald-500 shadow-sm animate-bounce">
-                    <CheckCircle2 size={32} />
+              {/* Step 4: Capturing Order */}
+              {paypalStep === 'capturing' && (
+                <div className="space-y-4 text-center py-6">
+                  <div className="h-12 w-12 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-slate-800">Verifying PayPal Payment...</h4>
+                    <p className="text-xs text-slate-500">Executing server-side PayPal Orders v2 Capture...</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 5: Success confirmation */}
+              {paypalStep === 'success' && (
+                <div className="space-y-5 text-center py-2">
+                  <div className="h-14 w-14 bg-emerald-50 rounded-full border border-emerald-100 flex items-center justify-center mx-auto text-emerald-500 shadow-sm">
+                    <CheckCircle2 size={30} />
                   </div>
 
                   <div className="space-y-1">
                     <h4 className="text-lg font-black text-slate-900 tracking-tight">
-                      {activeCheckoutPlan.isTrial ? 'PayPal Account Linked & Trial Activated!' : 'Payment Completed & Subscription Active!'}
+                      Payment Verified & Plan Activated!
                     </h4>
-                    <p className="text-xs text-slate-500">Transaction Ref: <span className="font-mono font-bold text-slate-700">{paypalTransactionRef}</span></p>
+                    <p className="text-xs text-slate-500">
+                      PayPal Capture ID: <span className="font-mono font-bold text-slate-700">{paypalCaptureData?.captureId || paypalCaptureData?.id || paypalOrderId}</span>
+                    </p>
                   </div>
 
                   <div className="p-4 bg-slate-50 rounded-2xl text-xs text-slate-600 leading-relaxed text-left space-y-2 border">
-                    <p className="font-semibold text-slate-800">✅ Plan Activated: {activeCheckoutPlan.name}</p>
-                    <p>Your PayPal account (<strong className="text-slate-900">{paypalUserEmail}</strong>) is connected.</p>
-                    {activeCheckoutPlan.isTrial ? (
-                      <p className="text-slate-700">
-                        If you continue to use CustomerLens for more than 14 days, your PayPal account will be charged <strong className="text-slate-900">$20.00 USD/month</strong> starting on <strong>{new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong>.
-                      </p>
-                    ) : (
-                      <p className="text-slate-700">
-                        $${checkoutDiscountApplied ? (activeCheckoutPlan.price * 0.85).toFixed(2) : activeCheckoutPlan.price} USD/month has been authorized via PayPal.
-                      </p>
+                    <p className="font-semibold text-slate-800">✅ Plan: {activeCheckoutPlan.name}</p>
+                    <p>Amount Verified: <strong className="text-slate-900">${paypalCaptureData?.amount || (activeCheckoutPlan.price * (checkoutDiscountApplied ? 0.85 : 1)).toFixed(2)} {paypalCaptureData?.currency || 'USD'}</strong></p>
+                    {paypalCaptureData?.payerEmail && (
+                      <p>Payer Account: <strong className="text-slate-900">{paypalCaptureData.payerEmail}</strong></p>
                     )}
-                    <p className="text-[10px] text-slate-400">You may manage or cancel your subscription anytime in account settings.</p>
+                    <p className="text-[11px] text-emerald-700 font-medium">Status: COMPLETED (Verified via PayPal REST API)</p>
                   </div>
 
                   <button 
                     onClick={() => {
                       setActiveCheckoutPlan(null);
-                      setPaypalSimStep('details');
+                      setPaypalStep('details');
                       if (isLoggedIn) {
                         onGetStartedFree();
                       } else {
                         onNavigate('register');
                       }
                     }}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow flex items-center justify-center gap-2"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <span>Continue to Setup Process</span>
+                    <span>Continue to CustomerLens App</span>
                     <ArrowRight size={14} />
                   </button>
+                </div>
+              )}
+
+              {/* Step 6: Error / Cancelled State */}
+              {paypalStep === 'error' && (
+                <div className="space-y-4 text-center py-2">
+                  <div className="h-14 w-14 bg-rose-50 rounded-full border border-rose-100 flex items-center justify-center mx-auto text-rose-500 shadow-sm">
+                    <X size={28} />
+                  </div>
+
+                  <div className="space-y-1">
+                    <h4 className="text-base font-bold text-slate-900">Payment Incomplete or Cancelled</h4>
+                    <p className="text-xs text-rose-600 font-medium">{paypalErrorMessage || 'The PayPal order could not be captured.'}</p>
+                  </div>
+
+                  <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-left text-xs text-amber-900">
+                    <p className="font-semibold mb-1">Common reasons:</p>
+                    <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
+                      <li>The payment window was closed before approving.</li>
+                      <li>PayPal credentials need to be configured in environment secrets.</li>
+                      <li>Payment method was declined by issuing bank.</li>
+                    </ul>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaypalStep('details')}
+                      className="w-1/2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
+                    >
+                      Try Again
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveCheckoutPlan(null);
+                        setPaypalStep('details');
+                      }}
+                      className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
 

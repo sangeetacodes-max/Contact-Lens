@@ -6,6 +6,8 @@ export interface Env {
   SHOPIFY_API_SECRET?: string;
   PAYPAL_CLIENT_ID?: string;
   PAYPAL_CLIENT_SECRET?: string;
+  PAYPAL_ENV?: string; // 'production' | 'sandbox'
+  PAYPAL_WEBHOOK_ID?: string;
   FIREBASE_PROJECT_ID?: string;
   D1_DATABASE?: D1Database;
   KV_SESSIONS?: KVNamespace;

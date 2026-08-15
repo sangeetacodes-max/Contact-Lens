@@ -318,4 +318,123 @@ export class DatabaseService {
 
     return memoryNotifications.get(userId) || [];
   }
+
+  /** Save or Update PayPal Order in D1 */
+  async savePayPalOrder(order: {
+    id: string;
+    userId?: string;
+    planId: string;
+    amount: string;
+    currency?: string;
+    status: string;
+    captureId?: string;
+    payerEmail?: string;
+    payerId?: string;
+    customId?: string;
+    createdAt?: string;
+  }): Promise<void> {
+    const createdAt = order.createdAt || new Date().toISOString();
+    const updatedAt = new Date().toISOString();
+    const currency = order.currency || 'USD';
+
+    if (this.env.D1_DATABASE) {
+      try {
+        await this.env.D1_DATABASE.prepare(`
+          INSERT INTO paypal_orders (id, user_id, plan_id, amount, currency, status, capture_id, payer_email, payer_id, custom_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            status = excluded.status,
+            capture_id = COALESCE(excluded.capture_id, paypal_orders.capture_id),
+            payer_email = COALESCE(excluded.payer_email, paypal_orders.payer_email),
+            payer_id = COALESCE(excluded.payer_id, paypal_orders.payer_id),
+            updated_at = excluded.updated_at
+        `).bind(
+          order.id,
+          order.userId || '',
+          order.planId,
+          order.amount,
+          currency,
+          order.status,
+          order.captureId || null,
+          order.payerEmail || null,
+          order.payerId || null,
+          order.customId || null,
+          createdAt,
+          updatedAt
+        ).run();
+        Logger.info('Recorded PayPal order in Cloudflare D1', { orderId: order.id, status: order.status });
+        return;
+      } catch (err: any) {
+        Logger.warn('D1 Database savePayPalOrder fallback:', err.message);
+      }
+    }
+
+    memoryWorkspaces.set(`paypal_order:${order.id}`, {
+      ...order,
+      currency,
+      createdAt,
+      updatedAt
+    });
+  }
+
+  /** Get PayPal Order from D1 */
+  async getPayPalOrder(orderId: string): Promise<any | null> {
+    if (this.env.D1_DATABASE) {
+      try {
+        const row = await this.env.D1_DATABASE.prepare(`
+          SELECT * FROM paypal_orders WHERE id = ? LIMIT 1
+        `).bind(orderId).first<any>();
+
+        if (row) {
+          return {
+            id: row.id,
+            userId: row.user_id,
+            planId: row.plan_id,
+            amount: row.amount,
+            currency: row.currency,
+            status: row.status,
+            captureId: row.capture_id,
+            payerEmail: row.payer_email,
+            payerId: row.payer_id,
+            customId: row.custom_id,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at
+          };
+        }
+      } catch (err: any) {
+        Logger.warn('D1 Database getPayPalOrder fallback:', err.message);
+      }
+    }
+
+    return memoryWorkspaces.get(`paypal_order:${orderId}`) || null;
+  }
+
+  /** Update Captured PayPal Order in D1 & Activate Subscription */
+  async updatePayPalOrderCapture(orderId: string, captureId: string, status: string, payerEmail?: string, payerId?: string): Promise<void> {
+    const updatedAt = new Date().toISOString();
+
+    if (this.env.D1_DATABASE) {
+      try {
+        await this.env.D1_DATABASE.prepare(`
+          UPDATE paypal_orders 
+          SET status = ?, capture_id = ?, payer_email = COALESCE(?, payer_email), payer_id = COALESCE(?, payer_id), updated_at = ?
+          WHERE id = ?
+        `).bind(status, captureId, payerEmail || null, payerId || null, updatedAt, orderId).run();
+        Logger.info('Updated captured PayPal order in Cloudflare D1', { orderId, captureId, status });
+        return;
+      } catch (err: any) {
+        Logger.warn('D1 Database updatePayPalOrderCapture fallback:', err.message);
+      }
+    }
+
+    const existing = memoryWorkspaces.get(`paypal_order:${orderId}`);
+    if (existing) {
+      existing.status = status;
+      existing.captureId = captureId;
+      if (payerEmail) existing.payerEmail = payerEmail;
+      if (payerId) existing.payerId = payerId;
+      existing.updatedAt = updatedAt;
+      memoryWorkspaces.set(`paypal_order:${orderId}`, existing);
+    }
+  }
 }

@@ -89,6 +89,21 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+CREATE TABLE IF NOT EXISTS paypal_orders (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  plan_id TEXT NOT NULL,
+  amount TEXT NOT NULL,
+  currency TEXT DEFAULT 'USD',
+  status TEXT NOT NULL,
+  capture_id TEXT,
+  payer_email TEXT,
+  payer_id TEXT,
+  custom_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,

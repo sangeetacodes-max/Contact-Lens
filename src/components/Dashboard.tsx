@@ -568,6 +568,13 @@ export default function Dashboard({
   const [paymentMethodSelected, setPaymentMethodSelected] = useState<'Stripe' | 'PayPal'>('Stripe');
   const [cardNumber, setCardNumber] = useState('');
   const [paypalEmail, setPaypalEmail] = useState('');
+  
+  // Real PayPal Order & Capture State in Dashboard
+  const [dashboardPaypalOrderId, setDashboardPaypalOrderId] = useState('');
+  const [dashboardPaypalApproveUrl, setDashboardPaypalApproveUrl] = useState('');
+  const [dashboardPaypalStep, setDashboardPaypalStep] = useState<'input' | 'creating' | 'awaiting_approval' | 'capturing' | 'success' | 'error'>('input');
+  const [dashboardPaypalError, setDashboardPaypalError] = useState('');
+  const [isProcessingUpgrade, setIsProcessingUpgrade] = useState(false);
 
   // Notifications
   const [notif, setNotif] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -955,19 +962,23 @@ export default function Dashboard({
     showNotification('🔴 Widget disconnected. Re-paste the script or verify to connect.', 'info');
   };
 
-  // Shopify Simulated 1-Click Install
+  // Official Shopify App Installation Flow
   const handleShopifyOneClickInstall = () => {
-    showNotification('Redirecting to Shopify App Store OAuth flow...', 'info');
-    setTimeout(() => {
-      const updated = websites.map(w => {
-        if (w.platform === 'Shopify') {
-          return { ...w, status: 'Connected' as const, installedAt: new Date().toLocaleDateString() };
-        }
-        return w;
-      });
-      setWebsites(updated);
-      showNotification('🟢 Successfully connected with Shopify! No manual theme code needed.', 'success');
-    }, 1500);
+    let shop = typeof window !== 'undefined' ? localStorage.getItem('cl_shopify_shop') : null;
+    if (!shop && workspace?.url) {
+      const clean = workspace.url.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      if (clean.includes('myshopify.com')) {
+        shop = clean.endsWith('.myshopify.com') ? clean : `${clean}.myshopify.com`;
+      }
+    }
+
+    if (shop) {
+      showNotification('Redirecting to official Shopify App authorization...', 'info');
+      window.location.href = `/api/shopify/install?shop=${encodeURIComponent(shop)}`;
+    } else {
+      showNotification('Redirecting to Shopify App Store...', 'info');
+      window.location.href = 'https://apps.shopify.com/customerlens';
+    }
   };
 
   // Survey Builder Functions
@@ -1368,44 +1379,139 @@ export default function Dashboard({
     setBillingModalOpen(true);
   };
 
-  const handleProcessCheckout = (e: React.FormEvent) => {
+  const handleProcessCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlanForUpgrade) return;
 
     const basePrice = selectedPlanForUpgrade === 'Business' ? 99 : 49;
-    const finalPrice = Math.round(basePrice * (1 - appliedDiscount / 100) * (billingPeriod === 'yearly' ? 10 : 1)); // 2 months free for yearly
+    const finalPrice = Math.round(basePrice * (1 - appliedDiscount / 100) * (billingPeriod === 'yearly' ? 10 : 1));
 
-    showNotification(`Processing secure transaction via ${paymentMethodSelected}...`, 'info');
+    if (paymentMethodSelected === 'PayPal') {
+      // Real PayPal Orders API flow
+      setIsProcessingUpgrade(true);
+      setDashboardPaypalStep('creating');
+      setDashboardPaypalError('');
+
+      try {
+        const createRes = await fetch('/api/paypal/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            plan_id: selectedPlanForUpgrade.toLowerCase(),
+            planId: selectedPlanForUpgrade.toLowerCase(),
+            amount: finalPrice.toFixed(2),
+            currency: 'USD',
+            returnUrl: window.location.href,
+            cancelUrl: window.location.href
+          })
+        });
+
+        const json = await createRes.json() as any;
+        if (!createRes.ok || !json.data?.id) {
+          throw new Error(json.error?.message || json.message || 'Failed to create PayPal order');
+        }
+
+        const orderData = json.data;
+        setDashboardPaypalOrderId(orderData.id);
+        setDashboardPaypalApproveUrl(orderData.approveUrl || '');
+        setDashboardPaypalStep('awaiting_approval');
+
+        if (orderData.approveUrl) {
+          window.open(orderData.approveUrl, 'PayPalCheckout', 'width=540,height=720,toolbar=no,menubar=no,location=no,status=no');
+        }
+      } catch (err: any) {
+        setDashboardPaypalError(err?.message || 'Unable to connect to PayPal API.');
+        setDashboardPaypalStep('error');
+      } finally {
+        setIsProcessingUpgrade(false);
+      }
+      return;
+    }
+
+    // Standard Stripe flow
+    showNotification(`Processing secure transaction via Stripe...`, 'info');
 
     setTimeout(() => {
-      // Update subscription states
       onUpdateUser({
         plan: selectedPlanForUpgrade,
         billingPeriod,
         subscriptionActive: true,
-        trialEndsAt: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString() // Extended subscription
+        trialEndsAt: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString()
       });
 
-      // Insert billing ledger
       const newInvoice: BillingHistoryItem = {
         id: `inv-${Math.floor(1000 + Math.random() * 9000)}`,
         date: new Date().toLocaleDateString(),
         amount: finalPrice,
         plan: `${selectedPlanForUpgrade} Plan (${billingPeriod === 'yearly' ? 'Yearly' : 'Monthly'})`,
         status: 'Paid',
-        paymentMethod: paymentMethodSelected,
+        paymentMethod: 'Stripe',
         invoiceUrl: '#'
       };
 
       setBillingHistory([newInvoice, ...billingHistory]);
       setBillingModalOpen(false);
-      
-      if (paymentMethodSelected === 'PayPal') {
-        showNotification(`🟢 Welcome to CustomerLens ${selectedPlanForUpgrade}! Payment of $${finalPrice} was successfully sent to saneeta108@gmail.com via PayPal.`, 'success');
-      } else {
-        showNotification(`🟢 Welcome to CustomerLens ${selectedPlanForUpgrade}! Your account is activated.`, 'success');
+      showNotification(`🟢 Welcome to CustomerLens ${selectedPlanForUpgrade}! Your account is activated.`, 'success');
+    }, 1500);
+  };
+
+  const handleCaptureDashboardPayPal = async () => {
+    if (!dashboardPaypalOrderId || !selectedPlanForUpgrade) return;
+    setIsProcessingUpgrade(true);
+    setDashboardPaypalStep('capturing');
+    setDashboardPaypalError('');
+
+    try {
+      const res = await fetch('/api/paypal/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: dashboardPaypalOrderId,
+          orderId: dashboardPaypalOrderId
+        })
+      });
+
+      const json = await res.json() as any;
+      if (!res.ok || json.data?.status !== 'COMPLETED') {
+        throw new Error(json.error?.message || json.message || 'Payment has not been approved on PayPal or capture failed.');
       }
-    }, 2000);
+
+      const captureData = json.data;
+      const basePrice = selectedPlanForUpgrade === 'Business' ? 99 : 49;
+      const finalPrice = Math.round(basePrice * (1 - appliedDiscount / 100) * (billingPeriod === 'yearly' ? 10 : 1));
+
+      onUpdateUser({
+        plan: selectedPlanForUpgrade,
+        billingPeriod,
+        subscriptionActive: true,
+        trialEndsAt: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString()
+      });
+
+      const newInvoice: BillingHistoryItem = {
+        id: `paypal-${captureData.captureId || dashboardPaypalOrderId}`,
+        date: new Date().toLocaleDateString(),
+        amount: finalPrice,
+        plan: `${selectedPlanForUpgrade} Plan (${billingPeriod === 'yearly' ? 'Yearly' : 'Monthly'})`,
+        status: 'Paid',
+        paymentMethod: 'PayPal',
+        invoiceUrl: '#'
+      };
+
+      setBillingHistory([newInvoice, ...billingHistory]);
+      setDashboardPaypalStep('success');
+      showNotification(`🟢 Verified PayPal payment! Capture ID: ${captureData.captureId || dashboardPaypalOrderId}. ${selectedPlanForUpgrade} plan is now active.`, 'success');
+
+      setTimeout(() => {
+        setBillingModalOpen(false);
+        setDashboardPaypalStep('input');
+        setDashboardPaypalOrderId('');
+      }, 2000);
+    } catch (err: any) {
+      setDashboardPaypalError(err?.message || 'PayPal capture verification failed.');
+      setDashboardPaypalStep('error');
+    } finally {
+      setIsProcessingUpgrade(false);
+    }
   };
 
   return (
@@ -5857,50 +5963,122 @@ async function makeSurvey() {
                                 <input type="password" placeholder="•••" required className="w-full px-3 py-2 border rounded-xl text-xs outline-none" />
                               </div>
                             </div>
+
+                            <div className="pt-4 border-t border-slate-100 flex justify-end gap-2 text-xs">
+                              <button 
+                                type="button"
+                                id="btn_cancel_upgrade"
+                                onClick={() => setBillingModalOpen(false)}
+                                className="px-4 py-2 text-slate-500 font-bold"
+                              >
+                                Cancel
+                              </button>
+                              <button 
+                                type="submit"
+                                id="btn_submit_payment"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md cursor-pointer"
+                              >
+                                Pay & Activate Plan
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <div className="space-y-4">
-                            {/* Merchant Recipient Information */}
-                            <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl">
-                              <span className="text-[9px] font-bold text-indigo-800 uppercase tracking-wider block font-mono">Recipient PayPal Merchant</span>
-                              <p className="text-xs font-bold text-slate-900 font-mono mt-1">saneeta108@gmail.com</p>
-                              <p className="text-[10px] text-slate-500 mt-1 leading-normal">
-                                Your payment will be securely routed directly to the verified recipient merchant account: <strong className="font-semibold text-slate-700">saneeta108@gmail.com</strong>.
+                            {/* Real PayPal Gateway Flow */}
+                            <div className="bg-blue-50/70 border border-blue-100 p-4 rounded-xl text-left">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <span className="font-black italic text-sm text-[#003087]">
+                                  Pay<span className="text-[#0079C1]">Pal</span>
+                                </span>
+                                <span className="text-[9px] bg-blue-100 text-blue-800 font-mono px-1.5 py-0.5 rounded font-extrabold uppercase">
+                                  Orders v2 API
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 leading-normal">
+                                Connect securely to the official PayPal checkout gateway. Your subscription is verified and activated only after PayPal captures the approved transaction.
                               </p>
                             </div>
 
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Your PayPal Email Address</label>
-                              <input 
-                                id="input_paypal_email"
-                                type="email" 
-                                required
-                                placeholder="your-email@paypal.com" 
-                                value={paypalEmail}
-                                onChange={(e) => setPaypalEmail(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-xl text-xs outline-none font-mono"
-                              />
-                            </div>
+                            {dashboardPaypalStep === 'input' && (
+                              <div className="space-y-3">
+                                <button 
+                                  type="submit"
+                                  disabled={isProcessingUpgrade}
+                                  className="w-full bg-[#0070ba] hover:bg-[#005ea6] text-white font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm font-sans"
+                                >
+                                  <span className="italic font-black text-sm">Pay<span className="text-[#0079C1]">Pal</span></span>
+                                  <span>Continue to PayPal Checkout</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setBillingModalOpen(false)}
+                                  className="w-full text-slate-500 hover:text-slate-700 text-xs py-1.5 font-medium"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
+
+                            {dashboardPaypalStep === 'creating' && (
+                              <div className="py-4 text-center space-y-2">
+                                <div className="h-8 w-8 border-2 border-[#0070ba] border-t-transparent rounded-full animate-spin mx-auto" />
+                                <p className="text-xs text-slate-600 font-medium">Creating PayPal Order...</p>
+                              </div>
+                            )}
+
+                            {dashboardPaypalStep === 'awaiting_approval' && (
+                              <div className="space-y-3 text-left">
+                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+                                  <p className="font-bold">PayPal Window Opened</p>
+                                  <p className="text-[11px] mt-0.5">Please approve payment in the PayPal window, then click Verify below.</p>
+                                  <p className="text-[10px] font-mono text-slate-600 mt-1">Order ID: {dashboardPaypalOrderId}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={isProcessingUpgrade}
+                                  onClick={handleCaptureDashboardPayPal}
+                                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                  <CheckCircle2 size={16} />
+                                  <span>I've Approved Payment / Capture Now</span>
+                                </button>
+                                {dashboardPaypalApproveUrl && (
+                                  <a
+                                    href={dashboardPaypalApproveUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2 rounded-xl text-center block border"
+                                  >
+                                    Reopen PayPal Window
+                                  </a>
+                                )}
+                              </div>
+                            )}
+
+                            {dashboardPaypalStep === 'capturing' && (
+                              <div className="py-4 text-center space-y-2">
+                                <div className="h-8 w-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                                <p className="text-xs text-slate-600 font-medium">Verifying and Capturing PayPal Payment...</p>
+                              </div>
+                            )}
+
+                            {dashboardPaypalStep === 'error' && (
+                              <div className="space-y-3 text-left">
+                                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800">
+                                  <p className="font-bold">Payment Error</p>
+                                  <p className="text-[11px] mt-0.5">{dashboardPaypalError || 'PayPal capture failed or window closed.'}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setDashboardPaypalStep('input')}
+                                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
+                                >
+                                  Try Again
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
-
-                        <div className="pt-4 border-t border-slate-100 flex justify-end gap-2 text-xs">
-                          <button 
-                            type="button"
-                            id="btn_cancel_upgrade"
-                            onClick={() => setBillingModalOpen(false)}
-                            className="px-4 py-2 text-slate-500 font-bold"
-                          >
-                            Cancel
-                          </button>
-                          <button 
-                            type="submit"
-                            id="btn_submit_payment"
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md"
-                          >
-                            Pay & Activate Plan
-                          </button>
-                        </div>
 
                       </form>
                     </motion.div>

@@ -829,43 +829,70 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   const [activePlatform, setActivePlatform] = useState<string>('Custom Website');
   const [verifyMethod, setVerifyMethod] = useState<'script' | 'dns' | 'meta'>('script');
   
-  // Shopify Modal & OAuth Flow state
-  const [showShopifyModal, setShowShopifyModal] = useState(false);
-  const [shopifyDomainInput, setShopifyDomainInput] = useState(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('cl_shopify_shop') : null;
-    return saved || '';
+  // Real Shopify Context Detection & Connect State
+  const [shopifyShop, setShopifyShop] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlShop = urlParams.get('shop');
+      if (urlShop) {
+        const clean = urlShop.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+        return clean.endsWith('.myshopify.com') ? clean : `${clean}.myshopify.com`;
+      }
+      const saved = localStorage.getItem('cl_shopify_shop');
+      if (saved) {
+        const clean = saved.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+        return clean.endsWith('.myshopify.com') ? clean : `${clean}.myshopify.com`;
+      }
+    }
+    return '';
   });
-  const [isInstallingShopify, setIsInstallingShopify] = useState(false);
-  const [shopifyInstallStep, setShopifyInstallStep] = useState<'prompt' | 'installing' | 'success'>('prompt');
+  const [isRedirectingToShopify, setIsRedirectingToShopify] = useState(false);
+
+  // Auto-detect real Shopify store on load
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlShop = urlParams.get('shop');
+      if (urlShop) {
+        const clean = urlShop.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+        const fullShop = clean.endsWith('.myshopify.com') ? clean : `${clean}.myshopify.com`;
+        setShopifyShop(fullShop);
+        setWebsiteUrl(`https://${fullShop}`);
+        setActivePlatform('Shopify');
+        localStorage.setItem('cl_shopify_shop', fullShop);
+      }
+    }
+  }, []);
 
   const handleConnectShopifyDirect = () => {
-    const rawInput = shopifyDomainInput && shopifyDomainInput.trim() ? shopifyDomainInput.trim() : '';
-    if (!rawInput) {
-      setShowShopifyModal(true);
-      return;
+    setIsRedirectingToShopify(true);
+
+    // If real shop context exists from Shopify Admin or previous session
+    if (shopifyShop && shopifyShop.trim()) {
+      const cleanShop = shopifyShop.toLowerCase().trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      const fullShop = cleanShop.endsWith('.myshopify.com') ? cleanShop : `${cleanShop}.myshopify.com`;
+      setWebsiteUrl(`https://${fullShop}`);
+      setActivePlatform('Shopify');
+      window.location.href = `/api/shopify/install?shop=${encodeURIComponent(fullShop)}`;
+    } else {
+      // Standalone mode outside Shopify Admin: redirect to official Shopify App Store install page
+      setActivePlatform('Shopify');
+      window.location.href = 'https://apps.shopify.com/customerlens';
     }
-    const cleanShopDomain = rawInput.includes('.') ? rawInput : `${rawInput}.myshopify.com`;
-    const fullUrl = cleanShopDomain.startsWith('http') ? cleanShopDomain : `https://${cleanShopDomain}`;
-
-    setWebsiteUrl(fullUrl);
-    setActivePlatform('Shopify');
-
-    window.location.href = `/api/shopify/install?shop=${encodeURIComponent(cleanShopDomain)}`;
   };
 
-  // Step 1 completion check: Completed if shopify is installed, custom domain is set, or maxStepReached >= 2
+  // Step 1 completion check: Completed if custom domain is set or maxStepReached >= 2
   const isStep1Completed = useMemo(() => {
     return (
-      shopifyInstallStep === 'success' ||
       (Boolean(websiteUrl) && websiteUrl !== 'https://yourwebsite.com' && websiteUrl.trim().length > 0) ||
       maxStepReached >= 2
     );
-  }, [shopifyInstallStep, websiteUrl, maxStepReached]);
+  }, [websiteUrl, maxStepReached]);
 
   // Dynamic connected app / store name (from Shopify integration or website URL)
   const connectedAppName = useMemo(() => {
-    if (shopifyDomainInput && shopifyDomainInput.trim()) {
-      const cleaned = shopifyDomainInput
+    if (shopifyShop && shopifyShop.trim()) {
+      const cleaned = shopifyShop
         .replace(/^https?:\/\//i, '')
         .replace(/\.myshopify\.com$/i, '')
         .split('/')[0]
@@ -881,7 +908,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
       if (cleaned) return cleaned.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
     return 'Your Store';
-  }, [shopifyDomainInput, websiteUrl]);
+  }, [shopifyShop, websiteUrl]);
   
   // Script verification progress state
   const [isVerifying, setIsVerifying] = useState(false);
@@ -1100,8 +1127,6 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
       if (!isStep1Completed) {
         if (websiteUrl && websiteUrl.trim().length > 0) {
           setWebsiteUrl(websiteUrl);
-        } else {
-          setWebsiteUrl('https://your-store.myshopify.com');
         }
       }
       setMaxStepReached(prev => Math.max(prev, 2) as 1 | 2 | 3);
@@ -1558,7 +1583,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
 
   // Integration Platforms List
   const platforms = [
-    { name: 'Shopify', icon: '🛍', defaultUrl: 'https://your-store.myshopify.com', type: 'Shopify' as BusinessType, highlight: true },
+    { name: 'Shopify', icon: '🛍', defaultUrl: '', type: 'Shopify' as BusinessType, highlight: true },
     { name: 'WooCommerce', icon: '🛒', defaultUrl: 'https://mywoocommerce-shop.com', type: 'WooCommerce' as BusinessType },
     { name: 'WordPress', icon: '🌐', defaultUrl: 'https://mywp-blog.org', type: 'Other' as BusinessType },
     { name: 'Wix', icon: '🟦', defaultUrl: 'https://mywix-site.wixsite.com', type: 'Other' as BusinessType },
@@ -1585,21 +1610,6 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
       setIsVerifying(false);
     }
   }, [isVerifying, progressIndex]);
-
-  // Handle Shopify App Approval & OAuth Integration with Backend
-  const handleApproveShopifyInstallation = async () => {
-    setIsInstallingShopify(true);
-    setShopifyInstallStep('installing');
-
-    const cleanShopDomain = shopifyDomainInput.includes('.') ? shopifyDomainInput : `${shopifyDomainInput}.myshopify.com`;
-    const fullUrl = cleanShopDomain.startsWith('http') ? cleanShopDomain : `https://${cleanShopDomain}`;
-
-    setWebsiteUrl(fullUrl);
-    setActivePlatform('Shopify');
-
-    // Direct merchant straight to official Shopify OAuth Permission Grant via Worker Install Route
-    window.location.href = `/api/shopify/install?shop=${encodeURIComponent(cleanShopDomain)}`;
-  };
 
   // Handle Connecting Custom Website & automatically navigating to Step 2
   const handleConnectCustomWebsite = async (urlInput: string) => {
@@ -1972,11 +1982,21 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                   <button
                     type="button"
                     onClick={handleConnectShopifyDirect}
-                    className="w-full bg-[#008060] hover:bg-[#004c3f] text-white font-extrabold text-sm py-4 px-6 rounded-2xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3 cursor-pointer border border-emerald-400/30 transform hover:-translate-y-0.5 active:translate-y-0"
+                    disabled={isRedirectingToShopify}
+                    className="w-full bg-[#008060] hover:bg-[#004c3f] text-white font-extrabold text-sm py-4 px-6 rounded-2xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3 cursor-pointer border border-emerald-400/30 transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60"
                   >
-                    <ShopifyLogo className="w-7 h-7 shrink-0" />
-                    <span className="text-sm font-black">Connect with Shopify</span>
-                    <ArrowRight className="h-5 w-5 text-emerald-200 ml-auto" />
+                    {isRedirectingToShopify ? (
+                      <>
+                        <RefreshCw className="animate-spin" size={18} />
+                        <span>Redirecting to Shopify...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShopifyLogo className="w-7 h-7 shrink-0" />
+                        <span className="text-sm font-black">Install CustomerLens on Shopify</span>
+                        <ArrowRight className="h-5 w-5 text-emerald-200 ml-auto" />
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -4077,160 +4097,6 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
 
         </AnimatePresence>
       </main>
-
-      {/* SHOPIFY.COM ADMIN OAUTH AUTHORIZATION PERMISSION MODAL */}
-      <AnimatePresence>
-        {showShopifyModal && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="bg-slate-100 border border-slate-300 rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden relative my-6 text-slate-900"
-            >
-              {/* Simulated Shopify Admin Address Bar */}
-              <div className="bg-slate-900 px-4 py-2.5 flex items-center justify-between text-xs font-mono text-slate-300 border-b border-slate-800">
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
-                  </div>
-                  <span className="text-[11px] text-slate-400 ml-2 font-mono flex items-center gap-1 bg-slate-800/80 px-2.5 py-0.5 rounded-md border border-slate-700">
-                    <span className="text-emerald-400">🔒 https://</span>admin.shopify.com/store/{shopifyDomainInput ? shopifyDomainInput.replace('.myshopify.com', '') : 'your-store'}/oauth/authorize?app=CustomerLens+AI
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowShopifyModal(false)}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Shopify Admin Top Navigation Header */}
-              <div className="bg-[#1a1a1a] px-6 py-3 flex items-center justify-between text-white border-b border-slate-800">
-                <div className="flex items-center gap-3">
-                  <ShopifyLogo className="w-7 h-7 shrink-0 text-[#95bf47]" />
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-sm tracking-tight text-white font-sans">Shopify Admin</span>
-                    <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono font-semibold">Store Dashboard</span>
-                  </div>
-                </div>
-                <div className="text-xs text-slate-400 font-mono">
-                  {shopifyDomainInput || 'your-store.myshopify.com'}
-                </div>
-              </div>
-
-              {/* Shopify App Permission Card */}
-              <div className="p-6 md:p-8 space-y-6">
-                {shopifyInstallStep === 'prompt' && (
-                  <div className="space-y-6">
-                    {/* Grant Permission Banner */}
-                    <div className="flex items-start gap-4 bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm">
-                      <div className="p-2.5 bg-emerald-50 border border-emerald-100 rounded-2xl shrink-0">
-                        <ShopifyLogo className="w-9 h-9" />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md font-mono">Official App Store Request</span>
-                        </div>
-                        <h3 className="text-lg font-black text-slate-900 tracking-tight">
-                          Install & Authorize CustomerLens AI
-                        </h3>
-                        <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                          CustomerLens AI is requesting permission to access your Shopify store dashboard and theme assets to enable automated AI surveys and analytics.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Store Domain Input Field */}
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
-                      <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">
-                        Target Shopify Store Domain
-                      </label>
-                      <div className="flex gap-2">
-                        <input 
-                          type="text"
-                          value={shopifyDomainInput}
-                          onChange={(e) => setShopifyDomainInput(e.target.value)}
-                          placeholder="your-store.myshopify.com"
-                          className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-[#008060] focus:bg-white rounded-xl text-xs font-mono font-bold text-slate-900 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Permissions Requested Breakdown */}
-                    <div className="bg-white border border-slate-200/90 p-5 rounded-2xl space-y-3 shadow-2xs">
-                      <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider font-mono flex items-center justify-between border-b border-slate-100 pb-2">
-                        <span>Permissions Requested by CustomerLens AI</span>
-                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded">Verified Safe</span>
-                      </h4>
-                      <ul className="space-y-2.5 text-xs text-slate-700 font-medium">
-                        <li className="flex items-start gap-2.5">
-                          <CheckCircle2 size={16} className="text-[#008060] shrink-0 mt-0.5" />
-                          <span><strong>Theme Integration:</strong> Automatically insert CustomerLens AI survey widget script into store theme</span>
-                        </li>
-                        <li className="flex items-start gap-2.5">
-                          <CheckCircle2 size={16} className="text-[#008060] shrink-0 mt-0.5" />
-                          <span><strong>Customer Analytics:</strong> Track cart abandonment, scroll hesitation, and checkout exit triggers</span>
-                        </li>
-                        <li className="flex items-start gap-2.5">
-                          <CheckCircle2 size={16} className="text-[#008060] shrink-0 mt-0.5" />
-                          <span><strong>Promotions & Rewards:</strong> Generate and display single-use discount codes to survey respondents</span>
-                        </li>
-                      </ul>
-                    </div>
-
-                    {/* Action Buttons: Grant Permission on Shopify */}
-                    <div className="flex gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowShopifyModal(false)}
-                        className="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs py-3.5 rounded-2xl transition-all cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleApproveShopifyInstallation}
-                        className="w-2/3 bg-[#008060] hover:bg-[#004c3f] text-white font-extrabold text-sm py-3.5 rounded-2xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 cursor-pointer border border-emerald-500/30"
-                      >
-                        <ShopifyLogo className="w-5 h-5 shrink-0" />
-                        <span>Grant Permission & Install App</span>
-                        <ArrowRight size={16} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {shopifyInstallStep === 'installing' && (
-                  <div className="py-12 text-center space-y-4">
-                    <RefreshCw className="h-10 w-10 text-[#008060] animate-spin mx-auto" />
-                    <div>
-                      <h4 className="font-extrabold text-slate-900 text-base">Granting Permission on Shopify Admin...</h4>
-                      <p className="text-xs text-slate-600 font-medium mt-1">Connecting {shopifyDomainInput || 'your Shopify store'} and redirecting to CustomerLens AI Step 2...</p>
-                    </div>
-                  </div>
-                )}
-
-                {shopifyInstallStep === 'success' && (
-                  <div className="py-8 text-center space-y-3">
-                    <div className="h-14 w-14 bg-[#008060] text-white rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-lg">
-                      ✓
-                    </div>
-                    <div>
-                      <h4 className="font-extrabold text-slate-900 text-base">Permission Granted on Shopify!</h4>
-                      <p className="text-xs text-emerald-800 font-bold mt-1">Redirecting you to Step 2: Select Your Survey Questions...</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* NOTIFICATION BULLETINS TIMING SETTINGS MODAL */}
       <AnimatePresence>
