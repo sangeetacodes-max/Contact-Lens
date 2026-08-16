@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShopifyLogo } from './ShopifyLogo';
+import { WebsiteVerification } from './WebsiteVerification';
 import { 
   Sparkles, 
   Check, 
@@ -827,7 +827,14 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   // --- STEP 1 STATE ---
   const [websiteUrl, setWebsiteUrl] = useState('https://yourwebsite.com');
   const [activePlatform, setActivePlatform] = useState<string>('Custom Website');
-  const [verifyMethod, setVerifyMethod] = useState<'script' | 'dns' | 'meta'>('script');
+  const [verifyMethod, setVerifyMethod] = useState<'script' | 'dns' | 'meta'>('dns');
+  const [isDomainVerified, setIsDomainVerified] = useState(false);
+  const [toastNotification, setToastNotification] = useState<{ message: string; type?: string } | null>(null);
+
+  const showNotification = (message: string, type: string = 'info') => {
+    setToastNotification({ message, type });
+    setTimeout(() => setToastNotification(null), 4000);
+  };
   
   // Real Shopify Context Detection & Connect State
   const [shopifyShop, setShopifyShop] = useState<string>(() => {
@@ -1960,6 +1967,22 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
 
         {/* MAIN CONTENT AREA */}
         <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8">
+          {toastNotification && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className={`mb-6 p-4 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-sm border ${
+                toastNotification.type === 'success' 
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                  : 'bg-indigo-50 text-indigo-800 border-indigo-200'
+              }`}
+            >
+              <span>{toastNotification.message}</span>
+              <button onClick={() => setToastNotification(null)} className="text-slate-400 hover:text-slate-700 ml-4 font-bold">✕</button>
+            </motion.div>
+          )}
+
           <AnimatePresence mode="wait">
             
             {/* STEP 1: JOIN WEBSITE WITH CUSTOMERLENS AI */}
@@ -1969,66 +1992,55 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -15 }}
-                className="max-w-2xl mx-auto w-full"
+                className="max-w-2xl mx-auto w-full space-y-6"
               >
-              {/* Connection Options Card */}
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-md space-y-6">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold bg-emerald-50 text-[#008060] px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">Step 1 of 3</span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50/80 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Zap size={10} /> Fast and Easy Setup
-                    </span>
-                  </div>
-                  <h2 className="text-2xl font-black text-slate-900 mt-2 tracking-tight">CONNECT CUSTOMER LENS AI TO YOUR WEBSITE</h2>
-                  <p className="text-xs text-slate-500 mt-1">Connect your Shopify store or website to automatically start tracking visitor behavior and triggering AI surveys.</p>
+                {/* Header Badge */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">
+                    Step 1 of 3
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Zap size={10} className="text-amber-500" /> DNS Domain Connection
+                  </span>
                 </div>
 
-                {/* BOLD GREEN SHOPIFY CONNECT BUTTON */}
-                <div className="bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 p-6 rounded-3xl text-white shadow-xl space-y-4 relative overflow-hidden border border-emerald-700/40">
-                  <div className="absolute -top-4 -right-4 opacity-15 pointer-events-none">
-                    <ShopifyLogo className="w-40 h-40" />
-                  </div>
+                {/* WebsiteVerification Component */}
+                <WebsiteVerification
+                  initialDomain={websiteUrl ? websiteUrl.replace(/^https?:\/\//, '').split('/')[0] : ''}
+                  onVerificationSuccess={(verifiedDom) => {
+                    setWebsiteUrl(`https://${verifiedDom}`);
+                    setIsDomainVerified(true);
+                    showNotification(`Domain ${verifiedDom} connected successfully!`, 'success');
+                  }}
+                  showNotification={showNotification}
+                />
 
-                  <div className="flex items-center gap-3">
-                    <div className="p-1 bg-white rounded-full shadow-md shrink-0">
-                      <ShopifyLogo className="w-10 h-10" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-mono uppercase font-bold text-emerald-400 tracking-wider">Recommended Shopify Integration</span>
-                      <h3 className="text-base font-extrabold text-white">Fast and Easy Shopify App Embed Installation</h3>
-                    </div>
+                {/* Continue to Step 2 Button */}
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="space-y-0.5 text-center sm:text-left">
+                    <h4 className="text-sm font-bold text-slate-900">Next: Configure Survey Questions</h4>
+                    <p className="text-xs text-slate-500">
+                      Customize questions, NPS scoring, and AI triggers for your website.
+                    </p>
                   </div>
-
-                  <p className="text-xs text-emerald-100/90 leading-relaxed">
-                    Install CustomerLens AI directly on your Shopify store. Shopify authorizes permissions, approves the app, and automatically embeds the script.
-                  </p>
 
                   <button
                     type="button"
-                    onClick={handleConnectShopifyDirect}
-                    disabled={isRedirectingToShopify}
-                    className="w-full bg-[#008060] hover:bg-[#004c3f] text-white font-extrabold text-sm py-4 px-6 rounded-2xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3 cursor-pointer border border-emerald-400/30 transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60"
+                    onClick={() => {
+                      if (!websiteUrl) {
+                        setWebsiteUrl('https://example.com');
+                      }
+                      setStep(2);
+                      setMaxStepReached(prev => Math.max(prev, 2));
+                    }}
+                    className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 px-6 rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer shrink-0"
                   >
-                    {isRedirectingToShopify ? (
-                      <>
-                        <RefreshCw className="animate-spin" size={18} />
-                        <span>Redirecting to Shopify...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShopifyLogo className="w-7 h-7 shrink-0" />
-                        <span className="text-sm font-black">Install CustomerLens on Shopify</span>
-                        <ArrowRight className="h-5 w-5 text-emerald-200 ml-auto" />
-                      </>
-                    )}
+                    <span>Continue to Survey Setup</span>
+                    <ArrowRight size={14} />
                   </button>
                 </div>
-
-
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
 
           {/* STEP 2: CUSTOMER LENS AI SURVEY SETUP */}
           {step === 2 && (

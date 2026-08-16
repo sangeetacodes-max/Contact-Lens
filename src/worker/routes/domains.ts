@@ -47,6 +47,66 @@ export function generateVerificationToken(): string {
 }
 
 /**
+ * Performs a real DNS CNAME query using DNS-over-HTTPS (DoH)
+ */
+export async function queryDnsCnameRecords(domain: string): Promise<string[]> {
+  const cleanDomain = normalizeDomain(domain);
+  if (!cleanDomain) return [];
+
+  const targets: string[] = [];
+
+  // 1. Primary: Cloudflare DNS-over-HTTPS
+  try {
+    const cfUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(cleanDomain)}&type=CNAME`;
+    const cfRes = await fetch(cfUrl, {
+      headers: { 'Accept': 'application/dns-json' },
+      signal: AbortSignal.timeout(6000)
+    });
+
+    if (cfRes.ok) {
+      const data = await cfRes.json() as any;
+      if (data.Answer && Array.isArray(data.Answer)) {
+        for (const ans of data.Answer) {
+          if (ans.data) {
+            const cleaned = String(ans.data).replace(/^"|"$/g, '').replace(/\.$/, '').trim().toLowerCase();
+            targets.push(cleaned);
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    Logger.warn('Cloudflare DoH CNAME error:', { domain: cleanDomain, error: err.message });
+  }
+
+  // 2. Secondary fallback: Google DNS-over-HTTPS
+  if (targets.length === 0) {
+    try {
+      const gUrl = `https://dns.google/resolve?name=${encodeURIComponent(cleanDomain)}&type=CNAME`;
+      const gRes = await fetch(gUrl, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(6000)
+      });
+
+      if (gRes.ok) {
+        const data = await gRes.json() as any;
+        if (data.Answer && Array.isArray(data.Answer)) {
+          for (const ans of data.Answer) {
+            if (ans.data) {
+              const cleaned = String(ans.data).replace(/^"|"$/g, '').replace(/\.$/, '').trim().toLowerCase();
+              targets.push(cleaned);
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      Logger.warn('Google DoH CNAME error:', { domain: cleanDomain, error: err.message });
+    }
+  }
+
+  return targets;
+}
+
+/**
  * Performs a real DNS TXT query using DNS-over-HTTPS (DoH)
  * Compatible with Cloudflare Workers runtime (fetch API)
  */
@@ -193,9 +253,10 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
     const expectedToken = record.token;
     const expectedRecordValue = `customerlens-verification=${expectedToken}`;
 
-    // Perform REAL DNS TXT Lookups
-    Logger.info('Starting real DNS TXT verification lookup', { domain, userId });
+    // Perform REAL DNS CNAME & TXT Lookups
+    Logger.info('Starting real DNS verification lookup', { domain, userId });
     const dnsRecords = await queryDnsTxtRecords(domain);
+    const cnameTargets = await queryDnsCnameRecords(domain);
 
     // Also check apex domain if subdomain was provided or vice versa for flexibility
     let apexRecords: string[] = [];
@@ -204,11 +265,11 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
       apexRecords = await queryDnsTxtRecords(apex);
     }
 
-    const allRecords = [...dnsRecords, ...apexRecords];
-    Logger.info('Retrieved DNS TXT records from resolvers', { domain, count: allRecords.length });
+    const allTxtRecords = [...dnsRecords, ...apexRecords];
+    Logger.info('Retrieved DNS records from resolvers', { domain, txtCount: allTxtRecords.length, cnameCount: cnameTargets.length });
 
-    // Strict validation: Check if exact verification token exists in TXT records
-    const isTokenFound = allRecords.some(rec => {
+    // 1. Check TXT record verification
+    const isTokenFound = allTxtRecords.some(rec => {
       const trimmed = rec.trim();
       return (
         trimmed === expectedRecordValue ||
@@ -218,9 +279,23 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
       );
     });
 
+    // 2. Check CNAME record verification (pointing to customerlens edge / pages / custom app)
+    const validCnameTargets = [
+      'custom.customerlens.app',
+      'cname.customerlens.app',
+      'customerlens.pages.dev',
+      'your-app.pages.dev',
+      'customerlens-ai.pages.dev'
+    ];
+    const isCnameMatched = cnameTargets.some(target => {
+      const t = target.toLowerCase().trim();
+      return validCnameTargets.some(v => t.includes(v) || v.includes(t)) || t.includes('customerlens');
+    });
+
+    const isVerified = isTokenFound || isCnameMatched;
     const now = new Date().toISOString();
 
-    if (isTokenFound) {
+    if (isVerified) {
       record.verified = true;
       record.verifiedAt = now;
       record.lastCheckedAt = now;
@@ -228,16 +303,18 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
       await db.saveDomainVerification(record);
 
       // Also mark workspace verified if matched
-      await db.setWorkspaceVerified(domain, true, 'dns_txt');
+      const methodUsed = isCnameMatched ? 'dns_cname' : 'dns_txt';
+      await db.setWorkspaceVerified(domain, true, methodUsed);
 
-      Logger.info('Domain verified successfully via DNS TXT', { domain, userId });
+      Logger.info('Domain verified successfully via DNS', { domain, userId, methodUsed });
 
       return jsonResponse({
         success: true,
         verified: true,
         domain,
         verifiedAt: now,
-        message: `✓ Domain ${domain} verified successfully via DNS TXT record!`,
+        method: methodUsed,
+        message: `✓ Domain ${domain} connected successfully via DNS record!`,
         record
       });
     } else {
@@ -246,7 +323,7 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
       record.errorMessage = "We couldn't find the verification record yet. DNS changes can take some time to propagate. Check again later.";
       await db.saveDomainVerification(record);
 
-      Logger.info('DNS TXT record not found for domain', { domain, foundCount: allRecords.length });
+      Logger.info('DNS records not found for domain', { domain, txtCount: allTxtRecords.length, cnameCount: cnameTargets.length });
 
       return jsonResponse({
         success: false,

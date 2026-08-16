@@ -2704,48 +2704,57 @@ export default function Dashboard({
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* Integration Options Column */}
-                <div className="lg:col-span-1 bg-white rounded-2xl border border-slate-200/80 p-5 space-y-3">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Supported Integrations</span>
+                {/* Integration Options Column - DNS Domain Verification */}
+                <div className="lg:col-span-1 bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 font-mono flex items-center gap-1">
+                      <Sparkles size={12} /> Recommended
+                    </span>
+                    <h3 className="text-sm font-bold text-slate-900">Custom Domain Connection</h3>
+                    <p className="text-[11px] text-slate-500">
+                      Connect your domain via DNS record to serve surveys directly under your URL.
+                    </p>
+                  </div>
                   
                   <button 
-                    id="btn_platform_shopify"
-                    onClick={handleShopifyOneClickInstall}
-                    className="w-full text-left p-3 rounded-xl border border-slate-100 hover:border-slate-300 transition-all flex items-center justify-between"
+                    id="btn_open_dns_verification"
+                    onClick={() => setActiveTab('settings')}
+                    className="w-full text-left p-3.5 rounded-xl border border-indigo-100 bg-indigo-50/50 hover:bg-indigo-50 transition-all flex items-center justify-between group"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="h-8 w-8 bg-green-50 text-green-600 rounded-lg flex items-center justify-center font-bold text-xs">S</div>
-                      <span className="text-xs font-semibold text-slate-800">Shopify Fast and Easy install</span>
+                      <div className="h-8 w-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-bold text-xs shadow-sm">
+                        <Globe size={16} />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 block">DNS Record Verification</span>
+                        <span className="text-[10px] text-indigo-700 font-medium">CNAME / TXT Record</span>
+                      </div>
                     </div>
-                    <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-mono uppercase font-bold">Auto</span>
+                    <ChevronRight size={16} className="text-indigo-600 group-hover:translate-x-0.5 transition-transform" />
                   </button>
 
                   <div className="p-3 rounded-xl border border-slate-100 flex flex-col gap-2">
                     <div className="flex items-center gap-2.5">
                       <div className="h-8 w-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">W</div>
-                      <span className="text-xs font-semibold text-slate-800">WooCommerce WordPress Plugin</span>
+                      <span className="text-xs font-semibold text-slate-800">WordPress / WooCommerce</span>
                     </div>
-                    <p className="text-[11px] text-slate-500">Provide the plugin ZIP connection code below. Auto verifies connected status.</p>
-                    <div className="bg-slate-50 p-2 rounded-lg text-[10px] font-mono text-slate-700 flex justify-between items-center">
-                      <span>Plugin Slug: cl_woocommerce_v1.0</span>
-                      <button className="text-indigo-600 hover:underline">Download</button>
-                    </div>
+                    <p className="text-[11px] text-slate-500">Auto-verify website domain via CustomerLens embed or DNS header.</p>
                   </div>
 
                   <div className="p-3 rounded-xl border border-slate-100 flex flex-col gap-2">
                     <div className="flex items-center gap-2.5">
                       <div className="h-8 w-8 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center font-bold text-xs">F</div>
-                      <span className="text-xs font-semibold text-slate-800">Webflow API Connection</span>
+                      <span className="text-xs font-semibold text-slate-800">Webflow / Headless CMS</span>
                     </div>
                     <input 
                       id="input_webflow_api_key"
                       type="password" 
-                      placeholder="Paste Webflow API Key..." 
+                      placeholder="Paste Site API Key..." 
                       className="w-full px-2.5 py-1.5 border rounded bg-slate-50 text-xs font-mono"
                     />
                     <button 
                       id="btn_webflow_save"
-                      onClick={() => showNotification('Webflow Key stored securely. Connection verified.', 'success')}
+                      onClick={() => showNotification('API connection key saved.', 'success')}
                       className="w-full bg-slate-800 hover:bg-slate-900 text-white text-[10px] font-bold py-1.5 rounded-lg"
                     >
                       Connect API

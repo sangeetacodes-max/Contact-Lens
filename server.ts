@@ -399,6 +399,60 @@ function generateVerificationToken(): string {
   return `cl_${hex}`;
 }
 
+async function queryDnsCnameRecords(domain: string): Promise<string[]> {
+  const cleanDomain = normalizeDomain(domain);
+  if (!cleanDomain) return [];
+  const targets: string[] = [];
+
+  // 1. Cloudflare DNS-over-HTTPS
+  try {
+    const cfUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(cleanDomain)}&type=CNAME`;
+    const cfRes = await fetch(cfUrl, {
+      headers: { 'Accept': 'application/dns-json' },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (cfRes.ok) {
+      const data: any = await cfRes.json();
+      if (data.Answer && Array.isArray(data.Answer)) {
+        for (const ans of data.Answer) {
+          if (ans.data) {
+            const cleaned = String(ans.data).replace(/^"|"$/g, '').replace(/\.$/, '').trim().toLowerCase();
+            targets.push(cleaned);
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn('Cloudflare DoH CNAME error:', err?.message);
+  }
+
+  // 2. Google DNS-over-HTTPS fallback
+  if (targets.length === 0) {
+    try {
+      const gUrl = `https://dns.google/resolve?name=${encodeURIComponent(cleanDomain)}&type=CNAME`;
+      const gRes = await fetch(gUrl, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(6000)
+      });
+      if (gRes.ok) {
+        const data: any = await gRes.json();
+        if (data.Answer && Array.isArray(data.Answer)) {
+          for (const ans of data.Answer) {
+            if (ans.data) {
+              const cleaned = String(ans.data).replace(/^"|"$/g, '').replace(/\.$/, '').trim().toLowerCase();
+              targets.push(cleaned);
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn('Google DoH CNAME error:', err?.message);
+    }
+  }
+
+  return targets;
+}
+
 async function queryDnsTxtRecords(domain: string): Promise<string[]> {
   const cleanDomain = normalizeDomain(domain);
   if (!cleanDomain) return [];
@@ -572,16 +626,18 @@ app.post('/api/domains/verify', async (req, res) => {
   const expectedToken = record.token;
   const expectedRecordValue = `customerlens-verification=${expectedToken}`;
 
-  // Query real DNS TXT records via DNS-over-HTTPS
+  // Query real DNS CNAME & TXT records via DNS-over-HTTPS
   const dnsRecords = await queryDnsTxtRecords(domain);
+  const cnameTargets = await queryDnsCnameRecords(domain);
   let apexRecords: string[] = [];
   if (domain.startsWith('www.')) {
     const apex = domain.substring(4);
     apexRecords = await queryDnsTxtRecords(apex);
   }
-  const allRecords = [...dnsRecords, ...apexRecords];
+  const allTxtRecords = [...dnsRecords, ...apexRecords];
 
-  const isTokenFound = allRecords.some(rec => {
+  // 1. Check TXT record
+  const isTokenFound = allTxtRecords.some(rec => {
     const trimmed = rec.trim();
     return (
       trimmed === expectedRecordValue ||
@@ -591,22 +647,38 @@ app.post('/api/domains/verify', async (req, res) => {
     );
   });
 
+  // 2. Check CNAME record (pointing to custom.customerlens.app, customerlens.pages.dev, your-app.pages.dev)
+  const validCnameTargets = [
+    'custom.customerlens.app',
+    'cname.customerlens.app',
+    'customerlens.pages.dev',
+    'your-app.pages.dev',
+    'customerlens-ai.pages.dev'
+  ];
+  const isCnameMatched = cnameTargets.some(target => {
+    const t = target.toLowerCase().trim();
+    return validCnameTargets.some(v => t.includes(v) || v.includes(t)) || t.includes('customerlens');
+  });
+
+  const isVerified = isTokenFound || isCnameMatched;
   const now = new Date().toISOString();
 
-  if (isTokenFound) {
+  if (isVerified) {
     record.verified = true;
     record.verifiedAt = now;
     record.lastCheckedAt = now;
     record.errorMessage = undefined;
     domainVerificationsStore.set(key, record);
-    verifiedDomainsMap[domain] = { verified: true, method: 'dns_txt', verifiedAt: now };
+    const methodUsed = isCnameMatched ? 'dns_cname' : 'dns_txt';
+    verifiedDomainsMap[domain] = { verified: true, method: methodUsed, verifiedAt: now };
 
     return res.json({
       success: true,
       verified: true,
       domain,
       verifiedAt: now,
-      message: `✓ Domain ${domain} verified successfully via DNS TXT record!`,
+      method: methodUsed,
+      message: `✓ Domain ${domain} connected successfully via DNS record!`,
       record
     });
   } else {
