@@ -498,13 +498,18 @@ export class DatabaseService {
             id: row.id,
             userId: row.user_id,
             domain: row.domain,
+            hostname: row.domain,
+            url: row.domain.endsWith('.workers.dev') ? `https://${row.domain}` : `http://${row.domain}`,
             token: row.token,
             txtRecordValue: row.txt_record_value,
             verified: Boolean(row.verified),
             verifiedAt: row.verified_at || null,
             createdAt: row.created_at,
             lastCheckedAt: row.last_checked_at || undefined,
-            errorMessage: row.error_message || undefined
+            errorMessage: row.error_message || undefined,
+            connectionType: row.domain?.endsWith('.workers.dev') ? 'cloudflare_workers' : 'custom_domain',
+            verificationStatus: Boolean(row.verified) ? 'verified' : 'pending',
+            siteId: `site_${(row.domain || 'site').replace(/[^a-z0-9]/g, '_')}`
           };
         }
       } catch (err: any) {
@@ -538,13 +543,18 @@ export class DatabaseService {
             id: row.id,
             userId: row.user_id,
             domain: row.domain,
+            hostname: row.domain,
+            url: row.domain.endsWith('.workers.dev') ? `https://${row.domain}` : `http://${row.domain}`,
             token: row.token,
             txtRecordValue: row.txt_record_value,
             verified: Boolean(row.verified),
             verifiedAt: row.verified_at || null,
             createdAt: row.created_at,
             lastCheckedAt: row.last_checked_at || undefined,
-            errorMessage: row.error_message || undefined
+            errorMessage: row.error_message || undefined,
+            connectionType: row.domain?.endsWith('.workers.dev') ? 'cloudflare_workers' : 'custom_domain',
+            verificationStatus: Boolean(row.verified) ? 'verified' : 'pending',
+            siteId: `site_${(row.domain || 'site').replace(/[^a-z0-9]/g, '_')}`
           }));
         }
       } catch (err: any) {

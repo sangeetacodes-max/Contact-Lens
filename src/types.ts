@@ -110,6 +110,11 @@ export interface DomainVerificationRecord {
   createdAt: string;
   lastCheckedAt?: string;
   errorMessage?: string;
+  connectionType?: 'cloudflare_workers' | 'custom_domain' | 'shopify';
+  verificationStatus?: 'verified' | 'pending' | 'unverified';
+  url?: string;
+  hostname?: string;
+  siteId?: string;
 }
 
 export interface ConnectedWebsite {
