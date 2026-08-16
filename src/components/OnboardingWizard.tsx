@@ -148,26 +148,172 @@ const ZIGPOLL_TEMPLATES: ZigpollTemplate[] = [
     previewSub: 'Generate synthetic survey responses from configurable audience profiles.'
   },
 
-  // ECOMMERCE
+  // EXIT INTENT (GENERAL BROWSING & PRE-EXIT HESITATION)
   {
-    id: 'exit_intent',
-    title: 'Exit Intent',
-    desc: 'Show when the user intends to exit your website.',
+    id: 'exit_intent_step',
+    title: 'Exit Intent — What Stopped Next Step',
+    desc: 'Understand what stopped visitors from taking the next step before leaving.',
     category: 'Ecommerce',
-    categoryGroup: 'ECOMMERCE',
-    recommended: ['Exit Intent', 'Abandoned Checkout'],
-    previewType: 'exit_intent_hesitation',
-    previewTitle: 'What was your biggest hesitation or concern while browsing our website?',
-    previewSub: 'Your honest feedback helps us improve.',
+    categoryGroup: 'EXIT INTENT',
+    recommended: ['Exit Intent', 'On-Site'],
+    previewType: 'radio_list',
+    previewTitle: 'Before you go — what stopped you from taking the next step?',
     options: [
-      "I couldn't find enough information",
-      "Prices were unclear or too high",
-      "I don't trust the website yet",
-      "Checkout process seemed complicated",
-      "I'm just browsing, not ready to buy",
-      "Other"
+      'I’m just researching',
+      'I’m not sure this is right for me',
+      'I need more information',
+      'Something is missing'
     ]
   },
+  {
+    id: 'exit_intent_continue',
+    title: 'Exit Intent — Likely to Continue',
+    desc: 'Learn what would have made visitors more likely to stay and explore.',
+    category: 'Ecommerce',
+    categoryGroup: 'EXIT INTENT',
+    recommended: ['Exit Intent', 'On-Site'],
+    previewType: 'radio_list',
+    previewTitle: 'What would have made you more likely to continue?',
+    options: [
+      'A better price',
+      'More information/details',
+      'More trust or reviews',
+      'A simpler experience'
+    ]
+  },
+  {
+    id: 'exit_intent_missing_search',
+    title: "Exit Intent — What's Missing",
+    desc: "Discover what visitors were looking for that they didn't find on your website.",
+    category: 'Ecommerce',
+    categoryGroup: 'EXIT INTENT',
+    recommended: ['Exit Intent', 'On-Site'],
+    previewType: 'radio_list',
+    previewTitle: "What were you looking for that you didn't find?",
+    options: [
+      'A specific product/feature',
+      'Pricing information',
+      'Reviews or proof',
+      'Nothing in particular'
+    ]
+  },
+  {
+    id: 'exit_intent_hesitation',
+    title: 'Exit Intent — Biggest Hesitation',
+    desc: 'Identify the primary friction point preventing action right now.',
+    category: 'Ecommerce',
+    categoryGroup: 'EXIT INTENT',
+    recommended: ['Exit Intent', 'On-Site'],
+    previewType: 'radio_list',
+    previewTitle: 'What is your biggest hesitation right now?',
+    options: [
+      'Price',
+      'Product/service quality',
+      'Trust/security',
+      "I'm simply not ready"
+    ]
+  },
+
+  // CART ABANDONMENT (CHECKOUT DROP-OFF & PURCHASE HESITATION)
+  {
+    id: 'cart_abandonment_stop',
+    title: 'Cart Abandonment — Purchase Blockers',
+    desc: 'Identify what stopped shoppers from completing their checkout order.',
+    category: 'Ecommerce',
+    categoryGroup: 'CART ABANDONMENT',
+    recommended: ['Cart Abandonment', 'Checkout Exit'],
+    previewType: 'radio_list',
+    previewTitle: 'What stopped you from completing your purchase?',
+    options: [
+      'The total price was higher than expected',
+      'I wanted to think about it',
+      "I couldn't find my preferred option",
+      'I had an issue during checkout'
+    ]
+  },
+  {
+    id: 'cart_abandonment_unexpected',
+    title: 'Cart Abandonment — Checkout Surprises',
+    desc: 'Detect unexpected checkout friction such as shipping, taxes, or delivery time.',
+    category: 'Ecommerce',
+    categoryGroup: 'CART ABANDONMENT',
+    recommended: ['Cart Abandonment', 'Checkout Exit'],
+    previewType: 'radio_list',
+    previewTitle: 'Was anything unexpected at checkout?',
+    options: [
+      'Shipping cost',
+      'Taxes/fees',
+      'Delivery time',
+      'Nothing unexpected'
+    ]
+  },
+  {
+    id: 'cart_abandonment_incentive',
+    title: 'Cart Abandonment — Win-back Incentives',
+    desc: 'Learn what offer or assurance would motivate shoppers to complete their purchase.',
+    category: 'Ecommerce',
+    categoryGroup: 'CART ABANDONMENT',
+    recommended: ['Cart Abandonment', 'Checkout Exit'],
+    previewType: 'radio_list',
+    previewTitle: 'What would make you more likely to complete your purchase?',
+    options: [
+      'A discount',
+      'Free/cheaper shipping',
+      'More payment options',
+      'More confidence in the product'
+    ]
+  },
+  {
+    id: 'cart_abandonment_closeness',
+    title: 'Cart Abandonment — Purchase Intent Stage',
+    desc: 'Gauge buyer intent stage and how close they were to buying.',
+    category: 'Ecommerce',
+    categoryGroup: 'CART ABANDONMENT',
+    recommended: ['Cart Abandonment', 'Checkout Exit'],
+    previewType: 'radio_list',
+    previewTitle: 'How close were you to completing your purchase?',
+    options: [
+      'I was just checking the price',
+      'I was seriously considering it',
+      'I was ready to buy',
+      'I planned to buy later'
+    ]
+  },
+  {
+    id: 'cart_abandonment_concerns',
+    title: 'Cart Abandonment — Pre-buying Concern',
+    desc: 'Pinpoint hesitation around price, product quality, delivery, or payment security.',
+    category: 'Ecommerce',
+    categoryGroup: 'CART ABANDONMENT',
+    recommended: ['Cart Abandonment', 'Checkout Exit'],
+    previewType: 'radio_list',
+    previewTitle: 'What was the biggest concern before buying?',
+    options: [
+      'Price/value',
+      'Product quality',
+      'Delivery/returns',
+      'Payment/security'
+    ]
+  },
+  {
+    id: 'cart_abandonment_convince_today',
+    title: 'Cart Abandonment — Same-Day Win-Back',
+    desc: 'High-conversion win-back trigger question for same-day purchasing.',
+    category: 'Ecommerce',
+    categoryGroup: 'CART ABANDONMENT',
+    recommended: ['Cart Abandonment', 'Checkout Exit', 'Exit Intent'],
+    previewType: 'exit_intent_discount',
+    banner: 'Get 10% off your order by completing this 15-second survey!',
+    previewTitle: 'What would have convinced you to buy today?',
+    options: [
+      'Better price',
+      'Limited-time offer',
+      'More reviews/social proof',
+      "Nothing — I wasn't ready"
+    ]
+  },
+
+  // ECOMMERCE GENERAL
   {
     id: 'product_pages',
     title: 'Product Pages',
@@ -178,41 +324,6 @@ const ZIGPOLL_TEMPLATES: ZigpollTemplate[] = [
     previewType: 'radio_list',
     previewTitle: 'Does this page tell you everything you need to know about the product?',
     options: ['Yes, definitely!', 'Sort of...', 'Not at all']
-  },
-  {
-    id: 'pre_purchase_exit',
-    title: 'Pre-Purchase Exit Intent',
-    desc: 'Understand why a customer is leaving your website before purchase and win them back.',
-    category: 'Ecommerce',
-    categoryGroup: 'EXIT INTENT & ABANDONED CART',
-    recommended: ['Exit Intent', 'Abandoned Checkout'],
-    previewType: 'exit_intent_discount',
-    banner: 'Get 10% off your next order by completing this survey!',
-    previewTitle: "What's the primary reason that stopped you from making a purchase today?",
-    hasTextarea: true
-  },
-  {
-    id: 'abandoned_checkout',
-    title: 'Abandoned Checkout',
-    desc: 'Engage your users after an abandoned checkout and win them back.',
-    category: 'Ecommerce',
-    categoryGroup: 'EXIT INTENT & ABANDONED CART',
-    recommended: ['Exit Intent', 'Abandoned Checkout'],
-    previewType: 'exit_intent_discount',
-    banner: 'Get 10% off your next order by completing this survey!',
-    previewTitle: "What's the primary reason that stopped you from making a purchase today?",
-    hasTextarea: true
-  },
-  {
-    id: 'exit_intent_survey',
-    title: 'Exit Intent Survey',
-    desc: 'Understand why customers are leaving your site without converting.',
-    category: 'Ecommerce',
-    categoryGroup: 'EXIT INTENT & ABANDONED CART',
-    recommended: ['Exit Intent', 'Abandoned Checkout'],
-    previewType: 'radio_list',
-    previewTitle: 'What stopped you from buying today?',
-    options: ['Shipping fees were too high', 'Just comparing options', 'Payment method not available', 'Decided to buy later', 'Other']
   },
   {
     id: 'reward_email',
@@ -584,12 +695,97 @@ const INITIAL_MANAGED_SLIDES: ManagedSlideItem[] = [
 ];
 
 const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
+  // --- EXIT INTENT QUESTIONS ---
+  {
+    id: 'exit_intent_what_stopped_step',
+    title: 'Before you go — what stopped you from taking the next step?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Exit Intent', 'On-Site'],
+    options: ['I’m just researching', 'I’m not sure this is right for me', 'I need more information', 'Something is missing']
+  },
+  {
+    id: 'exit_intent_more_likely_continue',
+    title: 'What would have made you more likely to continue?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Exit Intent', 'On-Site'],
+    options: ['A better price', 'More information/details', 'More trust or reviews', 'A simpler experience']
+  },
+  {
+    id: 'exit_intent_looking_for_missing',
+    title: "What were you looking for that you didn't find?",
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Exit Intent', 'On-Site'],
+    options: ['A specific product/feature', 'Pricing information', 'Reviews or proof', 'Nothing in particular']
+  },
+  {
+    id: 'exit_intent_biggest_hesitation',
+    title: 'What is your biggest hesitation right now?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Exit Intent', 'On-Site'],
+    options: ['Price', 'Product/service quality', 'Trust/security', "I'm simply not ready"]
+  },
+
+  // --- CART ABANDONMENT QUESTIONS ---
+  {
+    id: 'cart_abandon_stop_purchase',
+    title: 'What stopped you from completing your purchase?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Cart Abandonment', 'Checkout Exit'],
+    options: ['The total price was higher than expected', 'I wanted to think about it', "I couldn't find my preferred option", 'I had an issue during checkout']
+  },
+  {
+    id: 'cart_abandon_unexpected_checkout',
+    title: 'Was anything unexpected at checkout?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Cart Abandonment', 'Checkout Exit'],
+    options: ['Shipping cost', 'Taxes/fees', 'Delivery time', 'Nothing unexpected']
+  },
+  {
+    id: 'cart_abandon_likely_complete',
+    title: 'What would make you more likely to complete your purchase?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Cart Abandonment', 'Checkout Exit'],
+    options: ['A discount', 'Free/cheaper shipping', 'More payment options', 'More confidence in the product']
+  },
+  {
+    id: 'cart_abandon_how_close',
+    title: 'How close were you to completing your purchase?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Cart Abandonment', 'Checkout Exit'],
+    options: ['I was just checking the price', 'I was seriously considering it', 'I was ready to buy', 'I planned to buy later']
+  },
+  {
+    id: 'cart_abandon_biggest_concern',
+    title: 'What was the biggest concern before buying?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Cart Abandonment', 'Checkout Exit'],
+    options: ['Price/value', 'Product quality', 'Delivery/returns', 'Payment/security']
+  },
+  {
+    id: 'cart_abandon_convince_today',
+    title: 'What would have convinced you to buy today?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Cart Abandonment', 'Exit Intent', 'Checkout Exit'],
+    options: ['Better price', 'Limited-time offer', 'More reviews/social proof', "Nothing — I wasn't ready"]
+  },
+
+  // --- POST PURCHASE & ATTRIBUTION ---
   {
     id: 'how_hear',
     title: 'How did you hear about us?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'On-Site'],
+    pairedWith: ['Post Purchase', 'Attribution & Discovery', 'On-Site'],
     options: ['Search engine (Google, Bing)', 'Social media (TikTok, Instagram)', 'Friend or family recommendation', 'Podcast or Youtube', 'Other']
   },
   {
@@ -597,7 +793,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'What led you to our store today?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'On-Site'],
+    pairedWith: ['Post Purchase', 'Attribution & Discovery', 'On-Site'],
     options: ['Looking for a specific item', 'Saw an ad on social media', 'Browsing for deals', 'Repeat customer recommendation']
   },
   {
@@ -605,7 +801,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'When did you first hear about us?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'Order Delivered'],
+    pairedWith: ['Post Purchase', 'Attribution & Discovery', 'Order Delivered'],
     options: ['Less than a day', 'Less than a week', 'Less than a month', 'Over a month ago']
   },
   {
@@ -613,7 +809,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'What brought you to our site today?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['On-Site', 'Post Purchase'],
+    pairedWith: ['On-Site', 'Post Purchase', 'Attribution & Discovery'],
     options: ['Searching for products', 'Direct recommendation', 'Saw a promotion / ad', 'Email newsletter']
   },
   {
@@ -621,7 +817,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'How long did you know about us before placing your first purchase?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Post Purchase'],
+    pairedWith: ['Post Purchase', 'Attribution & Discovery'],
     options: ['Less than a day', 'Less than a week', 'Less than a month', '1 - 3 months', '3 - 12 months', 'Over 12 months']
   },
   {
@@ -629,7 +825,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'When did you first learn about us?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Post Purchase'],
+    pairedWith: ['Post Purchase', 'Attribution & Discovery'],
     options: ['Today', 'Earlier this week', 'In the past month', 'More than 3 months ago']
   },
   {
@@ -950,12 +1146,17 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   // --- STEP 2 TEMPLATES STATE & LIST ---
   const [templateSearchFilter, setTemplateSearchFilter] = useState<string>('');
   const ALL_FILTER_CATEGORIES = useMemo(() => [
+    'Exit Intent',
+    'Cart Abandonment',
     'Post Purchase',
     'Attribution & Discovery',
     'Customer Satisfaction',
     'Software (SaaS)',
-    'Exit Intent & Abandoned Cart',
     'Feedback & Optimization',
+    'Ecommerce',
+    'General',
+    'Manual',
+    'Email & SMS',
     'Engagement'
   ], []);
 
@@ -972,17 +1173,17 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   const [rewardSearchText, setRewardSearchText] = useState<string>('');
   const [rewardCustomInput, setRewardCustomInput] = useState<string>('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([
-    'Let AI Decide',
-    'General',
-    'Manual',
-    'Ecommerce',
-    'Email & SMS',
+    'Exit Intent',
+    'Cart Abandonment',
     'Post Purchase',
     'Attribution & Discovery',
     'Customer Satisfaction',
     'Software (SaaS)',
-    'Exit Intent & Abandoned Cart',
     'Feedback & Optimization',
+    'Ecommerce',
+    'General',
+    'Manual',
+    'Email & SMS',
     'Engagement'
   ]);
   const [categoryFilterSearch, setCategoryFilterSearch] = useState<string>('');
@@ -1107,7 +1308,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
     let list = customSlideTemplates;
     if (selectedCategories.length < ALL_FILTER_CATEGORIES.length) {
       list = list.filter(t => 
-        t.pairedWith.some(p => selectedCategories.includes(p)) ||
+        t.pairedWith.some(p => selectedCategories.some(c => c.toLowerCase() === p.toLowerCase())) ||
         selectedCategories.some(c => t.title.toLowerCase().includes(c.toLowerCase()))
       );
     }
