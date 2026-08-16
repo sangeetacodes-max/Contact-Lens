@@ -70,6 +70,7 @@ import {
   BillingHistoryItem 
 } from '../types';
 import CodeExporter from './CodeExporter';
+import { WebsiteVerification } from './WebsiteVerification';
 
 function ConversionOpportunitiesTab() {
   const [sessions, setSessions] = useState(10000);
@@ -1782,7 +1783,7 @@ export default function Dashboard({
                   onClick={() => { setActiveTab('domain'); setMobileMenuOpen(false); }}
                   className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${activeTab === 'domain' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                 >
-                  <Settings size={16} /> Settings & Code Export
+                  <Globe size={16} /> Verify Website & Settings
                 </button>
 
                 {/* Master Admin Portal */}
@@ -6108,9 +6109,19 @@ async function makeSurvey() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Settings, White-Label & Project Export</h1>
-                <p className="text-slate-500 text-xs">Export your full source code bundle, configure custom CNAME domain records, and adjust brand logo settings.</p>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Verify Website Ownership, Domains & Export</h1>
+                <p className="text-slate-500 text-xs">Verify your website ownership with DNS TXT records, configure custom CNAME domain routing, and export source code bundles.</p>
               </div>
+
+              {/* Website Ownership Verification (DNS TXT) */}
+              <WebsiteVerification 
+                initialDomain={domainInput || (websites[0]?.domain ? websites[0].domain.replace(/^https?:\/\//, '') : '')}
+                onVerificationSuccess={(verifiedDomain) => {
+                  setDnsVerified(true);
+                  showNotification(`Website ${verifiedDomain} verified successfully!`, 'success');
+                }}
+                showNotification={showNotification}
+              />
 
               {/* AI Studio Export Instructions & Quick Code Exporter */}
               <div className="bg-slate-900 text-white rounded-2xl p-6 space-y-4 shadow-xl border border-slate-800">

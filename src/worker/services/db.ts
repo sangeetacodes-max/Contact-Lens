@@ -1,4 +1,4 @@
-import { Env, SurveyConfig, TrackingEvent, SurveyResponse } from '../types';
+import { Env, SurveyConfig, TrackingEvent, SurveyResponse, DomainVerificationRecord } from '../types';
 import { Logger } from '../utils/logger';
 
 // In-memory fallback stores for local development
@@ -7,6 +7,7 @@ const memoryEvents: TrackingEvent[] = [];
 const memoryResponses: SurveyResponse[] = [];
 const memoryWorkspaces = new Map<string, any>();
 const memoryNotifications = new Map<string, any[]>();
+const memoryDomains = new Map<string, DomainVerificationRecord>();
 
 export class DatabaseService {
   private env: Env;
@@ -436,5 +437,154 @@ export class DatabaseService {
       existing.updatedAt = updatedAt;
       memoryWorkspaces.set(`paypal_order:${orderId}`, existing);
     }
+  }
+
+  /** Save or update Domain Verification record in D1 / memory */
+  async saveDomainVerification(record: DomainVerificationRecord): Promise<void> {
+    if (this.env.D1_DATABASE) {
+      try {
+        await this.env.D1_DATABASE.prepare(`
+          INSERT INTO domain_verifications (id, user_id, domain, token, txt_record_value, verified, verified_at, created_at, last_checked_at, error_message)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            token = excluded.token,
+            txt_record_value = excluded.txt_record_value,
+            verified = excluded.verified,
+            verified_at = excluded.verified_at,
+            last_checked_at = excluded.last_checked_at,
+            error_message = excluded.error_message
+        `).bind(
+          record.id,
+          record.userId,
+          record.domain,
+          record.token,
+          record.txtRecordValue,
+          record.verified ? 1 : 0,
+          record.verifiedAt || null,
+          record.createdAt,
+          record.lastCheckedAt || null,
+          record.errorMessage || null
+        ).run();
+        Logger.info('Saved domain verification record to Cloudflare D1', { domain: record.domain, verified: record.verified });
+        return;
+      } catch (err: any) {
+        Logger.warn('D1 Database saveDomainVerification fallback:', err.message);
+      }
+    }
+
+    memoryDomains.set(record.id, record);
+    // Also save in KV if available
+    if (this.env.KV_SESSIONS) {
+      try {
+        await this.env.KV_SESSIONS.put(`domain_verif:${record.userId}:${record.domain}`, JSON.stringify(record));
+      } catch (e) {
+        // ignore kv fallback
+      }
+    }
+  }
+
+  /** Get specific domain verification record by user and domain */
+  async getDomainVerification(userId: string, domain: string): Promise<DomainVerificationRecord | null> {
+    const id = `dv_${userId}_${domain}`;
+
+    if (this.env.D1_DATABASE) {
+      try {
+        const row = await this.env.D1_DATABASE.prepare(`
+          SELECT * FROM domain_verifications WHERE (user_id = ? AND domain = ?) OR id = ? LIMIT 1
+        `).bind(userId, domain, id).first<any>();
+
+        if (row) {
+          return {
+            id: row.id,
+            userId: row.user_id,
+            domain: row.domain,
+            token: row.token,
+            txtRecordValue: row.txt_record_value,
+            verified: Boolean(row.verified),
+            verifiedAt: row.verified_at || null,
+            createdAt: row.created_at,
+            lastCheckedAt: row.last_checked_at || undefined,
+            errorMessage: row.error_message || undefined
+          };
+        }
+      } catch (err: any) {
+        Logger.warn('D1 Database getDomainVerification fallback:', err.message);
+      }
+    }
+
+    // Check KV
+    if (this.env.KV_SESSIONS) {
+      try {
+        const cached = await this.env.KV_SESSIONS.get(`domain_verif:${userId}:${domain}`, 'json');
+        if (cached) return cached as DomainVerificationRecord;
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    return memoryDomains.get(id) || null;
+  }
+
+  /** Get all domain verification records for a user */
+  async getDomainVerificationsByUser(userId: string): Promise<DomainVerificationRecord[]> {
+    if (this.env.D1_DATABASE) {
+      try {
+        const res = await this.env.D1_DATABASE.prepare(`
+          SELECT * FROM domain_verifications WHERE user_id = ? ORDER BY created_at DESC
+        `).bind(userId).all<any>();
+
+        if (res.results) {
+          return res.results.map((row: any) => ({
+            id: row.id,
+            userId: row.user_id,
+            domain: row.domain,
+            token: row.token,
+            txtRecordValue: row.txt_record_value,
+            verified: Boolean(row.verified),
+            verifiedAt: row.verified_at || null,
+            createdAt: row.created_at,
+            lastCheckedAt: row.last_checked_at || undefined,
+            errorMessage: row.error_message || undefined
+          }));
+        }
+      } catch (err: any) {
+        Logger.warn('D1 Database getDomainVerificationsByUser fallback:', err.message);
+      }
+    }
+
+    const list: DomainVerificationRecord[] = [];
+    for (const [_, record] of memoryDomains.entries()) {
+      if (record.userId === userId) {
+        list.push(record);
+      }
+    }
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  /** Delete a domain verification record */
+  async deleteDomainVerification(userId: string, domain: string): Promise<boolean> {
+    const id = `dv_${userId}_${domain}`;
+
+    if (this.env.D1_DATABASE) {
+      try {
+        await this.env.D1_DATABASE.prepare(`
+          DELETE FROM domain_verifications WHERE (user_id = ? AND domain = ?) OR id = ?
+        `).bind(userId, domain, id).run();
+        Logger.info('Deleted domain verification record from D1', { domain });
+      } catch (err: any) {
+        Logger.warn('D1 Database deleteDomainVerification fallback:', err.message);
+      }
+    }
+
+    if (this.env.KV_SESSIONS) {
+      try {
+        await this.env.KV_SESSIONS.delete(`domain_verif:${userId}:${domain}`);
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    memoryDomains.delete(id);
+    return true;
   }
 }

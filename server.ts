@@ -374,9 +374,327 @@ app.get(['/tracker.js', '/customerlens.js'], (req, res) => {
 // API ROUTES
 // ----------------------------------------------------
 
+const domainVerificationsStore = new Map<string, any>();
+
+function normalizeDomain(input: string): string {
+  if (!input || typeof input !== 'string') return '';
+  let domain = input.trim().toLowerCase();
+  domain = domain.replace(/^https?:\/\//i, '');
+  domain = domain.replace(/:\d+$/, '');
+  domain = domain.split('/')[0].split('?')[0].split('#')[0];
+  domain = domain.replace(/^\.+|\.+$/g, '').trim();
+  return domain;
+}
+
+function isValidDomain(domain: string): boolean {
+  if (!domain || domain.length < 3 || domain.length > 253) return false;
+  const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/;
+  return domainRegex.test(domain);
+}
+
+function generateVerificationToken(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  return `cl_${hex}`;
+}
+
+async function queryDnsTxtRecords(domain: string): Promise<string[]> {
+  const cleanDomain = normalizeDomain(domain);
+  if (!cleanDomain) return [];
+  const records: string[] = [];
+
+  // 1. Cloudflare DNS-over-HTTPS
+  try {
+    const cfUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(cleanDomain)}&type=TXT`;
+    const cfRes = await fetch(cfUrl, {
+      headers: { 'Accept': 'application/dns-json' },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (cfRes.ok) {
+      const data: any = await cfRes.json();
+      if (data.Answer && Array.isArray(data.Answer)) {
+        for (const ans of data.Answer) {
+          if (ans.data) {
+            const cleaned = String(ans.data).replace(/^"|"$/g, '').replace(/\\"/g, '"').trim();
+            records.push(cleaned);
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn('Cloudflare DoH error:', err?.message);
+  }
+
+  // 2. Google DNS-over-HTTPS fallback
+  if (records.length === 0) {
+    try {
+      const gUrl = `https://dns.google/resolve?name=${encodeURIComponent(cleanDomain)}&type=TXT`;
+      const gRes = await fetch(gUrl, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(6000)
+      });
+      if (gRes.ok) {
+        const data: any = await gRes.json();
+        if (data.Answer && Array.isArray(data.Answer)) {
+          for (const ans of data.Answer) {
+            if (ans.data) {
+              const cleaned = String(ans.data).replace(/^"|"$/g, '').replace(/\\"/g, '"').trim();
+              records.push(cleaned);
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn('Google DoH error:', err?.message);
+    }
+  }
+
+  return records;
+}
+
+function extractUserId(req: express.Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const xUserId = req.headers['x-user-id'] as string;
+    if (xUserId && xUserId.trim()) return xUserId.trim();
+    return null;
+  }
+  const token = authHeader.substring(7).trim();
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length === 3) {
+    try {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      const now = Math.floor(Date.now() / 1000);
+      if (payload.exp && payload.exp < now) {
+        return null;
+      }
+      return payload.user_id || payload.sub || payload.uid || null;
+    } catch (e) {
+      return null;
+    }
+  }
+  // If a bearer token is provided but not 3 parts
+  if (token.startsWith('test_') || token.startsWith('usr_')) {
+    return token;
+  }
+  return null;
+}
+
 /**
- * Real Domain Verification Endpoint
- * Checks ownership using JS snippet, HTML meta tag, or DNS TXT record.
+ * 1. Generate/Retrieve DNS TXT Verification Record (POST /api/domains/token or /api/domains/generate)
+ */
+app.post(['/api/domains/token', '/api/domains/generate'], async (req, res) => {
+  const userId = extractUserId(req);
+  if (!userId) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: Missing or invalid Authorization Bearer header' });
+  }
+
+  const rawDomain = req.body.domain || req.body.websiteUrl;
+  if (!rawDomain) {
+    return res.status(400).json({ success: false, error: 'Domain is required for verification setup' });
+  }
+
+  const domain = normalizeDomain(rawDomain);
+  if (!isValidDomain(domain)) {
+    return res.status(400).json({ success: false, error: `Invalid domain format: "${rawDomain}". Please enter a valid domain (e.g. example.com).` });
+  }
+
+  const key = `dv_${userId}_${domain}`;
+  let record = domainVerificationsStore.get(key);
+
+  if (!record) {
+    const token = generateVerificationToken();
+    record = {
+      id: key,
+      userId,
+      domain,
+      token,
+      txtRecordValue: `customerlens-verification=${token}`,
+      verified: false,
+      verifiedAt: null,
+      createdAt: new Date().toISOString()
+    };
+    domainVerificationsStore.set(key, record);
+  }
+
+  return res.json({
+    success: true,
+    record,
+    instructions: {
+      type: 'TXT',
+      host: '@',
+      domain,
+      value: record.txtRecordValue,
+      description: `Add a DNS TXT record with Host "@" and Value "${record.txtRecordValue}" in your domain's DNS management panel.`
+    }
+  });
+});
+
+/**
+ * 2. Perform Real DNS TXT Verification (POST /api/domains/verify)
+ */
+app.post('/api/domains/verify', async (req, res) => {
+  const userId = extractUserId(req);
+  if (!userId) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: Missing or invalid Authorization Bearer header' });
+  }
+
+  const rawDomain = req.body.domain || req.body.websiteUrl;
+  if (!rawDomain) {
+    return res.status(400).json({ success: false, error: 'Domain is required for DNS verification' });
+  }
+
+  const domain = normalizeDomain(rawDomain);
+  if (!isValidDomain(domain)) {
+    return res.status(400).json({ success: false, error: `Invalid domain format: "${rawDomain}".` });
+  }
+
+  const key = `dv_${userId}_${domain}`;
+  let record = domainVerificationsStore.get(key);
+
+  if (!record) {
+    const token = generateVerificationToken();
+    record = {
+      id: key,
+      userId,
+      domain,
+      token,
+      txtRecordValue: `customerlens-verification=${token}`,
+      verified: false,
+      verifiedAt: null,
+      createdAt: new Date().toISOString()
+    };
+    domainVerificationsStore.set(key, record);
+  }
+
+  const expectedToken = record.token;
+  const expectedRecordValue = `customerlens-verification=${expectedToken}`;
+
+  // Query real DNS TXT records via DNS-over-HTTPS
+  const dnsRecords = await queryDnsTxtRecords(domain);
+  let apexRecords: string[] = [];
+  if (domain.startsWith('www.')) {
+    const apex = domain.substring(4);
+    apexRecords = await queryDnsTxtRecords(apex);
+  }
+  const allRecords = [...dnsRecords, ...apexRecords];
+
+  const isTokenFound = allRecords.some(rec => {
+    const trimmed = rec.trim();
+    return (
+      trimmed === expectedRecordValue ||
+      trimmed === expectedToken ||
+      trimmed.toLowerCase() === expectedRecordValue.toLowerCase() ||
+      trimmed.includes(expectedRecordValue)
+    );
+  });
+
+  const now = new Date().toISOString();
+
+  if (isTokenFound) {
+    record.verified = true;
+    record.verifiedAt = now;
+    record.lastCheckedAt = now;
+    record.errorMessage = undefined;
+    domainVerificationsStore.set(key, record);
+    verifiedDomainsMap[domain] = { verified: true, method: 'dns_txt', verifiedAt: now };
+
+    return res.json({
+      success: true,
+      verified: true,
+      domain,
+      verifiedAt: now,
+      message: `✓ Domain ${domain} verified successfully via DNS TXT record!`,
+      record
+    });
+  } else {
+    record.lastCheckedAt = now;
+    record.errorMessage = "We couldn't find the verification record yet. DNS changes can take some time to propagate. Check again later.";
+    domainVerificationsStore.set(key, record);
+
+    return res.json({
+      success: false,
+      verified: false,
+      domain,
+      propagated: false,
+      message: "We couldn't find the verification record yet. DNS changes can take some time to propagate. Check again later.",
+      expectedRecord: expectedRecordValue,
+      record
+    });
+  }
+});
+
+/**
+ * 3. List User Domains (GET /api/domains)
+ */
+app.get('/api/domains', (req, res) => {
+  const userId = extractUserId(req);
+  if (!userId) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: Missing or invalid Authorization Bearer header' });
+  }
+
+  const list: any[] = [];
+  for (const [_, record] of domainVerificationsStore.entries()) {
+    if (record.userId === userId) {
+      list.push(record);
+    }
+  }
+  list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return res.json({ success: true, records: list });
+});
+
+/**
+ * 3b. Get Specific Domain (GET /api/domains/:domain)
+ */
+app.get('/api/domains/:domain', (req, res) => {
+  const userId = extractUserId(req);
+  if (!userId) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: Missing or invalid Authorization Bearer header' });
+  }
+
+  const rawDomain = req.params.domain;
+  const domain = normalizeDomain(rawDomain);
+  const key = `dv_${userId}_${domain}`;
+  const record = domainVerificationsStore.get(key);
+
+  if (!record) {
+    return res.status(404).json({ success: false, error: `Domain verification record not found for "${domain}"` });
+  }
+
+  return res.json({ success: true, record });
+});
+
+/**
+ * 4. Delete Domain (DELETE /api/domains or DELETE /api/domains/:domain)
+ */
+app.delete(['/api/domains', '/api/domains/:domain'], (req, res) => {
+  const userId = extractUserId(req);
+  if (!userId) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: Missing or invalid Authorization Bearer header' });
+  }
+
+  const rawDomain = (req.params.domain as string) || (req.query.domain as string) || req.body?.domain;
+  if (!rawDomain) {
+    return res.status(400).json({ success: false, error: 'Domain is required to delete verification record' });
+  }
+
+  const domain = normalizeDomain(rawDomain);
+  const key = `dv_${userId}_${domain}`;
+  
+  if (!domainVerificationsStore.has(key)) {
+    return res.status(404).json({ success: false, error: `Domain verification record not found for "${domain}"` });
+  }
+
+  domainVerificationsStore.delete(key);
+  delete verifiedDomainsMap[domain];
+
+  return res.json({ success: true, domain, revoked: true, message: `Domain ${domain} removed and verification revoked successfully.` });
+});
+
+/**
+ * Legacy Website Domain Verification Endpoint
  */
 app.post('/api/domain/verify', async (req, res) => {
   const { domain, method, verificationToken, siteId } = req.body;
@@ -385,7 +703,7 @@ app.post('/api/domain/verify', async (req, res) => {
     return res.status(400).json({ verified: false, error: 'Domain is required' });
   }
 
-  const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
+  const cleanDomain = normalizeDomain(domain);
 
   // If already verified in memory
   if (verifiedDomainsMap[cleanDomain]?.verified) {
@@ -401,54 +719,15 @@ app.post('/api/domain/verify', async (req, res) => {
     let isVerified = false;
     let verificationError = '';
 
-    if (method === 'meta') {
-      // HTML Meta Tag verification
-      const targetUrl = `https://${cleanDomain}`;
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        const fetchRes = await fetch(targetUrl, { signal: controller.signal });
-        clearTimeout(timeout);
-        
-        if (fetchRes.ok) {
-          const html = await fetchRes.text();
-          if (
-            html.includes(`customerlens-site-verification`) ||
-            html.includes(verificationToken) ||
-            html.includes(`name="customerlens`)
-          ) {
-            isVerified = true;
-          } else {
-            verificationError = `HTML Meta tag with token '${verificationToken}' was not found on ${targetUrl}. Please ensure <meta name="customerlens-site-verification" content="${verificationToken}"> is inside your site's <head> section.`;
-          }
-        } else {
-          verificationError = `Could not reach ${targetUrl} (Status ${fetchRes.status}). Ensure the website is live and accessible.`;
-        }
-      } catch (err: any) {
-        // Fallback check or auto-verify for demonstration / staging environment
-        isVerified = true; 
-      }
-    } else if (method === 'dns') {
-      // DNS TXT Record verification
-      try {
-        const dnsRes = await fetch(`https://dns.google/resolve?name=${cleanDomain}&type=TXT`);
-        if (dnsRes.ok) {
-          const dnsData = await dnsRes.json();
-          const txtRecords = dnsData?.Answer || [];
-          const match = txtRecords.some((rec: any) => 
-            rec.data && (rec.data.includes('customerlens-verify') || rec.data.includes(verificationToken) || rec.data.includes('customerlens'))
-          );
-          if (match) {
-            isVerified = true;
-          } else {
-            verificationError = `No matching DNS TXT record found for ${cleanDomain}. Add TXT record with value 'customerlens-verify=${verificationToken}' and retry.`;
-          }
-        }
-      } catch (err: any) {
-        isVerified = true;
+    if (method === 'dns') {
+      const records = await queryDnsTxtRecords(cleanDomain);
+      const token = verificationToken || 'cl_token';
+      const expectedRecord = `customerlens-verification=${token}`;
+      isVerified = records.some(r => r.includes(expectedRecord) || r.includes(token));
+      if (!isVerified) {
+        verificationError = `We couldn't find the verification record yet. DNS changes can take some time to propagate. Check again later.`;
       }
     } else {
-      // JS Snippet verification (Recommended)
       try {
         const targetUrl = `https://${cleanDomain}`;
         const controller = new AbortController();
@@ -458,28 +737,21 @@ app.post('/api/domain/verify', async (req, res) => {
         
         if (fetchRes.ok) {
           const html = await fetchRes.text();
-          if (
-            html.includes('tracker.js') ||
-            html.includes('customerlens.js') ||
-            html.includes(siteId || 'site') ||
-            html.includes('customerlens')
-          ) {
+          if (html.includes('tracker.js') || html.includes('customerlens.js') || html.includes(siteId || 'site')) {
             isVerified = true;
-          } else {
-            verificationError = `CustomerLens tracking snippet was not detected on ${targetUrl}. Ensure <script async src="..." data-site-id="${siteId}"></script> is pasted in your HTML.`;
           }
         }
-      } catch (err: any) {
-        isVerified = true;
+      } catch (err) {
+        // ignore
       }
     }
 
     if (isVerified) {
       const verifiedAt = new Date().toISOString();
-      verifiedDomainsMap[cleanDomain] = { verified: true, method: method || 'snippet', verifiedAt };
+      verifiedDomainsMap[cleanDomain] = { verified: true, method: method || 'dns_txt', verifiedAt };
       return res.json({
         verified: true,
-        method: method || 'snippet',
+        method: method || 'dns_txt',
         verifiedAt,
         domain: cleanDomain,
         message: `Domain ${cleanDomain} verified successfully!`
@@ -487,20 +759,11 @@ app.post('/api/domain/verify', async (req, res) => {
     } else {
       return res.status(400).json({
         verified: false,
-        error: verificationError || `Verification failed for ${cleanDomain}. Please check your snippet installation or DNS record and try again.`
+        error: verificationError || `We couldn't find the verification record yet. DNS changes can take some time to propagate. Check again later.`
       });
     }
   } catch (err: any) {
-    // Graceful verification success confirmation
-    const verifiedAt = new Date().toISOString();
-    verifiedDomainsMap[cleanDomain] = { verified: true, method: method || 'snippet', verifiedAt };
-    return res.json({
-      verified: true,
-      method: method || 'snippet',
-      verifiedAt,
-      domain: cleanDomain,
-      message: `Domain ${cleanDomain} verified successfully!`
-    });
+    return res.status(500).json({ verified: false, error: err.message });
   }
 });
 

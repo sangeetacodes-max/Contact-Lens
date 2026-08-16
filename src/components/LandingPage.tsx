@@ -749,23 +749,6 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
         </div>
       </section>
 
-      {/* 2. SUB-HERO INFO STRIP (Founded & Location) */}
-      <div className="bg-[#e2ebf6] border-b border-slate-200 py-4">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-center items-center gap-4 text-xs font-semibold text-slate-600 text-center">
-          <div className="flex items-center gap-1.5 justify-center">
-            <span role="img" aria-label="lightbulb">💡</span> Engineered for entrepreneurs to make smart decisions
-          </div>
-          <span className="hidden md:inline text-slate-300">|</span>
-          <div className="flex items-center gap-1.5 justify-center">
-            ✨ built to fill the gap
-          </div>
-          <span className="hidden md:inline text-slate-300">|</span>
-          <a href="#about" className="text-indigo-600 hover:underline flex items-center gap-0.5 font-bold">
-            More about CustomerLens <ChevronRight size={14} />
-          </a>
-        </div>
-      </div>
-
       {/* 3. CORE WHAT IS CUSTOMERLENS SECTION (With Interactive Live-Survey Card Slideshow) */}
       <section id="about-lens" className="pt-24 pb-12 max-w-6xl mx-auto px-6 border-b border-slate-100">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">

@@ -99,6 +99,19 @@ export interface SurveyResponse {
   };
 }
 
+export interface DomainVerificationRecord {
+  id: string;
+  userId: string;
+  domain: string;
+  token: string;
+  txtRecordValue: string;
+  verified: boolean;
+  verifiedAt: string | null;
+  createdAt: string;
+  lastCheckedAt?: string;
+  errorMessage?: string;
+}
+
 export interface ConnectedWebsite {
   id: string;
   platform: 'Shopify' | 'WooCommerce' | 'WordPress' | 'Webflow' | 'Wix' | 'Squarespace' | 'Custom Website';

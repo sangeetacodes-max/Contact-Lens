@@ -13,6 +13,7 @@ import { handleTrackingRoutes } from './routes/tracking';
 import { handleAnalyticsRoutes } from './routes/analytics';
 import { handleNotificationRoutes } from './routes/notifications';
 import { handlePayPalRoutes } from './routes/paypal';
+import { handleDomainRoutes } from './routes/domains';
 
 export default {
   async fetch(request: Request, env: Env, ctx?: any): Promise<Response> {
@@ -53,6 +54,8 @@ export default {
         response = await handleNotificationRoutes(request, env, pathname);
       } else if (pathname.startsWith('/api/paypal')) {
         response = await handlePayPalRoutes(request, env, pathname);
+      } else if (pathname.startsWith('/api/domains')) {
+        response = await handleDomainRoutes(request, env, pathname);
       } else if (pathname === '/api/health') {
         response = new Response(JSON.stringify({ status: 'ok', worker: 'CustomerLens AI Cloudflare Worker', timestamp: new Date().toISOString() }), {
           status: 200,

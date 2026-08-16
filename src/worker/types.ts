@@ -115,6 +115,19 @@ export interface SurveyConfig {
 }
 
 // Live Tracking Event
+export interface DomainVerificationRecord {
+  id: string;
+  userId: string;
+  domain: string;
+  token: string;
+  txtRecordValue: string;
+  verified: boolean;
+  verifiedAt: string | null;
+  createdAt: string;
+  lastCheckedAt?: string;
+  errorMessage?: string;
+}
+
 export interface TrackingEvent {
   id: string;
   siteId: string;

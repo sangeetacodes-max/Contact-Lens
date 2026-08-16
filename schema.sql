@@ -115,6 +115,20 @@ CREATE TABLE IF NOT EXISTS notifications (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+CREATE TABLE IF NOT EXISTS domain_verifications (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  token TEXT NOT NULL,
+  txt_record_value TEXT NOT NULL,
+  verified INTEGER DEFAULT 0,
+  verified_at TEXT,
+  created_at TEXT NOT NULL,
+  last_checked_at TEXT,
+  error_message TEXT,
+  UNIQUE(user_id, domain)
+);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id TEXT PRIMARY KEY,
   user_id TEXT,
@@ -130,3 +144,5 @@ CREATE INDEX IF NOT EXISTS idx_events_site_session ON events(site_id, session_id
 CREATE INDEX IF NOT EXISTS idx_responses_site_survey ON responses(site_id, survey_id);
 CREATE INDEX IF NOT EXISTS idx_surveys_workspace ON surveys(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_domain_verifications_user ON domain_verifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_domain_verifications_domain ON domain_verifications(domain);
