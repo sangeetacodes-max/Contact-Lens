@@ -700,6 +700,53 @@ export default function Dashboard({
     }
   };
 
+  const handleDeploySurveyLive = async () => {
+    const newId = `survey-${Date.now()}`;
+    const targetSiteId = websites[0]?.siteId || websites[0]?.id || workspace.id || 'default_site';
+    const newSurveyObj: Survey = {
+      id: newId,
+      title: wizardSurveyTitle,
+      displayOption: wizardSurveyPlacement,
+      headline: wizardSurveyHeadline,
+      questions: wizardQuestions.map(q => ({
+        id: q.id,
+        type: q.type as any,
+        questionText: q.questionText,
+        options: q.options
+      })),
+      colors: {
+        background: wizardBgColor,
+        text: wizardTextColor,
+        accent: wizardAccentColor
+      },
+      brandingEnabled: true,
+      active: true,
+      createdAt: new Date().toISOString()
+    };
+
+    setSurveys(prev => [newSurveyObj, ...prev.filter(s => s.id !== newId)]);
+    setSelectedSurveyId(newId);
+    setShowPremiumWizard(false);
+    showNotification('🚀 Premium Dark Survey compiled & deployed live!', 'success');
+
+    try {
+      const res = await fetch('/api/surveys/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newSurveyObj,
+          siteId: targetSiteId,
+          status: 'published'
+        })
+      });
+      if (res.ok) {
+        showNotification('✓ Survey published to customer website live tracker!', 'success');
+      }
+    } catch (err) {
+      console.warn('Backend publish warning:', err);
+    }
+  };
+
   const handleSyncToBuilder = () => {
     if (!connectResult) return;
     setIsSyncingToBuilder(true);
@@ -749,6 +796,17 @@ export default function Dashboard({
       setIsSyncingToBuilder(false);
       setSyncSuccess(true);
       showNotification('AI Survey successfully synchronized & activated in builder!', 'success');
+
+      // Publish to server backend for live tracking
+      fetch('/api/surveys/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newSurvey,
+          siteId: newConnectedWeb.siteId,
+          status: 'published'
+        })
+      }).catch(console.warn);
     }, 1200);
   };
 
@@ -834,11 +892,25 @@ export default function Dashboard({
     localStorage.setItem('cl_billing_history', JSON.stringify(billingHistory));
   }, [billingHistory]);
 
-  // Load recommendations and dynamic workspace analytics on mount or when workspace changes
+  // Load recommendations, backend surveys, and dynamic workspace analytics on mount or when workspace changes
   useEffect(() => {
     triggerRecommendationsLoad();
     triggerExitAnalysisLoad();
     fetchWorkspaceAnalytics();
+
+    // Fetch surveys from server
+    fetch('/api/surveys')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.surveys && Array.isArray(data.surveys) && data.surveys.length > 0) {
+          setSurveys(prev => {
+            const existingIds = new Set(prev.map(s => s.id));
+            const newSurveys = data.surveys.filter((s: any) => !existingIds.has(s.id));
+            return [...newSurveys, ...prev];
+          });
+        }
+      })
+      .catch(console.warn);
   }, [workspace.id, workspace.url, workspace.name]);
 
   const fetchWorkspaceAnalytics = async (forceRefresh?: boolean) => {
@@ -3114,32 +3186,7 @@ async function makeSurvey() {
                           if (wizardStep < 3) {
                             setWizardStep(wizardStep + 1);
                           } else {
-                            // Compile and Deploy
-                            const newId = `survey-${Date.now()}`;
-                            const newSurveyObj: Survey = {
-                              id: newId,
-                              title: wizardSurveyTitle,
-                              displayOption: wizardSurveyPlacement,
-                              headline: wizardSurveyHeadline,
-                              questions: wizardQuestions.map(q => ({
-                                id: q.id,
-                                type: q.type as any,
-                                questionText: q.questionText,
-                                options: q.options
-                              })),
-                              colors: {
-                                background: wizardBgColor,
-                                text: wizardTextColor,
-                                accent: wizardAccentColor
-                              },
-                              brandingEnabled: true,
-                              active: true,
-                              createdAt: new Date().toISOString()
-                            };
-                            setSurveys([newSurveyObj, ...surveys]);
-                            setSelectedSurveyId(newId);
-                            setShowPremiumWizard(false);
-                            showNotification('🚀 Premium Dark Survey compiled & deployed live!', 'success');
+                            handleDeploySurveyLive();
                           }
                         }}
                         className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-blue-900/30 active:scale-95"
@@ -3672,33 +3719,7 @@ async function makeSurvey() {
 
                             <button
                               id="btn_finalize_wizard_survey"
-                              onClick={() => {
-                                const newId = `survey-${Date.now()}`;
-                                const newSurveyObj: Survey = {
-                                  id: newId,
-                                  title: wizardSurveyTitle,
-                                  displayOption: wizardSurveyPlacement,
-                                  headline: wizardSurveyHeadline,
-                                  questions: wizardQuestions.map(q => ({
-                                    id: q.id,
-                                    type: q.type as any,
-                                    questionText: q.questionText,
-                                    options: q.options
-                                  })),
-                                  colors: {
-                                    background: wizardBgColor,
-                                    text: wizardTextColor,
-                                    accent: wizardAccentColor
-                                  },
-                                  brandingEnabled: true,
-                                  active: true,
-                                  createdAt: new Date().toISOString()
-                                };
-                                setSurveys([newSurveyObj, ...surveys]);
-                                setSelectedSurveyId(newId);
-                                setShowPremiumWizard(false);
-                                showNotification('🚀 Premium Dark Survey compiled & deployed live!', 'success');
-                              }}
+                              onClick={handleDeploySurveyLive}
                               className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow-md active:scale-95 text-center block"
                             >
                               Create & Deploy Survey Live 🚀
@@ -3729,32 +3750,7 @@ async function makeSurvey() {
                             if (wizardStep < 3) {
                               setWizardStep(wizardStep + 1);
                             } else {
-                              // Compile and Deploy
-                              const newId = `survey-${Date.now()}`;
-                              const newSurveyObj: Survey = {
-                                id: newId,
-                                title: wizardSurveyTitle,
-                                displayOption: wizardSurveyPlacement,
-                                headline: wizardSurveyHeadline,
-                                questions: wizardQuestions.map(q => ({
-                                  id: q.id,
-                                  type: q.type as any,
-                                  questionText: q.questionText,
-                                  options: q.options
-                                })),
-                                colors: {
-                                  background: wizardBgColor,
-                                  text: wizardTextColor,
-                                  accent: wizardAccentColor
-                                },
-                                brandingEnabled: true,
-                                active: true,
-                                createdAt: new Date().toISOString()
-                              };
-                              setSurveys([newSurveyObj, ...surveys]);
-                              setSelectedSurveyId(newId);
-                              setShowPremiumWizard(false);
-                              showNotification('🚀 Premium Dark Survey compiled & deployed live!', 'success');
+                              handleDeploySurveyLive();
                             }
                           }}
                           className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95"

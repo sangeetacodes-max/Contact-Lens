@@ -179,11 +179,9 @@ export async function handleAiRoutes(request: Request, env: Env, pathname: strin
   if ((pathname === '/api/api-exit-analysis' || pathname === '/api/ai/exit-analysis') && request.method === 'POST') {
     const body = (await request.json().catch(() => ({}))) as any;
     const { responses, businessName, goal } = body;
-    if (!responses || !Array.isArray(responses)) {
-      throw new ApiError('responses array is required', 400, 'MISSING_RESPONSES');
-    }
+    const safeResponses = Array.isArray(responses) ? responses : [];
 
-    const analysis = await openai.analyzeExit(responses, businessName, goal);
+    const analysis = await openai.analyzeExit(safeResponses, businessName || 'My Business', goal || 'Feedback');
     return jsonResponse(analysis);
   }
 
@@ -191,11 +189,13 @@ export async function handleAiRoutes(request: Request, env: Env, pathname: strin
   if (pathname === '/api/ai/workspace-analytics' && request.method === 'POST') {
     const body = (await request.json().catch(() => ({}))) as any;
     const { businessName, websiteUrl, businessType, goal } = body;
-    if (!businessName) {
-      throw new ApiError('businessName is required', 400, 'MISSING_BUSINESS_NAME');
-    }
 
-    const analytics = await openai.generateWorkspaceAnalytics(businessName, websiteUrl || '', businessType || 'SaaS', goal || 'Feedback');
+    const analytics = await openai.generateWorkspaceAnalytics(
+      businessName || 'My Workspace',
+      websiteUrl || '',
+      businessType || 'SaaS',
+      goal || 'Feedback'
+    );
     return jsonResponse(analytics);
   }
 
