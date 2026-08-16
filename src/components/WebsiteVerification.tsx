@@ -45,6 +45,9 @@ export function WebsiteVerification({
   const [selectedDomain, setSelectedDomain] = useState<DomainVerificationRecord | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [recordTypeTab, setRecordTypeTab] = useState<'CNAME' | 'TXT'>('CNAME');
+  const [customType, setCustomType] = useState<string>('CNAME');
+  const [customName, setCustomName] = useState<string>('www');
+  const [customTarget, setCustomTarget] = useState<string>('custom.customerlens.app');
   const [showProviderGuide, setShowProviderGuide] = useState(false);
   const [showLivePreviewModal, setShowLivePreviewModal] = useState(false);
   const [activeProvider, setActiveProvider] = useState<'cloudflare' | 'godaddy' | 'namecheap' | 'google' | 'route53'>('cloudflare');
@@ -90,6 +93,29 @@ export function WebsiteVerification({
       fallbackTarget: 'customerlens.pages.dev'
     };
   };
+
+  // Reset or initialize default DNS record values based on active tab and domain
+  const resetToDefaultDnsValues = (tab: 'CNAME' | 'TXT', domainName?: string) => {
+    const currentDomain = domainName || selectedDomain?.domain || 'example.com';
+    const cnameInfo = getCnameDetails(currentDomain);
+
+    if (tab === 'CNAME') {
+      setCustomType('CNAME');
+      setCustomName(cnameInfo.host);
+      setCustomTarget(cnameInfo.target);
+    } else {
+      setCustomType('TXT');
+      setCustomName('@');
+      setCustomTarget(selectedDomain?.txtRecordValue || `customerlens-verification=token_${currentDomain.replace(/[^a-z0-9]/g, '')}`);
+    }
+  };
+
+  // Sync defaults whenever selected domain or tab changes
+  useEffect(() => {
+    if (selectedDomain?.domain) {
+      resetToDefaultDnsValues(recordTypeTab, selectedDomain.domain);
+    }
+  }, [selectedDomain?.domain, recordTypeTab]);
 
   // Fetch all domain verifications for current authenticated user
   const fetchDomains = async () => {
@@ -392,107 +418,142 @@ export function WebsiteVerification({
               </div>
 
               {/* Record Type Selector (CNAME vs TXT) */}
-              <div className="flex gap-2 p-1 bg-slate-100 rounded-xl max-w-xs">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-full sm:w-auto max-w-xs">
+                  <button
+                    onClick={() => setRecordTypeTab('CNAME')}
+                    className={`flex-1 text-xs font-bold py-1.5 px-3 rounded-lg transition-all ${
+                      recordTypeTab === 'CNAME' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    CNAME (Recommended)
+                  </button>
+                  <button
+                    onClick={() => setRecordTypeTab('TXT')}
+                    className={`flex-1 text-xs font-bold py-1.5 px-3 rounded-lg transition-all ${
+                      recordTypeTab === 'TXT' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    TXT (Ownership)
+                  </button>
+                </div>
+
                 <button
-                  onClick={() => setRecordTypeTab('CNAME')}
-                  className={`flex-1 text-xs font-bold py-1.5 px-3 rounded-lg transition-all ${
-                    recordTypeTab === 'CNAME' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  type="button"
+                  onClick={() => resetToDefaultDnsValues(recordTypeTab, selectedDomain.domain)}
+                  className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 py-1"
                 >
-                  CNAME (Recommended)
-                </button>
-                <button
-                  onClick={() => setRecordTypeTab('TXT')}
-                  className={`flex-1 text-xs font-bold py-1.5 px-3 rounded-lg transition-all ${
-                    recordTypeTab === 'TXT' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  TXT (Ownership)
+                  <RefreshCw size={11} />
+                  Reset to Defaults
                 </button>
               </div>
 
-              {/* DNS Record Box */}
-              {recordTypeTab === 'CNAME' ? (
-                /* CNAME Box */
-                <div className="bg-slate-900 text-slate-100 rounded-2xl p-5 border border-slate-800 font-mono text-xs space-y-3.5 shadow-inner">
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span className="text-slate-400 text-[11px] uppercase tracking-wider">Type</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-indigo-400 bg-indigo-950 px-2.5 py-0.5 rounded border border-indigo-800/60">CNAME</span>
-                      <button onClick={() => handleCopy('CNAME', 'cname_type')} className="text-slate-400 hover:text-white p-1">
-                        {copiedField === 'cname_type' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                      </button>
-                    </div>
-                  </div>
+              {/* Editable DNS Record Box */}
+              <div className="bg-slate-900 text-slate-100 rounded-2xl p-5 border border-slate-800 font-mono text-xs space-y-4 shadow-inner">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 font-sans border-b border-slate-800 pb-2">
+                  <span className="font-semibold text-slate-300">DNS Record Settings (Editable)</span>
+                  <span className="text-[10px] text-slate-500">Values pre-filled • Type to customize</span>
+                </div>
 
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span className="text-slate-400 text-[11px] uppercase tracking-wider">Name</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-emerald-400 bg-emerald-950 px-2.5 py-0.5 rounded border border-emerald-800/60">
-                        {getCnameDetails(selectedDomain.domain).host}
-                      </span>
-                      <button onClick={() => handleCopy(getCnameDetails(selectedDomain.domain).host, 'cname_name')} className="text-slate-400 hover:text-white p-1">
-                        {copiedField === 'cname_name' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 pt-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400 text-[11px] uppercase tracking-wider">Target</span>
+                {/* Type Field */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="dns_record_type" className="text-slate-400 text-[11px] uppercase tracking-wider font-sans font-medium">
+                      Type
+                    </label>
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => handleCopy(getCnameDetails(selectedDomain.domain).target, 'cname_target')}
-                        className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-sans font-medium"
+                        type="button"
+                        onClick={() => handleCopy(customType, 'dns_type')}
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-sans font-medium p-0.5"
                       >
-                        {copiedField === 'cname_target' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                        {copiedField === 'cname_target' ? 'Copied' : 'Copy target'}
+                        {copiedField === 'dns_type' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                        {copiedField === 'dns_type' ? 'Copied' : 'Copy'}
                       </button>
                     </div>
-                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-indigo-300 font-bold break-all select-all flex items-center justify-between">
-                      <span>{getCnameDetails(selectedDomain.domain).target}</span>
-                    </div>
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="dns_record_type"
+                      type="text"
+                      value={customType}
+                      onChange={(e) => setCustomType(e.target.value)}
+                      placeholder="CNAME"
+                      className="w-full bg-slate-950 border border-slate-700/80 focus:border-indigo-500 rounded-xl px-3 py-2 text-indigo-300 font-bold font-mono text-xs outline-none transition-colors"
+                    />
                   </div>
                 </div>
-              ) : (
-                /* TXT Record Box */
-                <div className="bg-slate-900 text-slate-100 rounded-2xl p-5 border border-slate-800 font-mono text-xs space-y-3.5 shadow-inner">
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span className="text-slate-400 text-[11px] uppercase tracking-wider">Type</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-indigo-400 bg-indigo-950 px-2.5 py-0.5 rounded border border-indigo-800/60">TXT</span>
-                      <button onClick={() => handleCopy('TXT', 'txt_type')} className="text-slate-400 hover:text-white p-1">
-                        {copiedField === 'txt_type' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                      </button>
-                    </div>
-                  </div>
 
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span className="text-slate-400 text-[11px] uppercase tracking-wider">Name / Host</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-emerald-400 bg-emerald-950 px-2.5 py-0.5 rounded border border-emerald-800/60">@</span>
-                      <button onClick={() => handleCopy('@', 'txt_host')} className="text-slate-400 hover:text-white p-1">
-                        {copiedField === 'txt_host' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 pt-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400 text-[11px] uppercase tracking-wider">Value</span>
+                {/* Name / Host Field */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="dns_record_name" className="text-slate-400 text-[11px] uppercase tracking-wider font-sans font-medium">
+                      Name / Host
+                    </label>
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => handleCopy(selectedDomain.txtRecordValue, 'txt_value')}
-                        className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-sans font-medium"
+                        type="button"
+                        onClick={() => handleCopy(customName, 'dns_name')}
+                        className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-sans font-medium p-0.5"
                       >
-                        {copiedField === 'txt_value' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                        {copiedField === 'txt_value' ? 'Copied' : 'Copy value'}
+                        {copiedField === 'dns_name' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                        {copiedField === 'dns_name' ? 'Copied' : 'Copy'}
                       </button>
                     </div>
-                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-indigo-300 font-bold break-all select-all flex items-center justify-between">
-                      <span>{selectedDomain.txtRecordValue}</span>
-                    </div>
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="dns_record_name"
+                      type="text"
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                      placeholder="www"
+                      className="w-full bg-slate-950 border border-slate-700/80 focus:border-emerald-500 rounded-xl px-3 py-2 text-emerald-300 font-bold font-mono text-xs outline-none transition-colors"
+                    />
                   </div>
                 </div>
-              )}
+
+                {/* Target / Value Field */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="dns_record_target" className="text-slate-400 text-[11px] uppercase tracking-wider font-sans font-medium">
+                      Target / Value
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(customTarget, 'dns_target')}
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-sans font-medium p-0.5"
+                      >
+                        {copiedField === 'dns_target' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                        {copiedField === 'dns_target' ? 'Copied' : 'Copy target'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="dns_record_target"
+                      type="text"
+                      value={customTarget}
+                      onChange={(e) => setCustomTarget(e.target.value)}
+                      placeholder="custom.customerlens.app"
+                      className="w-full bg-slate-950 border border-slate-700/80 focus:border-indigo-500 rounded-xl px-3 py-2 text-indigo-200 font-medium font-mono text-xs outline-none transition-colors break-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-1 flex items-center justify-between text-[11px] font-sans text-slate-400">
+                  <span>Record preview: <code className="text-indigo-300 font-mono">{customType} {customName} → {customTarget}</code></span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(`${customType} ${customName} ${customTarget}`, 'all_dns')}
+                    className="text-slate-300 hover:text-white font-semibold flex items-center gap-1"
+                  >
+                    {copiedField === 'all_dns' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                    {copiedField === 'all_dns' ? 'Copied' : 'Copy All'}
+                  </button>
+                </div>
+              </div>
 
               {/* Feedback Banner */}
               {verificationFeedback && (
@@ -654,6 +715,7 @@ export function WebsiteVerification({
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-bold text-slate-700">Live Customer Survey Endpoint:</span>
                   <button
+                    type="button"
                     onClick={() => handleCopy(`https://${selectedDomain.domain}/survey`, 'survey_url')}
                     className="text-indigo-600 hover:underline font-semibold flex items-center gap-1"
                   >
@@ -665,10 +727,125 @@ export function WebsiteVerification({
                 <div className="p-2.5 bg-white border border-slate-200 rounded-xl font-mono text-xs text-indigo-700 font-bold flex justify-between items-center">
                   <span>https://{selectedDomain.domain}/survey</span>
                   <button
+                    type="button"
                     onClick={() => setShowLivePreviewModal(true)}
                     className="text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg font-sans font-bold flex items-center gap-1"
                   >
                     <Eye size={12} /> Preview
+                  </button>
+                </div>
+              </div>
+
+              {/* Verified DNS Routing Record (Editable with pre-filled defaults) */}
+              <div className="bg-slate-900 text-slate-100 rounded-2xl p-5 border border-slate-800 font-mono text-xs space-y-4 shadow-inner">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={16} className="text-emerald-400" />
+                    <span className="font-semibold text-slate-200 font-sans text-xs">Verified DNS Routing Record</span>
+                    <span className="text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-800/80 font-sans font-bold">
+                      ● Active
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => resetToDefaultDnsValues(recordTypeTab, selectedDomain.domain)}
+                    className="text-[11px] font-sans font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                  >
+                    <RefreshCw size={11} />
+                    Reset to Defaults
+                  </button>
+                </div>
+
+                <p className="text-[11px] font-sans text-slate-400 leading-normal">
+                  Values below are active and pre-filled with your domain's recommended DNS configuration. You can freely type to modify or update them:
+                </p>
+
+                {/* Editable Type Field */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="verified_dns_type" className="text-slate-400 text-[11px] uppercase tracking-wider font-sans font-medium">
+                      Type
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(customType, 'verified_type')}
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-sans font-medium p-0.5"
+                    >
+                      {copiedField === 'verified_type' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                      {copiedField === 'verified_type' ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <input
+                    id="verified_dns_type"
+                    type="text"
+                    value={customType}
+                    onChange={(e) => setCustomType(e.target.value)}
+                    placeholder="CNAME"
+                    className="w-full bg-slate-950 border border-slate-700/80 focus:border-indigo-500 rounded-xl px-3 py-2 text-indigo-300 font-bold font-mono text-xs outline-none transition-colors"
+                  />
+                </div>
+
+                {/* Editable Name / Host Field */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="verified_dns_name" className="text-slate-400 text-[11px] uppercase tracking-wider font-sans font-medium">
+                      Name / Host
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(customName, 'verified_name')}
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-sans font-medium p-0.5"
+                    >
+                      {copiedField === 'verified_name' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                      {copiedField === 'verified_name' ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <input
+                    id="verified_dns_name"
+                    type="text"
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    placeholder="www"
+                    className="w-full bg-slate-950 border border-slate-700/80 focus:border-emerald-500 rounded-xl px-3 py-2 text-emerald-300 font-bold font-mono text-xs outline-none transition-colors"
+                  />
+                </div>
+
+                {/* Editable Target / Value Field */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="verified_dns_target" className="text-slate-400 text-[11px] uppercase tracking-wider font-sans font-medium">
+                      Target / Value
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(customTarget, 'verified_target')}
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-sans font-medium p-0.5"
+                    >
+                      {copiedField === 'verified_target' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                      {copiedField === 'verified_target' ? 'Copied' : 'Copy target'}
+                    </button>
+                  </div>
+                  <input
+                    id="verified_dns_target"
+                    type="text"
+                    value={customTarget}
+                    onChange={(e) => setCustomTarget(e.target.value)}
+                    placeholder="custom.customerlens.app"
+                    className="w-full bg-slate-950 border border-slate-700/80 focus:border-indigo-500 rounded-xl px-3 py-2 text-indigo-200 font-medium font-mono text-xs outline-none transition-colors break-all"
+                  />
+                </div>
+
+                {/* Bottom Bar: Copy All and Summary */}
+                <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] font-sans text-slate-400">
+                  <span>Record preview: <code className="text-emerald-300 font-mono font-bold">{customType} {customName} → {customTarget}</code></span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(`${customType} ${customName} ${customTarget}`, 'verified_all_dns')}
+                    className="text-slate-200 hover:text-white font-semibold flex items-center gap-1 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-lg transition-colors"
+                  >
+                    {copiedField === 'verified_all_dns' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                    {copiedField === 'verified_all_dns' ? 'Copied All' : 'Copy All DNS Values'}
                   </button>
                 </div>
               </div>

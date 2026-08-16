@@ -544,6 +544,9 @@ export default function Dashboard({
   // Custom Domain Inputs
   const [domainInput, setDomainInput] = useState(workspace.customDomain || '');
   const [dnsVerified, setDnsVerified] = useState(workspace.customDomainStatus === 'Active');
+  const [cnameRecordType, setCnameRecordType] = useState('CNAME');
+  const [cnameRecordHost, setCnameRecordHost] = useState('feedback');
+  const [cnameRecordTarget, setCnameRecordTarget] = useState('custom.customerlens.app');
 
   // White Label State
   const [wlLogo, setWlLogo] = useState<string>(workspace.whiteLabel?.logoUrl || '');
@@ -6208,19 +6211,57 @@ async function makeSurvey() {
                       </div>
                     </div>
 
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-[11px] font-mono">
-                      <span className="text-[10px] font-bold uppercase text-slate-400 block font-mono">DNS DNS/CNAME Guideline</span>
-                      <div className="flex justify-between border-b pb-1">
-                        <span className="text-slate-400">Record Type</span>
-                        <span className="font-bold">CNAME</span>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 text-[11px] font-mono">
+                      <div className="flex justify-between items-center border-b pb-1.5 font-sans">
+                        <span className="text-[10px] font-bold uppercase text-slate-500 block font-mono">DNS Record Settings (Editable)</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCnameRecordType('CNAME');
+                            setCnameRecordHost('feedback');
+                            setCnameRecordTarget('custom.customerlens.app');
+                            showNotification('Reset DNS fields to defaults', 'info');
+                          }}
+                          className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800"
+                        >
+                          Reset Defaults
+                        </button>
                       </div>
-                      <div className="flex justify-between border-b pb-1">
-                        <span className="text-slate-400">Host/Alias</span>
-                        <span className="font-bold">feedback</span>
+
+                      <div className="space-y-1">
+                        <label htmlFor="input_cname_type" className="text-[10px] text-slate-400 uppercase font-sans font-semibold">Record Type</label>
+                        <input
+                          id="input_cname_type"
+                          type="text"
+                          value={cnameRecordType}
+                          onChange={(e) => setCnameRecordType(e.target.value)}
+                          placeholder="CNAME"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-xs text-indigo-700 outline-none focus:border-indigo-500"
+                        />
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Points to</span>
-                        <span className="font-bold">cname.customerlens.app</span>
+
+                      <div className="space-y-1">
+                        <label htmlFor="input_cname_host" className="text-[10px] text-slate-400 uppercase font-sans font-semibold">Host / Alias</label>
+                        <input
+                          id="input_cname_host"
+                          type="text"
+                          value={cnameRecordHost}
+                          onChange={(e) => setCnameRecordHost(e.target.value)}
+                          placeholder="feedback"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-xs text-emerald-700 outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label htmlFor="input_cname_target" className="text-[10px] text-slate-400 uppercase font-sans font-semibold">Points to / Target</label>
+                        <input
+                          id="input_cname_target"
+                          type="text"
+                          value={cnameRecordTarget}
+                          onChange={(e) => setCnameRecordTarget(e.target.value)}
+                          placeholder="custom.customerlens.app"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium text-xs text-slate-800 outline-none focus:border-indigo-500"
+                        />
                       </div>
                     </div>
 
