@@ -80,7 +80,7 @@ export class OpenAIService {
       }
     }
 
-    // 2. Try Gemini AI if available
+    // 2. Try Gemini AI if available with automatic fallback cascade and retries
     try {
       const ai = getGeminiClient();
       if (ai) {
@@ -88,17 +88,41 @@ export class OpenAIService {
         const userMsgs = messages.filter(m => m.role !== 'system').map(m => `${m.role}: ${m.content}`).join('\n\n');
         const prompt = `${systemMsg ? `System Instruction:\n${systemMsg}\n\n` : ''}${userMsgs}`;
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.7-flash',
-          contents: prompt,
-          config: jsonMode ? { responseMimeType: 'application/json' } : undefined
-        });
+        const candidateModels = ['gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+        for (const model of candidateModels) {
+          try {
+            const response = await ai.models.generateContent({
+              model,
+              contents: prompt,
+              config: jsonMode ? { responseMimeType: 'application/json' } : undefined
+            });
 
-        const text = response.text;
-        if (text) return text;
+            let text = response.text?.trim();
+            if (text) {
+              if (jsonMode) {
+                // Strip markdown code fences if model returned ```json ... ```
+                text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+              }
+              return text;
+            }
+          } catch (modelErr: any) {
+            const errMsg = String(modelErr?.message || modelErr);
+            const isDemandOrRateLimit = errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('UNAVAILABLE');
+            
+            if (isDemandOrRateLimit) {
+              Logger.info(`Gemini model ${model} busy/high-demand. Cascading to next model...`);
+              // Brief delay before trying next fallback model
+              await new Promise(r => setTimeout(r, 250));
+              continue;
+            } else {
+              Logger.info(`Gemini model ${model} error:`, { error: errMsg });
+              break;
+            }
+          }
+        }
       }
     } catch (gErr: any) {
-      Logger.info('Gemini AI fallback note:', { error: gErr?.message });
+      Logger.info('Gemini AI fallback note:', { error: gErr?.message || String(gErr) });
     }
 
     throw new ApiError('AI engines offline, initiating domain-specific CRO synthesis', 503, 'AI_FALLBACK');

@@ -28,11 +28,9 @@ import {
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
+  sendPasswordResetEmail,
   signOut, 
   signInWithPopup, 
-  signInWithRedirect,
-  getRedirectResult,
-  signInAnonymously,
   GoogleAuthProvider 
 } from 'firebase/auth';
 import { 
@@ -158,40 +156,12 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
 
-    // Check redirect result for Google Sign-In if popup was redirected
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (!isMounted) return;
-        if (result && result.user) {
-          console.log("[AUTH DEBUG] LOGIN SUCCESS (REDIRECT)", {
-            uid: result.user.uid,
-            email: result.user.email
-          });
-          const firebaseUser = result.user;
-          try {
-            const token = await firebaseUser.getIdToken();
-            fetch('/api/auth/verify', {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${token}` }
-            }).catch(e => console.warn('[AUTH DEBUG] Non-blocking verify check on redirect:', e));
-          } catch (e) {
-            console.warn('[AUTH DEBUG] Error obtaining token on redirect:', e);
-          }
-          const destination = sessionStorage.getItem('cl_intended_destination') || 'dashboard';
-          sessionStorage.removeItem('cl_intended_destination');
-          setCurrentView(destination as AuthView);
-        }
-      })
-      .catch(err => {
-        console.warn('[AUTH DEBUG] Firebase auth redirect error:', err);
-      });
+    // Safety timeout to ensure initial loading state clears promptly
+    const timer = setTimeout(() => {
+      if (isMounted) setAuthLoading(false);
+    }, 1200);
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log("=== AUTH STATE CHANGED ===");
-      console.log("User:", firebaseUser);
-      console.log("UID:", firebaseUser?.uid);
-      console.log("Email:", firebaseUser?.email);
-
       if (firebaseUser) {
         let appUser: User = {
           id: firebaseUser.uid,
@@ -299,6 +269,7 @@ export default function App() {
 
     return () => {
       isMounted = false;
+      clearTimeout(timer);
       unsubscribe();
     };
   }, []);
@@ -308,8 +279,6 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [forgotEmailSent, setForgotEmailSent] = useState(false);
-  const [domainAuthError, setDomainAuthError] = useState<string | null>(null);
-  const [domainCopied, setDomainCopied] = useState(false);
 
   // Walkthrough state
   const [showWalkthrough, setShowWalkthrough] = useState(false);
@@ -320,7 +289,7 @@ export default function App() {
 
   const triggerToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ text, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3500);
   };
 
   // Persist session changes
@@ -357,12 +326,8 @@ export default function App() {
 
     try {
       verifyFirebaseConfig();
-      triggerToast('Creating your secure Firebase account...', 'info');
+      triggerToast('Creating account...', 'info');
       const result = await createUserWithEmailAndPassword(auth, email, password);
-
-      console.log("=== LOGIN SUCCESS ===");
-      console.log("Firebase UID:", result.user.uid);
-      console.log("Firebase email:", result.user.email);
 
       const firebaseUser = result.user;
       const newUser: User = {
@@ -394,7 +359,7 @@ export default function App() {
 
       setUser(newUser);
       setCurrentView('dashboard');
-      triggerToast('🟢 Account created! Welcome to CustomerLens.', 'success');
+      triggerToast('🟢 Account created successfully! Welcome to CustomerLens.', 'success');
     } catch (err: any) {
       console.error('Registration error:', err);
       let msg = err.message || 'Registration failed.';
@@ -402,8 +367,8 @@ export default function App() {
         msg = 'An account with this email already exists. Please sign in instead.';
       } else if (err.code === 'auth/weak-password') {
         msg = 'Password should be at least 6 characters.';
-      } else if (err.code === 'auth/unauthorized-domain') {
-        msg = 'This domain is not authorized in Firebase Console (customerlens-ai.sangeeta-codes.workers.dev).';
+      } else if (err.code === 'auth/invalid-email') {
+        msg = 'Please enter a valid email address.';
       }
       triggerToast(msg, 'error');
     }
@@ -420,11 +385,6 @@ export default function App() {
       verifyFirebaseConfig();
       triggerToast('Signing in...', 'info');
       const result = await signInWithEmailAndPassword(auth, email, password);
-
-      console.log("=== LOGIN SUCCESS ===");
-      console.log("Firebase UID:", result.user.uid);
-      console.log("Firebase email:", result.user.email);
-
       const firebaseUser = result.user;
 
       // Non-blocking backend token verify
@@ -443,108 +403,43 @@ export default function App() {
       let msg = err.message || 'Sign in failed.';
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         msg = 'Invalid email or password.';
-      } else if (err.code === 'auth/unauthorized-domain') {
-        msg = 'This domain is not authorized in Firebase Console (customerlens-ai.sangeeta-codes.workers.dev).';
+      } else if (err.code === 'auth/too-many-requests') {
+        msg = 'Access temporarily disabled due to many failed login attempts. Reset your password or try again later.';
       }
       triggerToast(msg, 'error');
     }
   };
 
-  const handleSandboxGoogleLogin = async () => {
-    const userEmail = 'sangeeta.codes@gmail.com';
-    const googleUser: User = {
-      id: `usr_google_${Date.now().toString(36)}`,
-      email: userEmail,
-      name: 'Google Merchant (Verified)',
-      workspaceId: `ws_google_${Date.now().toString(36)}`,
-      isEmailVerified: true,
-      plan: 'Pro',
-      billingPeriod: 'monthly',
-      subscriptionActive: true,
-      trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
-    };
-
-    const googleWorkspace: Workspace = {
-      id: googleUser.workspaceId,
-      name: 'Google Merchant Store',
-      businessType: 'Ecommerce',
-      url: 'https://customerlens-ai.sangeeta-codes.workers.dev',
-      goal: 'Conversion Rate Optimization',
-      siteId: `cl_${googleUser.id.substring(0, 8)}`
-    };
-
-    const googleSurvey: Survey = {
-      id: 'srv-init',
-      title: 'Exit Intent & Feedback Survey',
-      displayOption: 'In-Page Popup',
-      headline: 'Before you go, how can we improve?',
-      questions: [
-        {
-          id: 'q1',
-          type: 'multiple-choice',
-          questionText: 'What was the main reason for your visit today?',
-          options: ['Browsing products', 'Looking for discounts', 'Checking pricing', 'Customer support']
-        }
-      ],
-      colors: { background: '#ffffff', text: '#111827', accent: '#6366f1' },
-      brandingEnabled: false,
-      active: true,
-      createdAt: new Date().toISOString()
-    };
-
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      triggerToast('Please enter your account email address', 'error');
+      return;
+    }
     try {
-      if (auth.currentUser) {
-        await setDoc(doc(db, 'users', auth.currentUser.uid), googleUser);
+      await sendPasswordResetEmail(auth, email);
+      setForgotEmailSent(true);
+      triggerToast('Password reset link sent to your email!', 'success');
+    } catch (err: any) {
+      console.error('Password reset error:', err);
+      let msg = err.message || 'Failed to send password reset email.';
+      if (err.code === 'auth/user-not-found') {
+        msg = 'No account found with this email address.';
       }
-    } catch (e) {}
-
-    setUser(googleUser);
-    setWorkspace(googleWorkspace);
-    setInitialSurvey(googleSurvey);
-    setDomainAuthError(null);
-    setCurrentView('dashboard');
-    triggerToast('🟢 Signed in with Verified Google Session.', 'success');
+      triggerToast(msg, 'error');
+    }
   };
 
   const handleGoogleLogin = async () => {
     try {
       verifyFirebaseConfig();
-      triggerToast('Connecting to Google Account...', 'info');
+      triggerToast('Connecting to Google...', 'info');
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({
         prompt: 'select_account'
       });
 
-      sessionStorage.setItem('cl_intended_destination', 'dashboard');
-
-      let userCredential;
-      try {
-        userCredential = await signInWithPopup(auth, provider);
-        console.log("=== LOGIN SUCCESS ===");
-        console.log("Firebase UID:", userCredential.user.uid);
-        console.log("Firebase email:", userCredential.user.email);
-      } catch (popupErr: any) {
-        console.warn('signInWithPopup error:', popupErr);
-        
-        if (
-          popupErr.code === 'auth/popup-blocked' || 
-          popupErr.code === 'auth/popup-closed-by-user' || 
-          popupErr.code === 'auth/cancelled-popup-request'
-        ) {
-          triggerToast('Popup was blocked or closed. Redirecting to Google Sign-In...', 'info');
-          await signInWithRedirect(auth, provider);
-          return;
-        } else if (popupErr.code === 'auth/unauthorized-domain') {
-          const currentHostname = typeof window !== 'undefined' ? window.location.hostname : 'current-domain';
-          setDomainAuthError(currentHostname);
-          return;
-        } else if (popupErr.code === 'auth/account-exists-with-different-credential') {
-          triggerToast('An account already exists with this email using a different sign-in method.', 'error');
-          return;
-        }
-        throw popupErr;
-      }
-
+      const userCredential = await signInWithPopup(auth, provider);
       if (userCredential && userCredential.user) {
         const firebaseUser = userCredential.user;
         try {
@@ -556,17 +451,17 @@ export default function App() {
         } catch (e) {}
 
         setCurrentView('dashboard');
-        triggerToast('🟢 Authenticated with Google securely.', 'success');
+        triggerToast('🟢 Signed in with Google securely.', 'success');
       }
     } catch (err: any) {
-      console.warn('Google Login handled error:', err);
-      let msg = err.message || 'Google Login failed.';
-      if (err.code === 'auth/popup-closed-by-user') {
-        msg = 'Google popup was closed before completing sign in.';
-      } else if (err.code === 'auth/unauthorized-domain') {
-        const currentHostname = typeof window !== 'undefined' ? window.location.hostname : 'current-domain';
-        setDomainAuthError(currentHostname);
+      console.warn('Google Login error:', err);
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        triggerToast('Google sign-in was cancelled.', 'info');
         return;
+      }
+      let msg = err.message || 'Google sign-in could not be completed.';
+      if (err.code === 'auth/unauthorized-domain') {
+        msg = 'Google Sign-In is unavailable on this preview host. Please use Email & Password.';
       }
       triggerToast(msg, 'error');
     }
@@ -673,15 +568,6 @@ export default function App() {
     currentRoute: typeof window !== 'undefined' ? window.location.pathname : '/'
   });
 
-  if (authLoading) {
-    return (
-      <div id="auth_loading_screen" className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white space-y-4">
-        <div className="h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sm font-semibold text-slate-300 font-mono">Authenticating CustomerLens...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 relative overflow-x-hidden">
       
@@ -699,83 +585,6 @@ export default function App() {
             {toast.type === 'success' ? <CheckCircle2 size={14} className="text-emerald-600" /> : <ShieldAlert size={14} className="text-rose-600" />}
             {toast.text}
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* FIREBASE AUTHORIZED DOMAIN ASSISTANT MODAL */}
-      <AnimatePresence>
-        {domainAuthError && (
-          <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl p-6 md:p-8 space-y-6 relative"
-            >
-              <button 
-                onClick={() => setDomainAuthError(null)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-100 transition-all"
-              >
-                <X size={18} />
-              </button>
-
-              <div className="flex items-start gap-4">
-                <div className="h-12 w-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0 border border-amber-200">
-                  <ShieldAlert size={24} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">Google OAuth Domain Authorization</h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Firebase requires new preview domains to be registered in your project's Authorized Domains list before Google Sign-In popups are permitted.
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5 text-xs">
-                <span className="font-bold text-[11px] uppercase tracking-wider text-slate-400 block font-mono">Domain to Authorize</span>
-                <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 font-mono text-xs text-slate-800 break-all">
-                  <span>{domainAuthError}</span>
-                  <button 
-                    onClick={() => {
-                      if (navigator.clipboard) {
-                        navigator.clipboard.writeText(domainAuthError);
-                        setDomainCopied(true);
-                        setTimeout(() => setDomainCopied(false), 2500);
-                      }
-                    }}
-                    className="ml-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-sans font-semibold text-[11px] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all flex-shrink-0"
-                  >
-                    {domainCopied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
-                    {domainCopied ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-                <div className="text-[11px] text-slate-500 space-y-1 pt-1">
-                  <p>1. Open <strong>Firebase Console</strong> → Project <strong>customer-lens-bd503</strong></p>
-                  <p>2. Navigate to <strong>Authentication</strong> → <strong>Settings</strong> tab → <strong>Authorized domains</strong></p>
-                  <p>3. Click <strong>Add domain</strong> and paste the domain above.</p>
-                </div>
-              </div>
-
-              <div className="space-y-2 pt-2">
-                <button 
-                  onClick={handleSandboxGoogleLogin}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all"
-                >
-                  <ShieldCheck size={16} /> Continue with Verified Google Session (Instant Sandbox)
-                </button>
-
-                <button 
-                  onClick={() => {
-                    setDomainAuthError(null);
-                    setCurrentView('login');
-                  }}
-                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-xs transition-all text-center"
-                >
-                  Sign In with Email & Password instead
-                </button>
-              </div>
-            </motion.div>
-          </div>
         )}
       </AnimatePresence>
 
@@ -857,10 +666,10 @@ export default function App() {
 
             {/* FORGOT PASSWORD FORM */}
             {currentView === 'forgot' ? (
-              <form onSubmit={(e) => { e.preventDefault(); setForgotEmailSent(true); }} className="space-y-4">
+              <form onSubmit={handleForgotPassword} className="space-y-4">
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm">Recover Account Password</h3>
-                  <p className="text-slate-500 text-xs mt-0.5 mb-4">Enter your registered email below to send a recovery checklist link.</p>
+                  <p className="text-slate-500 text-xs mt-0.5 mb-4">Enter your registered email below to send a recovery link via Firebase.</p>
                   
                   <div className="relative">
                     <Mail className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
@@ -868,6 +677,8 @@ export default function App() {
                       id="input_forgot_email"
                       type="email" 
                       required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@company.com" 
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-xl text-xs outline-none"
                     />
@@ -875,8 +686,8 @@ export default function App() {
                 </div>
 
                 {forgotEmailSent && (
-                  <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-800 text-xs font-semibold">
-                    🟢 Recovery password guide dispatched. Check your mailbox folders.
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold">
+                    🟢 Password reset link dispatched! Please check your email inbox and spam folder.
                   </div>
                 )}
 
