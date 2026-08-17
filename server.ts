@@ -2045,56 +2045,60 @@ function getSimulatedSurveyReply(option: string, newMessage: string, history: an
   // Calculate how many messages the AI has sent already
   const aiMessageCount = history ? history.filter(m => m.sender === 'ai').length : 0;
 
-  // 1. Competitor comparison check first
+  // 1. Competitor comparison check first (Diplomatic & Concise)
   if (text.includes('zigpoll') || text.includes('competitor') || text.includes('hotjar') || text.includes('vs') || text.includes('compare') || text.includes('alternative')) {
-    return "Zigpoll is a great product. We're taking a different approach by focusing on AI that decides when to ask questions and uncovers the reasons behind customer behavior, not just collecting more survey responses. We are still being shaped with your feedbacks, ensuring we solve the real, deep issues you face.";
+    return "Zigpoll is great, but we specialize in Smart AI that dynamically uncovers the real reasons behind drop-offs. Would you like to see how it works on your site?";
   }
 
-  // 2. Testimonials, reviews, customer story check
+  // 2. Testimonials, reviews, customer story check (Friendly & Reassuring)
   if (text.includes('review') || text.includes('story') || text.includes('testimonial') || text.includes('case study') || text.includes('proof') || text.includes('customer') || text.includes('who uses') || text.includes('prior') || text.includes('trust') || text.includes('profit') || text.includes('rating')) {
-    return "We are new, thus we don't have reviews yet! But you can see for yourself the profits and results of this app directly on your own website with our free trial. Try it risk-free and let the performance speak for itself!";
+    return "We're newly launched and love proving value directly. You can test it 100% risk-free on our free tier!";
   }
 
-  // If the conversation is getting long, offer a friendly, decisive resolution instead of repeating questions.
+  // If conversation has progressed, offer decisive resolution
   if (aiMessageCount >= 2) {
-    return `That makes perfect sense! Since you've shared so much with us, I'd love to offer you a special developer's coupon: use code **LENS15** to save 15% on any of our paid monthly plans, or start on our Free tier today! Is there anything else you'd like to ask?`;
+    return `Use code **LENS15** to get 15% off any plan, or get started free right away. How can I best help you get started?`;
   }
 
+  // Security / Privacy (Reassuring & Direct)
   if (option?.includes('Trust') || option?.includes('trust') || option?.includes('security')) {
     if (text.includes('security') || text.includes('privacy') || text.includes('gdpr') || text.includes('compliance')) {
-      return "Privacy is our highest priority! CustomerLens is fully GDPR & CCPA compliant. We run on secure Cloud infrastructures and do not share your users' data.";
+      return "CustomerLens is fully GDPR and CCPA compliant with secure, encrypted data processing.";
     }
-    return "We are new, thus we don't have reviews yet! But you can see for yourself the profits and results of this app directly on your own website with our free trial. Try it risk-free and let the performance speak for itself!";
+    return "We are newly launched! You can test our features risk-free with our free tier to see the results yourself.";
   }
   
+  // Price / Budget (Persuasive & Diplomatic)
   if (option?.includes('expensive') || option?.includes('Expensive') || option?.includes('price') || option?.includes('Price') || option?.includes('budget')) {
     if (text.includes('competitor') || text.includes('hotjar') || text.includes('price') || text.includes('cost') || text.includes('cheap')) {
-      return "I completely understand. Unlike tools that charge flat fees, our behavior triggers focus only on warm-intent leads, cutting down on spam responses by 60%. Plus, completing this monthly subscription survey unlocks an extra 15% discount!";
+      return "Our behavioral triggers target only warm visitors to maximize ROI. Plus, you can start on our $0 free tier anytime!";
     }
     if (aiMessageCount === 1) {
-      return "Got it! Since budget is a main focus, you can start on our $0/mo free plan to start collecting responses risk-free. No credit card is required. Shall I show you how to set that up?";
+      return "You can get started on our free plan with zero risk and no credit card required. Shall we set that up?";
     }
-    return "We want CustomerLens to be accessible! We offer a solid free tier to let you get started, and paid plans scale with your volume. What target monthly budget would work best for your business?";
+    return "We offer a flexible free plan and affordable tiers tailored to your volume. What target budget works best for you?";
   }
   
+  // Comparisons
   if (option?.includes('comparing') || option?.includes('alternatives')) {
     if (text.includes('which') || text.includes('who') || text.includes('better')) {
-      return "Our key edge is the Conversational AI follow-up, which clarifies user friction instantly. Other platforms just collect static text. Does your team prioritize ease of integration or data analytics depth?";
+      return "Our key advantage is intelligent conversational follow-ups that turn drop-offs into actionable insights.";
     }
-    return "We encourage smart comparisons! CustomerLens features dynamic conversational feedback rather than generic popups. What is the main alternative you are considering?";
+    return "We focus on real-time conversational feedback rather than generic popups. What main feature are you comparing?";
   }
   
+  // Features / Integrations
   if (option?.includes('features') || option?.includes('Features') || option?.includes('wanted')) {
     if (text.includes('integration') || text.includes('sync') || text.includes('api')) {
-      return "We integrate perfectly with Shopify, HubSpot, Klaviyo, and general Webhooks! If we don't have it, our developer API lets you connect custom triggers in 5 minutes.";
+      return "We integrate with Shopify, Klaviyo, webhooks, and provide a full JavaScript API for custom setups.";
     }
     if (aiMessageCount === 1) {
-      return "We also offer a direct custom HTML embed and full CSS injection, allowing you to match your survey theme 100% with your site brand. What kind of feature design or integration are you hoping to set up?";
+      return "We offer custom HTML/CSS embeds to match your exact brand aesthetic. Which integration do you need?";
     }
-    return "Our engineering team ships fast! We support exit-intent, cursor velocity vectors, custom trigger pages, and visual templates. What specific capability do you need today?";
+    return "We support exit intent, scroll depth, and custom page triggers. What specific feature would help you most?";
   }
   
-  return "That is excellent feedback! CustomerLens is completely designed to bridge the gap between visitors and store owners in real-time. What else can I clarify for you so you can try it?";
+  return "Thanks for your feedback! What's the main goal you'd like to achieve on your site today?";
 }
 
 function getSimulatedWizardResponse(businessType: string, goal: string) {

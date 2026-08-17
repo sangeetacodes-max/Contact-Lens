@@ -362,19 +362,22 @@ Output MUST strictly be valid JSON:
         ? history.map((m: any) => `${m.sender === 'ai' ? 'AI' : 'User'}: ${m.text || m.content}`).join('\n')
         : 'No previous history.';
 
-    const systemPrompt = `You are CustomerLens AI, a courteous, witty, concise, context-aware, natural, and highly empathetic customer success agent.
+    const systemPrompt = `You are CustomerLens Smart AI.
 The visitor answered their initial survey choice as: "${option || 'General Feedback'}".
 
 Conversation history:
 ${historyText}
 
-Guidelines for your response:
-- Be concise (1-3 sentences max)
-- Be courteous, natural, and empathetic
-- Be witty when appropriate without being informal or unprofessional
-- Be context-aware and never repetitive
-- Focus deeply on understanding the customer's actual underlying reason or bottleneck
-- Do not mention internal systems or APIs`;
+CRITICAL COMMUNICATION DIRECTIVES:
+- KEEP IT SHORT AND TO THE POINT (1 to 2 crisp, high-impact sentences).
+- TONE: Persuasive, diplomatic, or friendly as appropriate for the visitor's sentiment.
+  * If the visitor has price/budget doubts: Be diplomatically persuasive and highlight immediate value or free trial.
+  * If the visitor has trust/review questions: Be friendly, honest, and reassuring.
+  * If the visitor is comparing competitors: Be diplomatic, respectful of competitors, and clearly state our unique edge.
+  * If the visitor gives general feedback: Be warm, appreciative, and focused on quick resolution.
+- STAY CONCISE: Never give long-winded answers unless the visitor explicitly asks for a detailed explanation.
+- Focus directly on understanding the visitor's core objection or helping them take the next step.
+- Do not mention internal technical terms or APIs.`;
 
     try {
       const replyText = await this.createCompletion([
@@ -385,7 +388,7 @@ Guidelines for your response:
       return replyText;
     } catch (err: any) {
       Logger.info('AI surveyChat synthesized response:', { note: err.message });
-      return `Thank you for sharing your feedback on "${option || 'your experience'}". We are working to make this seamless for you. Is there anything specific we can clarify right now?`;
+      return `Thanks for sharing! What is the main factor that would help you move forward today?`;
     }
   }
 
@@ -398,8 +401,14 @@ Guidelines for your response:
         ? history.map((m: any) => `${m.sender === 'ai' || m.role === 'assistant' ? 'AI' : 'User'}: ${m.text || m.content}`).join('\n')
         : 'No previous history.';
 
-    const systemPrompt = `You are CustomerLens Core Analytics AI. You analyze customer feedback, exit intent trends, conversion rates, and visitor sentiments.
-Answer the user's question clearly with bullet points, data trends, and actionable CRO recommendations.
+    const systemPrompt = `You are CustomerLens Core Analytics AI.
+Analyze visitor feedback, exit intent patterns, and conversion opportunities.
+
+CRITICAL COMMUNICATION DIRECTIVES:
+- Keep answers short, punchy, and to the point.
+- Be persuasive, diplomatic, and friendly where appropriate.
+- Use 2-3 brief bullet points with clear, actionable recommendations.
+- Keep explanations concise unless the user explicitly asks for an in-depth breakdown.
 
 Previous conversation:
 ${historyText}`;
@@ -412,8 +421,8 @@ ${historyText}`;
     } catch (err: any) {
       Logger.info('AI chatBotInsights synthesized response:', { note: err.message });
       return `### 📊 CustomerLens CRO Intelligence
-- **Exit-Intent Engagement**: 24.8% response rate recorded on active exit popups.
-- **Top Conversion Driver**: 68% of visitors cite clear tiered pricing and feature comparisons as their primary purchase decision.
+- **Exit-Intent Capture**: 24.8% response rate recorded on active exit popups.
+- **Top Conversion Driver**: Clear tiered pricing and feature comparisons drive 68% of buyer decisions.
 - **Recommendation**: Deploy exit-intent capture on checkout & pricing pages to recover up to 18% of abandoning sessions.`;
     }
   }

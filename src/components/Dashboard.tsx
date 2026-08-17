@@ -489,41 +489,7 @@ export default function Dashboard({
 
   const [responses, setResponses] = useState<SurveyResponse[]>(() => {
     const saved = localStorage.getItem('cl_responses');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'resp-1',
-        surveyId: initialSurvey.id,
-        timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-        answers: [
-          { questionId: 'q1', answer: 'Price Too High' },
-          { questionId: 'q2', answer: '4' },
-          { questionId: 'q3', answer: 'I would buy if shipping was cheaper!' }
-        ],
-        visitorMeta: { browser: 'Chrome', country: 'US', pageUrl: '/products/premium-jacket' }
-      },
-      {
-        id: 'resp-2',
-        surveyId: initialSurvey.id,
-        timestamp: new Date(Date.now() - 3600000 * 4).toISOString(),
-        answers: [
-          { questionId: 'q1', answer: 'Just Browsing' },
-          { questionId: 'q2', answer: '5' },
-          { questionId: 'q3', answer: 'Love the minimalist layouts.' }
-        ],
-        visitorMeta: { browser: 'Safari', country: 'CA', pageUrl: '/' }
-      },
-      {
-        id: 'resp-3',
-        surveyId: initialSurvey.id,
-        timestamp: new Date(Date.now() - 3600000 * 18).toISOString(),
-        answers: [
-          { questionId: 'q1', answer: 'Shipping Cost' },
-          { questionId: 'q2', answer: '3' },
-          { questionId: 'q3', answer: '$15 postage is crazy for standard ground shipping.' }
-        ],
-        visitorMeta: { browser: 'Firefox', country: 'UK', pageUrl: '/checkout/step2' }
-      }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [recommendations, setRecommendations] = useState<AIRecommendation[]>([]);
@@ -914,6 +880,16 @@ export default function Dashboard({
         }
       })
       .catch(console.warn);
+
+    // Fetch real survey responses from server
+    fetch('/api/surveys/responses')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data.responses)) {
+          setResponses(data.responses);
+        }
+      })
+      .catch(console.warn);
   }, [workspace.id, workspace.url, workspace.name]);
 
   const fetchWorkspaceAnalytics = async (forceRefresh?: boolean) => {
@@ -1022,14 +998,32 @@ export default function Dashboard({
     }
   };
 
-  const handleTestInstallation = () => {
+  const handleTestInstallation = async () => {
     setTestingInstallation(true);
-    setTimeout(() => {
+    try {
+      const targetSite = websites[0];
+      const res = await fetch('/api/domain/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain: targetSite?.url || workspace.url,
+          siteId: targetSite?.siteId || workspace.siteId
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.verified) {
+        const updated = websites.map(w => ({ ...w, status: 'Connected' as const, verificationStatus: 'Verified' as const }));
+        setWebsites(updated);
+        localStorage.setItem('cl_websites', JSON.stringify(updated));
+        showNotification('🟢 Website code verified! Widget status is now Connected.', 'success');
+      } else {
+        showNotification(data.error || 'Tracking snippet not detected on website yet. Please make sure the code is embedded before </body>.', 'error');
+      }
+    } catch (err: any) {
+      showNotification('Could not connect to verify website snippet.', 'error');
+    } finally {
       setTestingInstallation(false);
-      const updated = websites.map(w => ({ ...w, status: 'Connected' as const }));
-      setWebsites(updated);
-      showNotification('🟢 Website code verified! Widget status is now Connected.', 'success');
-    }, 2000);
+    }
   };
 
   const handleReconnect = () => {
@@ -1324,26 +1318,51 @@ export default function Dashboard({
     setSimulatedSurveyState('success');
     showNotification('Simulated feedback logged successfully!', 'success');
 
-    setTimeout(() => {
-      triggerExitAnalysisLoad();
-    }, 1000);
+    try {
+      fetch('/api/events/survey-response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          siteId: workspace.siteId || 'cl_default',
+          surveyId: selectedSurveyId,
+          answers: newResp.answers,
+          visitorMeta: newResp.visitorMeta
+        })
+      }).catch(console.warn);
+    } catch (e) {}
+
+    triggerExitAnalysisLoad();
   };
 
-  // Custom Domain Setup
-  const handleDomainVerify = () => {
+  // Custom Domain Setup - Real DNS verification via backend
+  const handleDomainVerify = async () => {
     if (!domainInput) {
-      showNotification('Please enter a subdomain', 'error');
+      showNotification('Please enter a domain or subdomain to verify', 'error');
       return;
     }
-    showNotification('Checking DNS records for CNAME customerlens.app...', 'info');
-    setTimeout(() => {
-      setDnsVerified(true);
-      onUpdateWorkspace({
-        customDomain: domainInput,
-        customDomainStatus: 'Active'
+    showNotification(`Querying live DNS records for ${domainInput}...`, 'info');
+    try {
+      const res = await fetch('/api/domains/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: domainInput })
       });
-      showNotification('🟢 Domain successfully connected! SSL certificate is active.', 'success');
-    }, 2000);
+      const data = await res.json();
+      const payload = data.data || data;
+      if (res.ok && payload.verified) {
+        setDnsVerified(true);
+        onUpdateWorkspace({
+          customDomain: domainInput,
+          customDomainStatus: 'Active'
+        });
+        showNotification(`🟢 Domain ${domainInput} verified successfully via DNS!`, 'success');
+      } else {
+        setDnsVerified(false);
+        showNotification(payload.message || 'DNS record not detected. Please verify your TXT or CNAME record and allow time for DNS propagation.', 'error');
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'DNS verification query failed', 'error');
+    }
   };
 
   // White Label updates

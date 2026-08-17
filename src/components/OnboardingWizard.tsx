@@ -101,126 +101,13 @@ interface ZigpollTemplate {
 }
 
 const ZIGPOLL_TEMPLATES: ZigpollTemplate[] = [
-  // MANUAL
-  {
-    id: 'api_only',
-    title: 'API Only',
-    desc: 'Make this survey available to be triggered using our JS API only.',
-    category: 'Manual',
-    categoryGroup: 'MANUAL',
-    recommended: ['JS API'],
-    previewType: 'example_slide',
-    previewTitle: 'Example Slide',
-    previewSub: 'This is an example slide. Your published zigpoll will look something like this given your current settings.'
-  },
-  {
-    id: 'embed_code',
-    title: 'Embed Code Snippet',
-    desc: 'Embed this survey anywhere with a simple code snippet.',
-    category: 'Manual',
-    categoryGroup: 'MANUAL',
-    recommended: ['Embed Snippet'],
-    previewType: 'example_slide',
-    previewTitle: 'Example Slide',
-    previewSub: 'This is an example slide. Your published zigpoll will look something like this given your current settings.'
-  },
-  {
-    id: 'configure_manually',
-    title: 'Configure Manually',
-    desc: 'Display the survey only on the page or pages that you specify.',
-    category: 'Manual',
-    categoryGroup: 'MANUAL',
-    recommended: ['Page Rules'],
-    previewType: 'example_slide',
-    previewTitle: 'Example Slide',
-    previewSub: 'This is an example slide. Your published zigpoll will look something like this given your current settings.'
-  },
-  {
-    id: 'synthetic_research',
-    title: 'Synthetic Research',
-    desc: 'Generate synthetic survey responses from configurable audience profiles.',
-    category: 'Manual',
-    categoryGroup: 'MANUAL',
-    recommended: ['Audience AI'],
-    isSparkle: true,
-    previewType: 'example_slide',
-    previewTitle: 'Synthetic Research Slide',
-    previewSub: 'Generate synthetic survey responses from configurable audience profiles.'
-  },
-
-  // EXIT INTENT (GENERAL BROWSING & PRE-EXIT HESITATION)
-  {
-    id: 'exit_intent_step',
-    title: 'Exit Intent — What Stopped Next Step',
-    desc: 'Understand what stopped visitors from taking the next step before leaving.',
-    category: 'Ecommerce',
-    categoryGroup: 'EXIT INTENT',
-    recommended: ['Exit Intent', 'On-Site'],
-    previewType: 'radio_list',
-    previewTitle: 'Before you go — what stopped you from taking the next step?',
-    options: [
-      'I’m just researching',
-      'I’m not sure this is right for me',
-      'I need more information',
-      'Something is missing'
-    ]
-  },
-  {
-    id: 'exit_intent_continue',
-    title: 'Exit Intent — Likely to Continue',
-    desc: 'Learn what would have made visitors more likely to stay and explore.',
-    category: 'Ecommerce',
-    categoryGroup: 'EXIT INTENT',
-    recommended: ['Exit Intent', 'On-Site'],
-    previewType: 'radio_list',
-    previewTitle: 'What would have made you more likely to continue?',
-    options: [
-      'A better price',
-      'More information/details',
-      'More trust or reviews',
-      'A simpler experience'
-    ]
-  },
-  {
-    id: 'exit_intent_missing_search',
-    title: "Exit Intent — What's Missing",
-    desc: "Discover what visitors were looking for that they didn't find on your website.",
-    category: 'Ecommerce',
-    categoryGroup: 'EXIT INTENT',
-    recommended: ['Exit Intent', 'On-Site'],
-    previewType: 'radio_list',
-    previewTitle: "What were you looking for that you didn't find?",
-    options: [
-      'A specific product/feature',
-      'Pricing information',
-      'Reviews or proof',
-      'Nothing in particular'
-    ]
-  },
-  {
-    id: 'exit_intent_hesitation',
-    title: 'Exit Intent — Biggest Hesitation',
-    desc: 'Identify the primary friction point preventing action right now.',
-    category: 'Ecommerce',
-    categoryGroup: 'EXIT INTENT',
-    recommended: ['Exit Intent', 'On-Site'],
-    previewType: 'radio_list',
-    previewTitle: 'What is your biggest hesitation right now?',
-    options: [
-      'Price',
-      'Product/service quality',
-      'Trust/security',
-      "I'm simply not ready"
-    ]
-  },
-
-  // CART ABANDONMENT (CHECKOUT DROP-OFF & PURCHASE HESITATION)
+  // 1. SHOPPING & ECOMMERCE
   {
     id: 'cart_abandonment_stop',
     title: 'Cart Abandonment — Purchase Blockers',
     desc: 'Identify what stopped shoppers from completing their checkout order.',
     category: 'Ecommerce',
-    categoryGroup: 'CART ABANDONMENT',
+    categoryGroup: 'Shopping & Ecommerce',
     recommended: ['Cart Abandonment', 'Checkout Exit'],
     previewType: 'radio_list',
     previewTitle: 'What stopped you from completing your purchase?',
@@ -236,7 +123,7 @@ const ZIGPOLL_TEMPLATES: ZigpollTemplate[] = [
     title: 'Cart Abandonment — Checkout Surprises',
     desc: 'Detect unexpected checkout friction such as shipping, taxes, or delivery time.',
     category: 'Ecommerce',
-    categoryGroup: 'CART ABANDONMENT',
+    categoryGroup: 'Shopping & Ecommerce',
     recommended: ['Cart Abandonment', 'Checkout Exit'],
     previewType: 'radio_list',
     previewTitle: 'Was anything unexpected at checkout?',
@@ -252,7 +139,7 @@ const ZIGPOLL_TEMPLATES: ZigpollTemplate[] = [
     title: 'Cart Abandonment — Win-back Incentives',
     desc: 'Learn what offer or assurance would motivate shoppers to complete their purchase.',
     category: 'Ecommerce',
-    categoryGroup: 'CART ABANDONMENT',
+    categoryGroup: 'Shopping & Ecommerce',
     recommended: ['Cart Abandonment', 'Checkout Exit'],
     previewType: 'radio_list',
     previewTitle: 'What would make you more likely to complete your purchase?',
@@ -264,43 +151,11 @@ const ZIGPOLL_TEMPLATES: ZigpollTemplate[] = [
     ]
   },
   {
-    id: 'cart_abandonment_closeness',
-    title: 'Cart Abandonment — Purchase Intent Stage',
-    desc: 'Gauge buyer intent stage and how close they were to buying.',
-    category: 'Ecommerce',
-    categoryGroup: 'CART ABANDONMENT',
-    recommended: ['Cart Abandonment', 'Checkout Exit'],
-    previewType: 'radio_list',
-    previewTitle: 'How close were you to completing your purchase?',
-    options: [
-      'I was just checking the price',
-      'I was seriously considering it',
-      'I was ready to buy',
-      'I planned to buy later'
-    ]
-  },
-  {
-    id: 'cart_abandonment_concerns',
-    title: 'Cart Abandonment — Pre-buying Concern',
-    desc: 'Pinpoint hesitation around price, product quality, delivery, or payment security.',
-    category: 'Ecommerce',
-    categoryGroup: 'CART ABANDONMENT',
-    recommended: ['Cart Abandonment', 'Checkout Exit'],
-    previewType: 'radio_list',
-    previewTitle: 'What was the biggest concern before buying?',
-    options: [
-      'Price/value',
-      'Product quality',
-      'Delivery/returns',
-      'Payment/security'
-    ]
-  },
-  {
     id: 'cart_abandonment_convince_today',
     title: 'Cart Abandonment — Same-Day Win-Back',
     desc: 'High-conversion win-back trigger question for same-day purchasing.',
     category: 'Ecommerce',
-    categoryGroup: 'CART ABANDONMENT',
+    categoryGroup: 'Shopping & Ecommerce',
     recommended: ['Cart Abandonment', 'Checkout Exit', 'Exit Intent'],
     previewType: 'exit_intent_discount',
     banner: 'Get 10% off your order by completing this 15-second survey!',
@@ -312,96 +167,48 @@ const ZIGPOLL_TEMPLATES: ZigpollTemplate[] = [
       "Nothing — I wasn't ready"
     ]
   },
-
-  // ECOMMERCE GENERAL
   {
     id: 'product_pages',
-    title: 'Product Pages',
+    title: 'Product Pages & Product Feedback',
     desc: 'Show this survey on all of your product pages.',
     category: 'Ecommerce',
-    categoryGroup: 'ECOMMERCE',
+    categoryGroup: 'Shopping & Ecommerce',
     recommended: ['On-Site'],
     previewType: 'radio_list',
     previewTitle: 'Does this page tell you everything you need to know about the product?',
     options: ['Yes, definitely!', 'Sort of...', 'Not at all']
   },
   {
-    id: 'reward_email',
-    title: 'Reward Email Capture',
-    desc: 'Incentivize your customers to submit their email provide feedback.',
-    category: 'Ecommerce',
-    categoryGroup: 'ECOMMERCE',
-    recommended: ['On-Site', 'Homepage Modal'],
-    previewType: 'email_input',
-    previewTitle: 'Unlock 10% OFF Your Order',
-    previewSub: 'Enter your email to receive your instant promo code.'
-  },
-  {
     id: 'identify_goals',
-    title: 'Identify Customer Goals',
+    title: 'Post-Purchase & Product Use Goals',
     desc: 'Use this survey to understand how customers plan to use your product.',
     category: 'Ecommerce',
-    categoryGroup: 'ECOMMERCE',
+    categoryGroup: 'Shopping & Ecommerce',
     recommended: ['On-Site', 'Order Delivered'],
     previewType: 'radio_list',
     previewTitle: 'How do you plan to use our product?',
     options: ['Personal use', 'Gift for someone else', 'Business / Work', 'Other']
   },
   {
-    id: 'identify_blockers',
-    title: 'Identify Sign-Up Blockers',
-    desc: 'This survey helps identify issues with your product or messaging.',
+    id: 'csat_checkout',
+    title: 'Checkout & Purchase Feedback',
+    desc: 'Understand how customers feel about the checkout flow.',
     category: 'Ecommerce',
-    categoryGroup: 'ECOMMERCE',
-    recommended: ['On-Site'],
-    previewType: 'radio_list',
-    previewTitle: 'What almost kept you from signing up today?',
-    options: ['Unclear pricing', 'Privacy concerns', "Didn't see features I needed", 'Other']
-  },
-  {
-    id: 'improve_signup',
-    title: 'Improve Your Sign Up Experience',
-    desc: 'Measure the sign-up experience and gauge user expectations.',
-    category: 'Ecommerce',
-    categoryGroup: 'ECOMMERCE',
-    recommended: ['On-Site'],
-    previewType: 'rating_1_5',
-    previewTitle: 'How easy was it to create your account?',
-    minLabel: 'Not Easy',
-    maxLabel: 'Very Easy'
-  },
-
-  // CUSTOMER SATISFACTION
-  {
-    id: 'nps',
-    title: 'Net Promoter Score (NPS)',
-    desc: 'Gauge the loyalty of your customer relationships.',
-    category: 'General',
-    categoryGroup: 'CUSTOMER SATISFACTION',
-    recommended: ['Link', 'On-Site', 'Email'],
-    previewType: 'rating_1_10',
-    previewTitle: 'How likely are you to recommend us to a friend?',
-    minLabel: 'Not at all likely',
-    maxLabel: 'Extremely likely'
-  },
-  {
-    id: 'customer_experience',
-    title: 'Customer Experience Survey',
-    desc: 'Get a 360 degree view of how your customers feel about your website.',
-    category: 'General',
-    categoryGroup: 'CUSTOMER SATISFACTION',
-    recommended: ['Post Purchase', 'On-Site'],
+    categoryGroup: 'Shopping & Ecommerce',
+    recommended: ['Post Purchase'],
     previewType: 'csat_emojis',
-    previewTitle: 'How was your overall website experience?',
+    previewTitle: 'How did you feel about our checkout process?',
     minLabel: 'Hated It',
     maxLabel: 'Loved It'
   },
+
+  // 2. CUSTOMER FEEDBACK
   {
     id: 'customer_satisfaction_survey',
     title: 'Customer Satisfaction Survey',
     desc: 'Understand how your customers really feel about their purchase.',
     category: 'General',
-    categoryGroup: 'CUSTOMER SATISFACTION',
+    categoryGroup: 'Customer Feedback',
     recommended: ['Post Purchase', 'Email', 'SMS'],
     previewType: 'csat_emojis',
     previewTitle: 'How satisfied are you with your recent order?',
@@ -409,23 +216,46 @@ const ZIGPOLL_TEMPLATES: ZigpollTemplate[] = [
     maxLabel: 'Very Satisfied'
   },
   {
-    id: 'csat',
-    title: 'Customer Satisfaction (CSAT)',
-    desc: 'Understand how customers feel about an interaction.',
+    id: 'nps',
+    title: 'Net Promoter Score (NPS)',
+    desc: 'Gauge the loyalty of your customer relationships.',
     category: 'General',
-    categoryGroup: 'CUSTOMER SATISFACTION',
-    recommended: ['Post Purchase'],
+    categoryGroup: 'Customer Feedback',
+    recommended: ['Link', 'On-Site', 'Email'],
+    previewType: 'rating_1_10',
+    previewTitle: 'How likely are you to recommend us to a friend?',
+    minLabel: 'Not at all likely',
+    maxLabel: 'Extremely likely'
+  },
+  {
+    id: 'feedback',
+    title: 'General Feedback & Suggestions',
+    desc: 'Unobtrusive survey on every page prompting feedback and ideas.',
+    category: 'General',
+    categoryGroup: 'Customer Feedback',
+    recommended: ['On-Site'],
+    previewType: 'radio_list',
+    previewTitle: 'How can we make this page better?',
+    options: ['Add more product details', 'Lower shipping rates', 'Faster page loading', 'Other']
+  },
+  {
+    id: 'customer_experience',
+    title: 'Customer Experience Reviews',
+    desc: 'Get a 360 degree view of how your customers feel about your website.',
+    category: 'General',
+    categoryGroup: 'Customer Feedback',
+    recommended: ['Post Purchase', 'On-Site'],
     previewType: 'csat_emojis',
-    previewTitle: 'How did you feel about our checkout process?',
+    previewTitle: 'How was your overall website experience?',
     minLabel: 'Hated It',
     maxLabel: 'Loved It'
   },
   {
     id: 'ces',
-    title: 'Customer Effort (CES)',
+    title: 'Customer Effort Score (CES)',
     desc: 'Measure the difficulty of an interaction.',
     category: 'General',
-    categoryGroup: 'CUSTOMER SATISFACTION',
+    categoryGroup: 'Customer Feedback',
     recommended: ['Post Purchase', 'On-Site'],
     previewType: 'rating_1_5',
     previewTitle: 'How easy was it to complete your purchase today?',
@@ -433,136 +263,61 @@ const ZIGPOLL_TEMPLATES: ZigpollTemplate[] = [
     maxLabel: 'Very Easy'
   },
 
-  // SOFTWARE (SAAS)
+  // 3. WEBSITE & CONVERSION
   {
-    id: 'pmf',
-    title: 'Product-Market Fit (SaaS)',
-    desc: 'Run the classic Sean Ellis test to measure how much your users would miss your product.',
-    category: 'General',
-    categoryGroup: 'SOFTWARE (SAAS)',
-    recommended: ['Email', 'Link', 'On-Site'],
+    id: 'exit_intent_step',
+    title: 'Exit Intent — What Stopped Next Step',
+    desc: 'Understand what stopped visitors from taking the next step before leaving.',
+    category: 'Ecommerce',
+    categoryGroup: 'Website & Conversion',
+    recommended: ['Exit Intent', 'On-Site'],
     previewType: 'radio_list',
-    previewTitle: 'How would you feel if you could no longer use our product?',
-    options: ['Very disappointed', 'Somewhat disappointed', 'Not disappointed', 'N/A - I no longer use it']
+    previewTitle: 'Before you go — what stopped you from taking the next step?',
+    options: [
+      'I’m just researching',
+      'I’m not sure this is right for me',
+      'I need more information',
+      'Something is missing'
+    ]
   },
   {
-    id: 'onboarding',
-    title: 'Onboarding Survey',
-    desc: 'Learn what new users want to accomplish and where they get stuck during setup.',
-    category: 'General',
-    categoryGroup: 'SOFTWARE (SAAS)',
-    recommended: ['On-Site', 'Email', 'Link'],
+    id: 'exit_intent_continue',
+    title: 'Exit Intent — Conversion Optimization',
+    desc: 'Learn what would have made visitors more likely to stay and explore.',
+    category: 'Ecommerce',
+    categoryGroup: 'Website & Conversion',
+    recommended: ['Exit Intent', 'On-Site'],
     previewType: 'radio_list',
-    previewTitle: 'What is your primary goal today?',
-    options: ['Increase sales conversion', 'Collect customer feedback', 'Reduce cart drop-off', 'Just exploring']
+    previewTitle: 'What would have made you more likely to continue?',
+    options: [
+      'A better price',
+      'More information/details',
+      'More trust or reviews',
+      'A simpler experience'
+    ]
   },
   {
-    id: 'upgrade_survey',
-    title: 'Upgrade Survey',
-    desc: 'Understand what drives customers to move to a higher plan so you can do more of it.',
-    category: 'General',
-    categoryGroup: 'SOFTWARE (SAAS)',
-    recommended: ['Email', 'Link', 'On-Site'],
+    id: 'exit_intent_missing_search',
+    title: "Conversion Problems — What's Missing",
+    desc: "Discover what visitors were looking for that they didn't find on your website.",
+    category: 'Ecommerce',
+    categoryGroup: 'Website & Conversion',
+    recommended: ['Exit Intent', 'On-Site'],
     previewType: 'radio_list',
-    previewTitle: "What's the main reason you upgraded?",
-    options: ['Hit a limit on my plan', 'Needed a specific feature', 'My team or usage grew', 'Wanted better support', 'Recommended by a colleague', 'Other']
-  },
-  {
-    id: 'downgrade_survey',
-    title: 'Downgrade Survey',
-    desc: 'Find out why customers move to a smaller plan and what would keep them on a higher one.',
-    category: 'General',
-    categoryGroup: 'SOFTWARE (SAAS)',
-    recommended: ['Email', 'Link', 'On-Site'],
-    previewType: 'radio_list',
-    previewTitle: "What's the main reason you're moving to a smaller plan?",
-    options: ['Too expensive for my current usage', 'Not using enough of the features', 'Missing a feature I needed', 'Just scaling back for now', 'Switching to another tool', 'Other']
-  },
-  {
-    id: 'cancellation_survey',
-    title: 'Cancellation Survey',
-    desc: 'Capture why customers cancel so you can reduce churn and win some back.',
-    category: 'General',
-    categoryGroup: 'SOFTWARE (SAAS)',
-    recommended: ['On-Site', 'Link', 'Email'],
-    previewType: 'radio_list',
-    previewTitle: "What's the main reason you're cancelling?",
-    options: ['Too expensive', 'Missing features I need', 'Too hard to use', 'I no longer need it', 'Switching to a competitor', 'Just trying it out', 'Other']
-  },
-  {
-    id: 'feature_request',
-    title: 'Feature Request Survey',
-    desc: 'Collect and prioritize the features your customers want most.',
-    category: 'General',
-    categoryGroup: 'SOFTWARE (SAAS)',
-    recommended: ['On-Site', 'Email', 'Link'],
-    previewType: 'radio_list',
-    previewTitle: 'Which feature should we build next?',
-    options: ['Klaviyo / Email Integration', 'Custom CSS & Branding', 'Advanced Analytics Export', 'Multi-language Support', 'Other']
-  },
-  {
-    id: 'site_feedback',
-    title: 'Site Feedback',
-    desc: 'General feedback about your website.',
-    category: 'General',
-    categoryGroup: 'SOFTWARE (SAAS)',
-    recommended: ['On-Site'],
-    previewType: 'radio_list',
-    previewTitle: 'How would you rate our website navigation?',
-    options: ['Very easy to find items', 'Somewhat easy', 'Confusing / Hard to find items']
-  },
-  {
-    id: 'feature_feedback',
-    title: 'Feature Feedback',
-    desc: 'Discover what your customers think about recent changes.',
-    category: 'General',
-    categoryGroup: 'SOFTWARE (SAAS)',
-    recommended: ['On-Site', 'Email'],
-    previewType: 'radio_list',
-    previewTitle: 'How do you like our new dashboard layout?',
-    options: ['Love it!', "It's okay", 'Preferred the old one']
-  },
-  {
-    id: 'improve_product_desc',
-    title: 'Improve Product Descriptions',
-    desc: 'Understand how effective your product descriptions are to customers.',
-    category: 'General',
-    categoryGroup: 'SOFTWARE (SAAS)',
-    recommended: ['On-Site'],
-    previewType: 'radio_list',
-    previewTitle: 'Does this page tell you everything you need to know about the product?',
-    options: ['Yes, definitely!', 'Sort of...', 'Not at all']
-  },
-  {
-    id: 'improve_site_nav',
-    title: 'Improve Site Navigation',
-    desc: 'Understand how effective your site navigation is to your customers.',
-    category: 'General',
-    categoryGroup: 'SOFTWARE (SAAS)',
-    recommended: ['On-Site'],
-    previewType: 'radio_list',
-    previewTitle: 'Were you able to find what you were looking for today?',
-    options: ['Yes easily', 'Took some searching', "No, couldn't find it"]
-  },
-
-  // GENERAL
-  {
-    id: 'link_only',
-    title: 'Link Only',
-    desc: 'Access this survey via a public URL only. Commonly used for one-off campaigns.',
-    category: 'General',
-    categoryGroup: 'GENERAL',
-    recommended: ['On-Site'],
-    previewType: 'radio_list',
-    previewTitle: 'How did you hear about us?',
-    options: ['Social Media', 'Friend / Colleague', 'Search Engine', 'Other']
+    previewTitle: "What were you looking for that you didn't find?",
+    options: [
+      'A specific product/feature',
+      'Pricing information',
+      'Reviews or proof',
+      'Nothing in particular'
+    ]
   },
   {
     id: 'every_page',
-    title: 'Every Page',
-    desc: 'Show this survey on every page of your website.',
+    title: 'Website Experience Friction Survey',
+    desc: 'Show this survey on every page to catch conversion blockers.',
     category: 'General',
-    categoryGroup: 'GENERAL',
+    categoryGroup: 'Website & Conversion',
     recommended: ['On-Site'],
     previewType: 'radio_list',
     previewTitle: 'What was your biggest hesitation or concern while browsing our website?',
@@ -570,50 +325,176 @@ const ZIGPOLL_TEMPLATES: ZigpollTemplate[] = [
     options: ["I couldn't find enough information", 'Prices were unclear or too high', "I don't trust the website yet", 'Checkout process seemed complicated', "I'm just browsing, not ready to buy", 'Other']
   },
   {
-    id: 'homepage_only',
-    title: 'Homepage Only',
-    desc: 'Show this survey on your homepage only.',
+    id: 'improve_site_nav',
+    title: 'Website Experience & Navigation Usability',
+    desc: 'Understand how effective your site navigation is to your customers.',
     category: 'General',
-    categoryGroup: 'GENERAL',
+    categoryGroup: 'Website & Conversion',
+    recommended: ['On-Site'],
+    previewType: 'radio_list',
+    previewTitle: 'Were you able to find what you were looking for today?',
+    options: ['Yes easily', 'Took some searching', "No, couldn't find it"]
+  },
+
+  // 4. SAAS & PRODUCT
+  {
+    id: 'pmf',
+    title: 'Product-Market Fit (SaaS)',
+    desc: 'Run the classic Sean Ellis test to measure how much your users would miss your product.',
+    category: 'General',
+    categoryGroup: 'SaaS & Product',
+    recommended: ['Email', 'Link', 'On-Site'],
+    previewType: 'radio_list',
+    previewTitle: 'How would you feel if you could no longer use our product?',
+    options: ['Very disappointed', 'Somewhat disappointed', 'Not disappointed', 'N/A - I no longer use it']
+  },
+  {
+    id: 'feature_request',
+    title: 'Feature Request Survey',
+    desc: 'Collect and prioritize the features your customers want most.',
+    category: 'General',
+    categoryGroup: 'SaaS & Product',
+    recommended: ['On-Site', 'Email', 'Link'],
+    previewType: 'radio_list',
+    previewTitle: 'Which feature should we build next?',
+    options: ['Klaviyo / Email Integration', 'Custom CSS & Branding', 'Advanced Analytics Export', 'Multi-language Support', 'Other']
+  },
+  {
+    id: 'onboarding',
+    title: 'Product Usability & Onboarding Survey',
+    desc: 'Learn what new users want to accomplish and where they get stuck during setup.',
+    category: 'General',
+    categoryGroup: 'SaaS & Product',
+    recommended: ['On-Site', 'Email', 'Link'],
+    previewType: 'radio_list',
+    previewTitle: 'What is your primary goal today?',
+    options: ['Increase sales conversion', 'Collect customer feedback', 'Reduce cart drop-off', 'Just exploring']
+  },
+  {
+    id: 'cancellation_survey',
+    title: 'Cancellation & Churn Software Feedback',
+    desc: 'Capture why customers cancel so you can reduce churn and win some back.',
+    category: 'General',
+    categoryGroup: 'SaaS & Product',
+    recommended: ['On-Site', 'Link', 'Email'],
+    previewType: 'radio_list',
+    previewTitle: "What's the main reason you're cancelling?",
+    options: ['Too expensive', 'Missing features I need', 'Too hard to use', 'I no longer need it', 'Switching to a competitor', 'Just trying it out', 'Other']
+  },
+  {
+    id: 'upgrade_survey',
+    title: 'Upgrade & User Experience Survey',
+    desc: 'Understand what drives customers to move to a higher plan.',
+    category: 'General',
+    categoryGroup: 'SaaS & Product',
+    recommended: ['Email', 'Link', 'On-Site'],
+    previewType: 'radio_list',
+    previewTitle: "What's the main reason you upgraded?",
+    options: ['Hit a limit on my plan', 'Needed a specific feature', 'My team or usage grew', 'Wanted better support', 'Recommended by a colleague', 'Other']
+  },
+
+  // 5. MARKETING & ENGAGEMENT
+  {
+    id: 'link_only',
+    title: 'Attribution & Discovery (HDYHAU)',
+    desc: 'Discover your top marketing acquisition channels.',
+    category: 'General',
+    categoryGroup: 'Marketing & Engagement',
+    recommended: ['On-Site'],
+    previewType: 'radio_list',
+    previewTitle: 'How did you hear about us?',
+    options: ['Social Media (Instagram/TikTok)', 'Search Engine (Google/Bing)', 'Friend / Colleague', 'Podcast / YouTube', 'Other']
+  },
+  {
+    id: 'homepage_only',
+    title: 'Lead & Customer Discovery Welcome Survey',
+    desc: 'Understand new audience intentions and campaign traffic discovery.',
+    category: 'General',
+    categoryGroup: 'Marketing & Engagement',
     recommended: ['On-Site'],
     previewType: 'radio_list',
     previewTitle: 'Welcome! What brings you to our store today?',
     options: ['Looking for specific items', 'Browsing sales & discounts', 'Learning about your brand']
   },
   {
-    id: 'feedback',
-    title: 'Feedback',
-    desc: 'Unobtrusive survey on every page prompting feedback.',
-    category: 'General',
-    categoryGroup: 'GENERAL',
-    recommended: ['On-Site'],
-    previewType: 'radio_list',
-    previewTitle: 'How can we make this page better?',
-    options: ['Add more product details', 'Lower shipping rates', 'Faster page loading', 'Other']
+    id: 'reward_email',
+    title: 'Campaign Engagement & Lead Magnet',
+    desc: 'Incentivize visitors to submit their email and provide feedback.',
+    category: 'Ecommerce',
+    categoryGroup: 'Marketing & Engagement',
+    recommended: ['On-Site', 'Homepage Modal'],
+    previewType: 'email_input',
+    previewTitle: 'Unlock 10% OFF Your Order',
+    previewSub: 'Enter your email to receive your instant promo code.'
   },
   {
     id: 'homepage_popup',
-    title: 'Homepage Pop Up',
-    desc: 'Show this survey as a modal when the user lands on your homepage.',
+    title: 'Audience Engagement & Intent Discovery',
+    desc: 'Show this survey as a modal to engage landing visitors.',
     category: 'General',
-    categoryGroup: 'GENERAL',
+    categoryGroup: 'Marketing & Engagement',
     recommended: ['On-Site'],
     previewType: 'radio_list',
     previewTitle: 'Are you shopping for yourself or someone else today?',
     options: ['Shopping for myself', 'Looking for a gift', 'Just exploring']
   },
 
-  // EMAIL & SMS
+  // 6. COMMUNICATION & OTHER
   {
     id: 'email_campaign',
-    title: 'Email Campaign',
-    desc: 'Email this survey out to your customers.',
+    title: 'Email & SMS Post-Campaign Survey',
+    desc: 'Email or SMS this survey out to your subscribed customers.',
     category: 'Email & SMS',
-    categoryGroup: 'EMAIL & SMS',
+    categoryGroup: 'Communication & Other',
     recommended: ['Email Campaign'],
     previewType: 'radio_list',
     previewTitle: 'How likely are you to purchase from our next collection?',
     options: ['Definitely will', 'Maybe', 'Not likely']
+  },
+  {
+    id: 'configure_manually',
+    title: 'Manual Page Rules Survey',
+    desc: 'Display custom surveys on specific URLs that you configure manually.',
+    category: 'Manual',
+    categoryGroup: 'Communication & Other',
+    recommended: ['Page Rules'],
+    previewType: 'example_slide',
+    previewTitle: 'Custom Target Slide',
+    previewSub: 'This survey will trigger only on URLs matching your configured rules.'
+  },
+  {
+    id: 'embed_code',
+    title: 'Custom Embedded Web Survey',
+    desc: 'Embed a bespoke survey anywhere on your app or portal with a code snippet.',
+    category: 'Manual',
+    categoryGroup: 'Communication & Other',
+    recommended: ['Embed Snippet'],
+    previewType: 'example_slide',
+    previewTitle: 'Embedded Survey Container',
+    previewSub: 'Your responsive embed widget will render in-line seamlessly.'
+  },
+  {
+    id: 'api_only',
+    title: 'JS API Triggered Survey',
+    desc: 'Trigger targeted surveys programmatically via JavaScript events.',
+    category: 'Manual',
+    categoryGroup: 'Communication & Other',
+    recommended: ['JS API'],
+    previewType: 'example_slide',
+    previewTitle: 'API Event Survey',
+    previewSub: 'Triggers when window.CustomerLens.show() is called.'
+  },
+  {
+    id: 'synthetic_research',
+    title: 'Synthetic Research & AI Audience Insights',
+    desc: 'Generate synthetic survey responses from configurable audience profiles.',
+    category: 'Manual',
+    categoryGroup: 'Communication & Other',
+    recommended: ['Audience AI'],
+    isSparkle: true,
+    previewType: 'example_slide',
+    previewTitle: 'Synthetic Research Simulation',
+    previewSub: 'Simulate high-fidelity persona feedback across diverse consumer demographics.'
   }
 ];
 
@@ -695,47 +576,13 @@ const INITIAL_MANAGED_SLIDES: ManagedSlideItem[] = [
 ];
 
 const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
-  // --- EXIT INTENT QUESTIONS ---
-  {
-    id: 'exit_intent_what_stopped_step',
-    title: 'Before you go — what stopped you from taking the next step?',
-    type: 'Single Choice',
-    typeIcon: '✔️',
-    pairedWith: ['Exit Intent', 'On-Site'],
-    options: ['I’m just researching', 'I’m not sure this is right for me', 'I need more information', 'Something is missing']
-  },
-  {
-    id: 'exit_intent_more_likely_continue',
-    title: 'What would have made you more likely to continue?',
-    type: 'Single Choice',
-    typeIcon: '✔️',
-    pairedWith: ['Exit Intent', 'On-Site'],
-    options: ['A better price', 'More information/details', 'More trust or reviews', 'A simpler experience']
-  },
-  {
-    id: 'exit_intent_looking_for_missing',
-    title: "What were you looking for that you didn't find?",
-    type: 'Single Choice',
-    typeIcon: '✔️',
-    pairedWith: ['Exit Intent', 'On-Site'],
-    options: ['A specific product/feature', 'Pricing information', 'Reviews or proof', 'Nothing in particular']
-  },
-  {
-    id: 'exit_intent_biggest_hesitation',
-    title: 'What is your biggest hesitation right now?',
-    type: 'Single Choice',
-    typeIcon: '✔️',
-    pairedWith: ['Exit Intent', 'On-Site'],
-    options: ['Price', 'Product/service quality', 'Trust/security', "I'm simply not ready"]
-  },
-
-  // --- CART ABANDONMENT QUESTIONS ---
+  // 1. SHOPPING & ECOMMERCE QUESTIONS (Cart abandonment, Product feedback, Post-purchase, Checkout feedback)
   {
     id: 'cart_abandon_stop_purchase',
     title: 'What stopped you from completing your purchase?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Cart Abandonment', 'Checkout Exit'],
+    pairedWith: ['Shopping & Ecommerce', 'Cart abandonment', 'Checkout feedback'],
     options: ['The total price was higher than expected', 'I wanted to think about it', "I couldn't find my preferred option", 'I had an issue during checkout']
   },
   {
@@ -743,7 +590,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'Was anything unexpected at checkout?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Cart Abandonment', 'Checkout Exit'],
+    pairedWith: ['Shopping & Ecommerce', 'Checkout feedback', 'Cart abandonment'],
     options: ['Shipping cost', 'Taxes/fees', 'Delivery time', 'Nothing unexpected']
   },
   {
@@ -751,7 +598,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'What would make you more likely to complete your purchase?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Cart Abandonment', 'Checkout Exit'],
+    pairedWith: ['Shopping & Ecommerce', 'Cart abandonment', 'Post-purchase'],
     options: ['A discount', 'Free/cheaper shipping', 'More payment options', 'More confidence in the product']
   },
   {
@@ -759,7 +606,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'How close were you to completing your purchase?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Cart Abandonment', 'Checkout Exit'],
+    pairedWith: ['Shopping & Ecommerce', 'Cart abandonment', 'Checkout feedback'],
     options: ['I was just checking the price', 'I was seriously considering it', 'I was ready to buy', 'I planned to buy later']
   },
   {
@@ -767,7 +614,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'What was the biggest concern before buying?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Cart Abandonment', 'Checkout Exit'],
+    pairedWith: ['Shopping & Ecommerce', 'Cart abandonment', 'Product feedback'],
     options: ['Price/value', 'Product quality', 'Delivery/returns', 'Payment/security']
   },
   {
@@ -775,17 +622,196 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'What would have convinced you to buy today?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Cart Abandonment', 'Exit Intent', 'Checkout Exit'],
+    pairedWith: ['Shopping & Ecommerce', 'Cart abandonment', 'Website & Conversion'],
     options: ['Better price', 'Limited-time offer', 'More reviews/social proof', "Nothing — I wasn't ready"]
   },
+  {
+    id: 'happy_product_selection',
+    title: 'Are you happy with our product selection?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Shopping & Ecommerce', 'Product feedback', 'Post-purchase'],
+    options: ['Yes, loved it!', 'It was okay', 'No, missing items']
+  },
+  {
+    id: 'most_important_shopping',
+    title: 'What is most important when shopping for products like ours?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Shopping & Ecommerce', 'Product feedback', 'Customer Feedback'],
+    options: ['High quality materials', 'Competitive price', 'Fast & free shipping', 'Great customer service']
+  },
+  {
+    id: 'who_purchase_for',
+    title: 'Who is this purchase for?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Shopping & Ecommerce', 'Post-purchase', 'Marketing & Engagement'],
+    options: ['Myself', 'Friend or family', 'Coworker or client', 'Other']
+  },
+  {
+    id: 'what_purchase_for',
+    title: 'What is this purchase for?',
+    type: 'Long Answer',
+    typeIcon: '💬',
+    pairedWith: ['Shopping & Ecommerce', 'Post-purchase', 'Product feedback']
+  },
+  {
+    id: 'thank_for_purchase',
+    title: 'Who can we thank for your purchase today?',
+    type: 'Long Answer',
+    typeIcon: '💬',
+    pairedWith: ['Shopping & Ecommerce', 'Post-purchase', 'Customer Feedback']
+  },
+  {
+    id: 'important_fast_shipping',
+    title: 'How important is fast shipping to you?',
+    type: 'Range',
+    typeIcon: '📊',
+    pairedWith: ['Shopping & Ecommerce', 'Checkout feedback', 'Customer Feedback'],
+    minLabel: 'Not Important',
+    maxLabel: 'Very Important'
+  },
+  {
+    id: 'how_often_shop',
+    title: 'How often do you shop?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Shopping & Ecommerce', 'Customer Feedback', 'Marketing & Engagement'],
+    options: ['Multiple times a week', 'Once a week', 'Once a month', 'A few times a year']
+  },
 
-  // --- POST PURCHASE & ATTRIBUTION ---
+  // 2. CUSTOMER FEEDBACK (General feedback, Customer satisfaction, Reviews, Suggestions)
+  {
+    id: 'shopping_experience',
+    title: 'How was your shopping experience?',
+    type: 'Satisfaction',
+    typeIcon: '🎭',
+    pairedWith: ['Customer Feedback', 'Customer satisfaction', 'Reviews'],
+  },
+  {
+    id: 'do_you_have_questions',
+    title: 'Do you have any questions for us?',
+    type: 'Short Answer',
+    typeIcon: '💬',
+    pairedWith: ['Customer Feedback', 'General feedback', 'Suggestions']
+  },
+  {
+    id: 'competitors_better',
+    title: 'What do our competitors do better than us?',
+    type: 'Short Answer',
+    typeIcon: '💬',
+    pairedWith: ['Customer Feedback', 'Suggestions', 'General feedback']
+  },
+  {
+    id: 'recommend_friend',
+    title: 'Would you recommend us to a friend?',
+    type: 'Binary Choice',
+    typeIcon: '🔤',
+    pairedWith: ['Customer Feedback', 'Customer satisfaction', 'Reviews'],
+    options: ['Yes', 'No']
+  },
+  {
+    id: 'wish_we_had_more',
+    title: 'What do you wish we had more of?',
+    type: 'Long Answer',
+    typeIcon: '💬',
+    pairedWith: ['Customer Feedback', 'Suggestions', 'Website & Conversion']
+  },
+  {
+    id: 'favorite_thing_brand',
+    title: "What's your favorite thing about our brand?",
+    type: 'Long Answer',
+    typeIcon: '💬',
+    pairedWith: ['Customer Feedback', 'Reviews', 'Customer satisfaction']
+  },
+  {
+    id: 'enjoy_most_experience',
+    title: 'What did you enjoy most about your experience?',
+    type: 'Long Answer',
+    typeIcon: '💬',
+    pairedWith: ['Customer Feedback', 'Reviews', 'Customer satisfaction']
+  },
+
+  // 3. WEBSITE & CONVERSION (Exit intent, Conversion problems, Feedback & optimization, Website experience)
+  {
+    id: 'exit_intent_what_stopped_step',
+    title: 'Before you go — what stopped you from taking the next step?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Website & Conversion', 'Exit intent', 'Conversion problems'],
+    options: ['I’m just researching', 'I’m not sure this is right for me', 'I need more information', 'Something is missing']
+  },
+  {
+    id: 'exit_intent_more_likely_continue',
+    title: 'What would have made you more likely to continue?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Website & Conversion', 'Exit intent', 'Feedback & optimization'],
+    options: ['A better price', 'More information/details', 'More trust or reviews', 'A simpler experience']
+  },
+  {
+    id: 'exit_intent_looking_for_missing',
+    title: "What were you looking for that you didn't find?",
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Website & Conversion', 'Conversion problems', 'Feedback & optimization'],
+    options: ['A specific product/feature', 'Pricing information', 'Reviews or proof', 'Nothing in particular']
+  },
+  {
+    id: 'exit_intent_biggest_hesitation',
+    title: 'What is your biggest hesitation right now?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Website & Conversion', 'Exit intent', 'Conversion problems'],
+    options: ['Price', 'Product/service quality', 'Trust/security', "I'm simply not ready"]
+  },
+  {
+    id: 'what_stopping_purchase',
+    title: "What's stopping you from making a purchase?",
+    type: 'Multiple Choice',
+    typeIcon: '☑️',
+    pairedWith: ['Website & Conversion', 'Conversion problems', 'Exit intent'],
+    options: ['Shipping fees were too high', 'Just comparing options', 'Need more product reviews', 'Decided to buy later', 'Other']
+  },
+  {
+    id: 'website_difficult',
+    title: 'Was any part of this website difficult to navigate?',
+    type: 'Long Answer',
+    typeIcon: '💬',
+    pairedWith: ['Website & Conversion', 'Website experience', 'Feedback & optimization']
+  },
+
+  // 4. SAAS & PRODUCT (Software feedback, Feature requests, Product usability, User experience)
+  {
+    id: 'feature_want_have',
+    title: 'What feature do you want us to have?',
+    type: 'Long Answer',
+    typeIcon: '💬',
+    pairedWith: ['SaaS & Product', 'Feature requests', 'Software feedback']
+  },
+  {
+    id: 'biggest_competitors',
+    title: 'Who do you think our biggest competitors are?',
+    type: 'Long Answer',
+    typeIcon: '💬',
+    pairedWith: ['SaaS & Product', 'Software feedback', 'Product usability']
+  },
+  {
+    id: 'whats_occupation',
+    title: "What's your occupation?",
+    type: 'Short Answer',
+    typeIcon: '💬',
+    pairedWith: ['SaaS & Product', 'User experience', 'Marketing & Engagement']
+  },
+
+  // 5. MARKETING & ENGAGEMENT (Attribution & discovery, Campaign feedback, Engagement, Lead/customer discovery)
   {
     id: 'how_hear',
     title: 'How did you hear about us?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'Attribution & Discovery', 'On-Site'],
+    pairedWith: ['Marketing & Engagement', 'Attribution & discovery', 'Lead/customer discovery'],
     options: ['Search engine (Google, Bing)', 'Social media (TikTok, Instagram)', 'Friend or family recommendation', 'Podcast or Youtube', 'Other']
   },
   {
@@ -793,7 +819,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'What led you to our store today?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'Attribution & Discovery', 'On-Site'],
+    pairedWith: ['Marketing & Engagement', 'Campaign feedback', 'Attribution & discovery'],
     options: ['Looking for a specific item', 'Saw an ad on social media', 'Browsing for deals', 'Repeat customer recommendation']
   },
   {
@@ -801,7 +827,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'When did you first hear about us?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'Attribution & Discovery', 'Order Delivered'],
+    pairedWith: ['Marketing & Engagement', 'Attribution & discovery', 'Engagement'],
     options: ['Less than a day', 'Less than a week', 'Less than a month', 'Over a month ago']
   },
   {
@@ -809,7 +835,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'What brought you to our site today?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['On-Site', 'Post Purchase', 'Attribution & Discovery'],
+    pairedWith: ['Marketing & Engagement', 'Attribution & discovery', 'Campaign feedback'],
     options: ['Searching for products', 'Direct recommendation', 'Saw a promotion / ad', 'Email newsletter']
   },
   {
@@ -817,7 +843,7 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'How long did you know about us before placing your first purchase?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'Attribution & Discovery'],
+    pairedWith: ['Marketing & Engagement', 'Attribution & discovery', 'Engagement'],
     options: ['Less than a day', 'Less than a week', 'Less than a month', '1 - 3 months', '3 - 12 months', 'Over 12 months']
   },
   {
@@ -825,180 +851,41 @@ const SLIDE_QUESTIONS_TEMPLATES: SlideQuestionTemplate[] = [
     title: 'When did you first learn about us?',
     type: 'Single Choice',
     typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'Attribution & Discovery'],
+    pairedWith: ['Marketing & Engagement', 'Attribution & discovery', 'Campaign feedback'],
     options: ['Today', 'Earlier this week', 'In the past month', 'More than 3 months ago']
-  },
-  {
-    id: 'what_stopping_purchase',
-    title: "What's stopping you from making a purchase?",
-    type: 'Multiple Choice',
-    typeIcon: '☑️',
-    pairedWith: ['Exit Intent', 'On-Site'],
-    options: ['Shipping fees were too high', 'Just comparing options', 'Need more product reviews', 'Decided to buy later', 'Other']
-  },
-  {
-    id: 'do_you_have_questions',
-    title: 'Do you have any questions for us?',
-    type: 'Short Answer',
-    typeIcon: '💬',
-    pairedWith: ['Post Purchase', 'On-Site']
-  },
-  {
-    id: 'competitors_better',
-    title: 'What do our competitors do better than us?',
-    type: 'Short Answer',
-    typeIcon: '💬',
-    pairedWith: ['Post Purchase']
-  },
-  {
-    id: 'whats_occupation',
-    title: "What's your occupation?",
-    type: 'Short Answer',
-    typeIcon: '💬',
-    pairedWith: ['Post Purchase']
-  },
-  {
-    id: 'shopping_experience',
-    title: 'How was your shopping experience?',
-    type: 'Satisfaction',
-    typeIcon: '🎭',
-    pairedWith: ['Post Purchase']
-  },
-  {
-    id: 'who_purchase_for',
-    title: 'Who is this purchase for?',
-    type: 'Single Choice',
-    typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'Order Delivered'],
-    options: ['Myself', 'Friend or family', 'Coworker or client', 'Other']
-  },
-  {
-    id: 'how_old',
-    title: 'Approximately how old are you?',
-    type: 'Single Choice',
-    typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'On-Site'],
-    options: ['Under 18', '18 - 24', '25 - 34', '35 - 44', '45 - 54', '55+']
-  },
-  {
-    id: 'what_purchase_for',
-    title: 'What is this purchase for?',
-    type: 'Long Answer',
-    typeIcon: '💬',
-    pairedWith: ['Post Purchase', 'Order Delivered']
-  },
-  {
-    id: 'how_often_shop',
-    title: 'How often do you shop?',
-    type: 'Single Choice',
-    typeIcon: '✔️',
-    pairedWith: ['On-Site'],
-    options: ['Multiple times a week', 'Once a week', 'Once a month', 'A few times a year']
-  },
-  {
-    id: 'most_important_shopping',
-    title: 'What is most important when shopping for products like ours?',
-    type: 'Single Choice',
-    typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'On-Site'],
-    options: ['High quality materials', 'Competitive price', 'Fast & free shipping', 'Great customer service']
-  },
-  {
-    id: 'generation_identify',
-    title: 'What generation do you identify with?',
-    type: 'Single Choice',
-    typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'Order Delivered'],
-    options: ['Gen Z', 'Millennial', 'Gen X', 'Baby Boomer']
-  },
-  {
-    id: 'happy_product_selection',
-    title: 'Are you happy with our product selection?',
-    type: 'Single Choice',
-    typeIcon: '✔️',
-    pairedWith: ['Post Purchase', 'Order Delivered'],
-    options: ['Yes, loved it!', 'It was okay', 'No, missing items']
-  },
-  {
-    id: 'biggest_competitors',
-    title: 'Who do you think our biggest competitors are?',
-    type: 'Long Answer',
-    typeIcon: '💬',
-    pairedWith: ['Post Purchase', 'Order Delivered']
-  },
-  {
-    id: 'important_fast_shipping',
-    title: 'How important is fast shipping to you?',
-    type: 'Range',
-    typeIcon: '📊',
-    pairedWith: ['Post Purchase', 'On-Site'],
-    minLabel: 'Not Important',
-    maxLabel: 'Very Important'
   },
   {
     id: 'do_we_stand_out',
     title: 'Do we stand out?',
     type: 'Binary Choice',
     typeIcon: '🔤',
-    pairedWith: ['Post Purchase', 'On-Site'],
+    pairedWith: ['Marketing & Engagement', 'Engagement', 'Campaign feedback'],
     options: ['Yes', 'No']
   },
   {
-    id: 'recommend_friend',
-    title: 'Would you recommend us to a friend?',
-    type: 'Binary Choice',
-    typeIcon: '🔤',
-    pairedWith: ['Post Purchase', 'On-Site'],
-    options: ['Yes', 'No']
+    id: 'generation_identify',
+    title: 'What generation do you identify with?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Marketing & Engagement', 'Lead/customer discovery', 'Engagement'],
+    options: ['Gen Z', 'Millennial', 'Gen X', 'Baby Boomer']
   },
   {
-    id: 'website_difficult',
-    title: 'Was any part of this website difficult to navigate?',
-    type: 'Long Answer',
-    typeIcon: '💬',
-    pairedWith: ['On-Site', 'Post Purchase']
+    id: 'how_old',
+    title: 'Approximately how old are you?',
+    type: 'Single Choice',
+    typeIcon: '✔️',
+    pairedWith: ['Marketing & Engagement', 'Lead/customer discovery', 'Engagement'],
+    options: ['Under 18', '18 - 24', '25 - 34', '35 - 44', '45 - 54', '55+']
   },
-  {
-    id: 'wish_we_had_more',
-    title: 'What do you wish we had more of?',
-    type: 'Long Answer',
-    typeIcon: '💬',
-    pairedWith: ['On-Site', 'Exit Intent', 'Post Purchase']
-  },
-  {
-    id: 'thank_for_purchase',
-    title: 'Who can we thank for your purchase today?',
-    type: 'Long Answer',
-    typeIcon: '💬',
-    pairedWith: ['Post Purchase']
-  },
+
+  // 6. COMMUNICATION & OTHER (Email & SMS, Manual surveys, Custom surveys, Other use cases)
   {
     id: 'something_love_doing',
     title: "What's something you love doing?",
     type: 'Long Answer',
     typeIcon: '💬',
-    pairedWith: ['On-Site', 'Post Purchase']
-  },
-  {
-    id: 'favorite_thing_brand',
-    title: "What's your favorite thing about our brand?",
-    type: 'Long Answer',
-    typeIcon: '💬',
-    pairedWith: ['Post Purchase', 'On-Site']
-  },
-  {
-    id: 'enjoy_most_experience',
-    title: 'What did you enjoy most about your experience?',
-    type: 'Long Answer',
-    typeIcon: '💬',
-    pairedWith: ['Post Purchase']
-  },
-  {
-    id: 'feature_want_have',
-    title: 'What feature do you want us to have?',
-    type: 'Long Answer',
-    typeIcon: '💬',
-    pairedWith: ['Post Purchase']
+    pairedWith: ['Communication & Other', 'Custom surveys', 'Other use cases']
   }
 ];
 
@@ -1146,18 +1033,12 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   // --- STEP 2 TEMPLATES STATE & LIST ---
   const [templateSearchFilter, setTemplateSearchFilter] = useState<string>('');
   const ALL_FILTER_CATEGORIES = useMemo(() => [
-    'Exit Intent',
-    'Cart Abandonment',
-    'Post Purchase',
-    'Attribution & Discovery',
-    'Customer Satisfaction',
-    'Software (SaaS)',
-    'Feedback & Optimization',
-    'Ecommerce',
-    'General',
-    'Manual',
-    'Email & SMS',
-    'Engagement'
+    'Shopping & Ecommerce',
+    'Customer Feedback',
+    'Website & Conversion',
+    'SaaS & Product',
+    'Marketing & Engagement',
+    'Communication & Other'
   ], []);
 
   const REWARD_ATTRACTION_TEMPLATES = useMemo(() => [
@@ -1173,18 +1054,12 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   const [rewardSearchText, setRewardSearchText] = useState<string>('');
   const [rewardCustomInput, setRewardCustomInput] = useState<string>('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([
-    'Exit Intent',
-    'Cart Abandonment',
-    'Post Purchase',
-    'Attribution & Discovery',
-    'Customer Satisfaction',
-    'Software (SaaS)',
-    'Feedback & Optimization',
-    'Ecommerce',
-    'General',
-    'Manual',
-    'Email & SMS',
-    'Engagement'
+    'Shopping & Ecommerce',
+    'Customer Feedback',
+    'Website & Conversion',
+    'SaaS & Product',
+    'Marketing & Engagement',
+    'Communication & Other'
   ]);
   const [categoryFilterSearch, setCategoryFilterSearch] = useState<string>('');
   const [isFilterCategoriesOpen, setIsFilterCategoriesOpen] = useState<boolean>(false);
