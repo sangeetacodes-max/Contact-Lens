@@ -913,6 +913,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   const [activePlatform, setActivePlatform] = useState<string>('Custom Website');
   const [verifyMethod, setVerifyMethod] = useState<'script' | 'dns' | 'meta'>('dns');
   const [isDomainVerified, setIsDomainVerified] = useState(false);
+  const [isCodeExpanded, setIsCodeExpanded] = useState(false);
   const [toastNotification, setToastNotification] = useState<{ message: string; type?: string } | null>(null);
 
   const showNotification = (message: string, type: string = 'info') => {
@@ -997,10 +998,10 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
     }
   };
 
-  // Step 1 completion check: Completed ONLY when real DNS record verification is done!
+  // Step 1 completion check: No DNS check blocking
   const isStep1Completed = useMemo(() => {
-    return isDomainVerified;
-  }, [isDomainVerified]);
+    return true;
+  }, []);
 
   // Dynamic connected app / store name (from Shopify integration or website URL)
   const connectedAppName = useMemo(() => {
@@ -1902,17 +1903,11 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
               >
                 <span className="flex items-center gap-2">
                   <span className="text-slate-400 font-mono">1.</span>
-                  <span>Connect Website</span>
+                  <span>Install Tracker</span>
                 </span>
-                {isStep1Completed ? (
-                  <span className="h-4 w-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-[10px] font-black">
-                    ✓
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
-                    DNS
-                  </span>
-                )}
+                <span className="h-4 w-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-[10px] font-black">
+                  ✓
+                </span>
               </button>
 
               {/* Step 2: AI Survey Setup */}
@@ -2073,81 +2068,133 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
 
           <AnimatePresence mode="wait">
             
-            {/* STEP 1: JOIN WEBSITE WITH CUSTOMERLENS AI */}
+            {/* STEP 1: INSTALL CUSTOMER LENS AI IN YOUR WEBSITE */}
             {step === 1 && (
               <motion.div
                 key="step1"
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -15 }}
-                className="max-w-2xl mx-auto w-full space-y-6"
+                className="max-w-3xl mx-auto w-full space-y-6"
               >
-                {/* Header Badge */}
+                {/* Top Badge */}
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">
+                  <span className="text-[10px] font-bold bg-emerald-50 text-[#008060] px-3 py-1 rounded-full uppercase tracking-wider font-mono border border-emerald-200">
                     Step 1 of 3
                   </span>
-                  <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Zap size={10} className="text-amber-500" /> DNS Domain Connection
+                  <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Live Tracker Embed
                   </span>
                 </div>
 
-                {/* WebsiteVerification Component */}
-                <WebsiteVerification
-                  initialDomain={websiteUrl ? websiteUrl.replace(/^https?:\/\//, '').split('/')[0] : ''}
-                  onVerificationSuccess={(verifiedDom) => {
-                    setWebsiteUrl(`https://${verifiedDom}`);
-                    setIsDomainVerified(true);
-                    showNotification(`Domain ${verifiedDom} connected successfully! DNS record verified.`, 'success');
-                  }}
-                  onStatusChange={(verified, verifiedDom) => {
-                    setIsDomainVerified(verified);
-                    if (verified && verifiedDom) {
-                      setWebsiteUrl(`https://${verifiedDom}`);
-                    }
-                  }}
-                  showNotification={showNotification}
-                />
+                {/* Main Card with Big Bold Heading and Subheads */}
+                <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                  
+                  {/* HEADING (BOLD AND BIG) & SUBHEADS */}
+                  <div className="space-y-2">
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-slate-900 leading-tight">
+                      INSTALL CUSTOMER LENS AI IN YOUR WEBSITE
+                    </h1>
+                    <p className="text-sm sm:text-base font-medium text-slate-600 leading-relaxed">
+                      paste it before the closing <code className="bg-slate-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold text-xs sm:text-sm border border-slate-200">&lt;/head&gt;</code> tag, or another global layout/template.
+                    </p>
+                  </div>
 
-                {/* Continue to Step 2 Button with Strict DNS Verification Guard */}
-                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="space-y-0.5 text-center sm:text-left">
-                    <div className="flex items-center justify-center sm:justify-start gap-2">
-                      <h4 className="text-sm font-bold text-slate-900">Next: Configure Survey Questions</h4>
-                      {isStep1Completed && (
-                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                          ✓ DNS Verified
+                  {/* COLLAPSIBLE CODE SNIPPET BAR WITH COPY BUTTON & CHEVRON ARROW */}
+                  <div className="bg-[#0B1320] border border-slate-800 rounded-2xl overflow-hidden shadow-inner transition-all">
+                    
+                    {/* Header Bar: Preview text on left, Copy & Chevron Toggle on right */}
+                    <div 
+                      onClick={() => setIsCodeExpanded(!isCodeExpanded)}
+                      className="px-4 py-3.5 flex items-center justify-between cursor-pointer hover:bg-slate-900/60 transition-colors select-none group"
+                    >
+                      <div className="flex items-center gap-3 overflow-hidden pr-2">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+                        <span className="font-mono text-xs sm:text-sm text-emerald-300 truncate">
+                          &lt;script src="https://customerlens-ai.sangeeta-codes.workers.dev/tracker.js" ...&gt;
                         </span>
-                      )}
+                      </div>
+
+                      {/* Right Control Icons: Copy button + Arrow Toggle (matching user image) */}
+                      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        {/* Copy Icon Button */}
+                        <button
+                          type="button"
+                          title="Copy tracker code"
+                          onClick={() => {
+                            const snippet = `<script\n  src="https://customerlens-ai.sangeeta-codes.workers.dev/tracker.js"\n  data-site-id="cl_8f92a7bc"\n  async>\n</script>`;
+                            navigator.clipboard.writeText(snippet);
+                            setCopied(true);
+                            showNotification('Tracker script copied to clipboard!', 'success');
+                            setTimeout(() => setCopied(false), 2500);
+                          }}
+                          className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer border border-slate-700/60 flex items-center justify-center"
+                        >
+                          {copied ? (
+                            <Check size={16} className="text-emerald-400" />
+                          ) : (
+                            <Copy size={16} />
+                          )}
+                        </button>
+
+                        {/* Expand / Collapse Chevron Arrow (like the image) */}
+                        <button
+                          type="button"
+                          title={isCodeExpanded ? "Hide complete code" : "View complete code"}
+                          onClick={() => setIsCodeExpanded(!isCodeExpanded)}
+                          className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer border border-slate-700/60 flex items-center justify-center"
+                        >
+                          {isCodeExpanded ? (
+                            <ChevronUp size={16} className="text-slate-200" />
+                          ) : (
+                            <ChevronDown size={16} className="text-slate-400 group-hover:text-slate-200" />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-500">
-                      {isStep1Completed 
-                        ? 'DNS record verified! You can now proceed to customize questions and AI triggers.' 
-                        : 'Please complete the DNS record verification above to unlock Step 2.'}
+
+                    {/* EXPANDED COMPLETE CODE BLOCK */}
+                    <AnimatePresence>
+                      {isCodeExpanded && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="border-t border-slate-800 bg-[#070D18] px-5 py-4 font-mono text-xs sm:text-sm overflow-x-auto"
+                        >
+                          <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-800/60 text-[11px] text-slate-400 select-none">
+                            <span className="text-[10px] text-slate-400 font-mono">customerlens-tracker.html</span>
+                            <span className="text-[10px] text-emerald-400 font-mono font-semibold">Complete Script Tag</span>
+                          </div>
+                          <pre className="text-emerald-300 font-mono leading-relaxed whitespace-pre select-all">
+{`<script
+  src="https://customerlens-ai.sangeeta-codes.workers.dev/tracker.js"
+  data-site-id="cl_8f92a7bc"
+  async>
+</script>`}
+                          </pre>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+                {/* Continue to Step 2 Action Card */}
+                <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-center sm:text-left">
+                    <p className="text-xs sm:text-sm font-medium text-slate-600">
+                      only if the code is pasted in your website survey will appear
                     </p>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => handleGoToStep(2)}
-                    disabled={!isStep1Completed}
-                    className={`w-full sm:w-auto font-extrabold text-xs py-3.5 px-6 rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2 shrink-0 ${
-                      isStep1Completed
-                        ? 'bg-[#008060] hover:bg-[#006048] text-white cursor-pointer shadow-emerald-900/20 shadow-md'
-                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
-                    }`}
+                    className="w-full sm:w-auto font-extrabold text-xs py-3.5 px-6 rounded-2xl transition-all shadow-md shadow-emerald-900/20 flex items-center justify-center gap-2 shrink-0 bg-[#008060] hover:bg-[#006048] text-white cursor-pointer"
                   >
-                    {isStep1Completed ? (
-                      <>
-                        <span>Continue to Survey Setup</span>
-                        <ArrowRight size={14} />
-                      </>
-                    ) : (
-                      <>
-                        <Lock size={14} className="text-slate-400" />
-                        <span>Verify DNS Record to Continue</span>
-                      </>
-                    )}
+                    <span>Continue to Survey Setup</span>
+                    <ArrowRight size={14} />
                   </button>
                 </div>
               </motion.div>
@@ -2198,12 +2245,16 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                               onClick={() => setIsFilterCategoriesOpen(!isFilterCategoriesOpen)}
                               className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-[#0266c8] text-[#0266c8] rounded-full text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
                             >
-                              <span>Filter Categories</span>
+                              <span>
+                                {selectedCategories.length === ALL_FILTER_CATEGORIES.length 
+                                  ? 'Filter Categories (All Selected)' 
+                                  : `Filter Categories (${selectedCategories.length}/${ALL_FILTER_CATEGORIES.length})`}
+                              </span>
                               <ChevronDown size={14} className={`transition-transform duration-200 ${isFilterCategoriesOpen ? 'rotate-180' : ''}`} />
                             </button>
 
                             {isFilterCategoriesOpen && (
-                              <div className="absolute left-0 mt-2 w-64 bg-white border border-slate-300 rounded-2xl shadow-xl p-3.5 z-50 text-slate-900 animate-in fade-in zoom-in-95 duration-150">
+                              <div className="absolute left-0 mt-2 w-72 bg-white border border-slate-300 rounded-2xl shadow-xl p-3.5 z-50 text-slate-900 animate-in fade-in zoom-in-95 duration-150">
                                 <div className="mb-2">
                                   <input
                                     type="text"
@@ -2214,8 +2265,25 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                                   />
                                 </div>
 
-                                <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2 px-1">
-                                  CATEGORIES
+                                <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2 px-1">
+                                  <span>CATEGORIES ({selectedCategories.length}/{ALL_FILTER_CATEGORIES.length})</span>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedCategories([...ALL_FILTER_CATEGORIES])}
+                                      className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer lowercase"
+                                    >
+                                      Select all
+                                    </button>
+                                    <span className="text-slate-300">|</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedCategories([])}
+                                      className="text-slate-400 hover:text-slate-600 hover:underline cursor-pointer lowercase"
+                                    >
+                                      Clear
+                                    </button>
+                                  </div>
                                 </div>
 
                                 <div className="space-y-1 max-h-52 overflow-y-auto pr-1">

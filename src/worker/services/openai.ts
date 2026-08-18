@@ -129,28 +129,31 @@ export class OpenAIService {
   }
 
   /**
-   * Intelligent Behavioral Trigger Evaluation (Decision: NOW / WAIT / DON'T SHOW)
+   * Intelligent Behavioral Trigger Evaluation (Decision: SHOW / WAIT / DONT_SHOW)
    */
-  async evaluateBehaviorTrigger(event: any, sessionSummary?: any): Promise<{ decision: 'NOW' | 'WAIT' | 'DONT_SHOW'; reason: string; confidence: number }> {
+  async evaluateBehaviorTrigger(event: any, sessionSummary?: any): Promise<{ decision: 'SHOW' | 'WAIT' | 'DONT_SHOW'; reason: string; confidence: number }> {
     const systemPrompt = `You are CustomerLens AI Behavior Arbiter.
 Analyze the visitor's live session activity and determine whether to trigger a contextual micro-survey right now.
 Decision options:
-- "NOW": The visitor exhibits strong hesitation, exit intent, cart uncertainty, or high interest with completed reading depth.
+- "SHOW": The visitor exhibits strong hesitation, exit intent, cart uncertainty, or high interest with completed reading depth.
 - "WAIT": The visitor is actively reading or smoothly progressing through navigation; do not interrupt yet.
 - "DONT_SHOW": The visitor is in a rapid checkout flow or event noise is low.
 
 Output MUST strictly be valid JSON:
 {
-  "decision": "NOW" | "WAIT" | "DONT_SHOW",
+  "decision": "SHOW" | "WAIT" | "DONT_SHOW",
   "reason": "Short 1-sentence reason",
   "confidence": 0.95
 }`;
 
-    const userPrompt = `Event Type: ${event.eventType}
+    const userPrompt = `Event Type: ${event.eventType || 'behavior_update'}
 Time On Page: ${event.timeOnPage || 0}s
-Page URL: ${event.pageUrl || ''}
+Scroll Depth: ${event.scrollDepth || event.payload?.scrollPercent || 0}%
+Hesitation: ${Boolean(event.hesitation || event.eventType === 'hesitation')}
+Repeated Clicks: ${event.repeatedClicks || (event.eventType === 'rage_clicks' ? 4 : 0)}
+Exit Intent: ${Boolean(event.exitIntent || event.eventType === 'exit_intent')}
+Page URL: ${event.pageUrl || event.page || ''}
 Device: ${event.device || 'Desktop'}
-Payload: ${JSON.stringify(event.payload || {})}
 Session Context: ${JSON.stringify(sessionSummary || {})}`;
 
     try {
@@ -162,20 +165,149 @@ Session Context: ${JSON.stringify(sessionSummary || {})}`;
         true
       );
       const parsed = JSON.parse(rawJson);
+      const decisionVal = parsed.decision === 'NOW' ? 'SHOW' : parsed.decision;
       return {
-        decision: ['NOW', 'WAIT', 'DONT_SHOW'].includes(parsed.decision) ? parsed.decision : 'NOW',
-        reason: parsed.reason || 'Trigger condition met.',
+        decision: ['SHOW', 'WAIT', 'DONT_SHOW'].includes(decisionVal) ? decisionVal : 'SHOW',
+        reason: parsed.reason || 'Visitor behavior indicates optimal moment for contextual survey.',
         confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.9
       };
     } catch {
       // Rule-based fallback if AI is offline
       const isNow = ['exit_intent', 'hesitation', 'rage_clicks', 'cart_action'].includes(event.eventType) ||
-        (event.eventType === 'scroll_depth' && (event.payload?.scrollPercent || 0) >= 50);
+        event.exitIntent === true ||
+        event.hesitation === true ||
+        (event.repeatedClicks && event.repeatedClicks >= 2) ||
+        (event.timeOnPage && event.timeOnPage >= 35) ||
+        ((event.scrollDepth || event.payload?.scrollPercent || 0) >= 60);
       return {
-        decision: isNow ? 'NOW' : 'WAIT',
-        reason: isNow ? 'Critical friction or exit milestone detected.' : 'Monitoring visitor interaction.',
+        decision: isNow ? 'SHOW' : 'WAIT',
+        reason: isNow ? 'The visitor shows sustained engagement and decision hesitation.' : 'Monitoring visitor interaction.',
         confidence: 0.85
       };
+    }
+  }
+
+  /**
+   * Evaluate behavior summary with available survey context
+   */
+  async evaluateBehaviorSummary(website: string, page: string, behavior: any, availableSurvey: any): Promise<{ decision: 'SHOW' | 'WAIT' | 'DONT_SHOW'; reason: string }> {
+    const systemPrompt = `You are CustomerLens AI Behavior Arbiter.
+A visitor is currently on a website. Analyze their behavior and the available survey question to decide whether to SHOW the survey now, WAIT, or DONT_SHOW.
+
+Rules:
+- "SHOW": Visitor shows hesitation, prolonged dwell time, repeated clicks, exit intent, or deep scroll indicating decision friction.
+- "WAIT": Visitor is actively reading or progressing naturally; do not interrupt yet.
+- "DONT_SHOW": Low engagement, bounce immediately, or unsuitable page context.
+
+Output MUST strictly be valid JSON:
+{
+  "decision": "SHOW" | "WAIT" | "DONT_SHOW",
+  "reason": "The visitor shows sustained engagement and decision hesitation."
+}`;
+
+    const userPrompt = `Website: ${website}
+Page: ${page}
+Behavior: ${JSON.stringify(behavior || {})}
+Available Survey: ${JSON.stringify(availableSurvey || {})}`;
+
+    try {
+      const rawJson = await this.createCompletion(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        true
+      );
+      const parsed = JSON.parse(rawJson);
+      const decisionVal = parsed.decision === 'NOW' ? 'SHOW' : parsed.decision;
+      return {
+        decision: ['SHOW', 'WAIT', 'DONT_SHOW'].includes(decisionVal) ? decisionVal : 'SHOW',
+        reason: parsed.reason || 'The visitor shows sustained engagement and decision hesitation.'
+      };
+    } catch {
+      const isShow = (behavior?.timeOnPage >= 30) || behavior?.hesitation || behavior?.exitIntent || (behavior?.repeatedClicks >= 2) || (behavior?.scrollDepth >= 60);
+      return {
+        decision: isShow ? 'SHOW' : 'WAIT',
+        reason: isShow ? 'The visitor shows sustained engagement and decision hesitation.' : 'Monitoring visitor browsing activity.'
+      };
+    }
+  }
+
+  /**
+   * Generate ONE short, diplomatic, polite follow-up (Max 15 words)
+   */
+  async generateShortDiplomaticFollowUp(answer: string, surveyQuestion?: string, history?: Array<{ role: string; content: string }>): Promise<{ reply: string; continue: boolean }> {
+    const systemPrompt = `You are CustomerLens AI.
+A website visitor just answered a survey question.
+
+Task:
+Ask ONE short, polite, neutral follow-up.
+Maximum 15 words.
+Do not repeat the answer.
+Do not pressure the visitor.
+Be direct and empathetic.
+
+If the answer is a simple greeting or farewell, thank them and end the conversation.`;
+
+    const userPrompt = `Customer feedback:
+"${answer}"
+${surveyQuestion ? `Survey question asked: "${surveyQuestion}"\n` : ''}
+${history && history.length > 0 ? `Previous conversation: ${JSON.stringify(history)}\n` : ''}
+Ask ONE short, polite, neutral follow-up (max 15 words).`;
+
+    try {
+      const reply = await this.createCompletion(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        false
+      );
+      const cleanReply = reply.replace(/^["']|["']$/g, '').trim();
+      return {
+        reply: cleanReply || 'Which part could we improve to help you decide today?',
+        continue: true
+      };
+    } catch {
+      return {
+        reply: 'Which part of the pricing or features felt unclear?',
+        continue: true
+      };
+    }
+  }
+
+  /**
+   * Survey Conversational AI Engine
+   */
+  async surveyChat(newMessage: string, option?: string, history?: Array<{ role: string; content: string }>): Promise<string> {
+    const systemPrompt = `You are CustomerLens AI, a polite customer feedback assistant on a live website.
+The visitor answered a survey question and is chatting.
+Ask ONE short, polite, helpful follow-up or provide a brief empathetic response.
+Maximum 15 words. Keep it natural, human, and professional.`;
+
+    const conversation: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      { role: 'system', content: systemPrompt }
+    ];
+
+    if (option) {
+      conversation.push({ role: 'user', content: `Selected option: ${option}` });
+    }
+
+    if (history && Array.isArray(history)) {
+      history.forEach(msg => {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          conversation.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+        }
+      });
+    }
+
+    conversation.push({ role: 'user', content: newMessage });
+
+    try {
+      const response = await this.createCompletion(conversation, false);
+      return response.replace(/^["']|["']$/g, '').trim();
+    } catch {
+      return 'Thank you! Is there any other detail we can share with the team?';
     }
   }
 
@@ -323,40 +455,6 @@ Output MUST strictly be valid JSON:
     );
 
     return JSON.parse(rawJson);
-  }
-
-  /**
-   * AI Interactive Live Survey Follow-up Chat
-   */
-  async surveyChat(newMessage: string, option?: string, history?: any[]) {
-    const historyText =
-      history && Array.isArray(history) && history.length > 0
-        ? history.map((m: any) => `${m.sender === 'ai' || m.role === 'assistant' ? 'AI' : 'User'}: ${m.text || m.content}`).join('\n')
-        : 'No previous history.';
-
-    const systemPrompt = `You are CustomerLens Smart AI.
-The visitor answered their initial survey choice as: "${option || 'General Feedback'}".
-
-Conversation history:
-${historyText}
-
-CRITICAL COMMUNICATION DIRECTIVES:
-- KEEP IT SHORT AND TO THE POINT (1 to 2 crisp, high-impact sentences).
-- TONE: Persuasive, diplomatic, or friendly as appropriate for the visitor's sentiment.
-  * If the visitor has price/budget doubts: Be diplomatically persuasive and highlight immediate value or free trial.
-  * If the visitor has trust/review questions: Be friendly, honest, and reassuring.
-  * If the visitor is comparing competitors: Be diplomatic, respectful of competitors, and clearly state our unique edge.
-  * If the visitor gives general feedback: Be warm, appreciative, and focused on quick resolution.
-- STAY CONCISE: Never give long-winded answers unless the visitor explicitly asks for a detailed explanation.
-- Focus directly on understanding the visitor's core objection or helping them take the next step.
-- Do not mention internal technical terms or APIs.`;
-
-    const replyText = await this.createCompletion([
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: newMessage }
-    ]);
-
-    return replyText;
   }
 
   /**

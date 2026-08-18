@@ -46,7 +46,14 @@ export default {
         response = await handleAiRoutes(request, env, pathname);
       } else if (pathname.startsWith('/api/surveys')) {
         response = await handleSurveyRoutes(request, env, pathname);
-      } else if (pathname.startsWith('/api/events') || pathname === '/customerlens.js' || pathname === '/tracker.js') {
+      } else if (
+        pathname.startsWith('/api/events') ||
+        pathname === '/api/widget-config' ||
+        pathname === '/api/survey-response' ||
+        pathname === '/api/survey-chat' ||
+        pathname === '/customerlens.js' ||
+        pathname === '/tracker.js'
+      ) {
         response = await handleTrackingRoutes(request, env, pathname);
       } else if (pathname.startsWith('/api/analytics')) {
         response = await handleAnalyticsRoutes(request, env, pathname);
