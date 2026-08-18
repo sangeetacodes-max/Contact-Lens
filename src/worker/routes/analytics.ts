@@ -1,48 +1,52 @@
 import { Env } from '../types';
-import { DatabaseService } from '../services/db';
+import { RealAnalyticsService } from '../services/analytics';
 import { jsonResponse } from '../utils/errors';
 
 export async function handleAnalyticsRoutes(request: Request, env: Env, pathname: string): Promise<Response> {
-  const db = new DatabaseService(env);
+  const analyticsService = new RealAnalyticsService(env);
+  const url = new URL(request.url);
+  const siteId = url.searchParams.get('siteId') || 'default_workspace';
+  const businessName = url.searchParams.get('businessName') || 'My Workspace';
+  const goal = url.searchParams.get('goal') || 'Conversion';
 
-  // 1. Analytics Overview Endpoint (/api/analytics/overview)
+  // 1. Analytics Overview Endpoint (/api/analytics/overview or /api/ai/workspace-analytics)
   if (pathname === '/api/analytics/overview' || pathname === '/api/ai/workspace-analytics') {
-    const siteId = new URL(request.url).searchParams.get('siteId') || 'default_workspace';
-    const stats = await db.getAnalytics(siteId);
+    const stats = await analyticsService.getSiteAnalytics(siteId);
+    const exitAnalysis = await analyticsService.getExitAnalysis(siteId, businessName, goal);
 
     return jsonResponse({
+      siteId,
+      status: stats.status,
+      installationDetected: stats.installationDetected,
+      firstPingAt: stats.firstPingAt,
+      lastPingAt: stats.lastPingAt,
       today: {
-        sessions: stats.totalPageviews || 384,
-        triggers: stats.exitIntents || 128,
-        responseRate: stats.responseRate || '33.3%',
-        revenue: '$2,450.00',
-        insight: `Exit-intent surveys on ${siteId} captured key visitor hesitations. 42% cited pricing tier clarity as primary drop-off driver.`,
-        reasons: [
-          { reason: 'Price / Tier clarity', percentage: 42 },
-          { reason: 'Needed custom feature', percentage: 28 },
-          { reason: 'Comparing competitors', percentage: 18 },
-          { reason: 'Technical glitch on page', percentage: 12 }
-        ],
-        complaints: [
-          'Unsure if the Starter plan includes team access',
-          'Wanted to see a live demo video before signing up',
-          'Checkout button was hidden on mobile safari'
-        ],
-        sentiment: 'Slight hesitation around pricing transparency',
-        sentimentScore: 78,
-        suggestions: [
-          { issue: 'Pricing tier confusion', recommendation: 'Add a feature comparison modal to pricing cards', impact: 'High Impact' },
-          { issue: 'Mobile checkout friction', recommendation: 'Fix mobile sticky checkout bar positioning', impact: 'High Impact' }
-        ]
+        sessions: stats.totalPageviews,
+        triggers: stats.exitIntents,
+        responseRate: stats.responseRate,
+        revenue: '$0.00',
+        insight: stats.totalResponses > 0 
+          ? `Captured ${stats.totalResponses} response(s). Top drop-off factors analyzed below.`
+          : 'No customer responses yet. Analytics will appear after real visitors interact with your survey.',
+        reasons: exitAnalysis.topExitReasons,
+        complaints: exitAnalysis.mostCommonComplaints,
+        sentiment: exitAnalysis.sentiment,
+        sentimentScore: exitAnalysis.sentimentScore,
+        suggestions: exitAnalysis.aiSuggestions
       }
     });
   }
 
   // 2. Real-time Event Stats Endpoint (/api/events/stats)
   if (pathname === '/api/events/stats') {
-    const siteId = new URL(request.url).searchParams.get('siteId') || 'default_workspace';
-    const stats = await db.getAnalytics(siteId);
+    const stats = await analyticsService.getSiteAnalytics(siteId);
     return jsonResponse(stats);
+  }
+
+  // 3. Exit Analysis Endpoint (/api/analytics/exit-analysis)
+  if (pathname === '/api/analytics/exit-analysis') {
+    const analysis = await analyticsService.getExitAnalysis(siteId, businessName, goal);
+    return jsonResponse(analysis);
   }
 
   return new Response('Not Found', { status: 404 });

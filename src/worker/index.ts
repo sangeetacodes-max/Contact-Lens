@@ -54,7 +54,7 @@ export default {
         response = await handleNotificationRoutes(request, env, pathname);
       } else if (pathname.startsWith('/api/paypal')) {
         response = await handlePayPalRoutes(request, env, pathname);
-      } else if (pathname.startsWith('/api/domains')) {
+      } else if (pathname.startsWith('/api/domain')) {
         response = await handleDomainRoutes(request, env, pathname);
       } else if (pathname === '/api/health') {
         response = new Response(JSON.stringify({ status: 'ok', worker: 'CustomerLens AI Cloudflare Worker', timestamp: new Date().toISOString() }), {

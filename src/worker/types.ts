@@ -137,7 +137,7 @@ export interface TrackingEvent {
   id: string;
   siteId: string;
   sessionId: string;
-  eventType: 'pageview' | 'exit_intent' | 'scroll_depth' | 'cart_action' | 'survey_response';
+  eventType: 'pageview' | 'exit_intent' | 'scroll_depth' | 'cart_action' | 'survey_response' | 'time_on_page' | 'hesitation' | 'rage_clicks' | 'ai_survey_chat';
   pageUrl: string;
   referrer: string;
   timestamp: string;

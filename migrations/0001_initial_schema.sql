@@ -1,5 +1,5 @@
--- Cloudflare D1 Database Schema for CustomerLens AI
--- Compatible with Cloudflare Workers + D1 Database
+-- Cloudflare D1 Initial Migration for CustomerLens AI Production
+-- Migration: 0001_initial_schema.sql
 
 -- 1. Users Table
 CREATE TABLE IF NOT EXISTS users (

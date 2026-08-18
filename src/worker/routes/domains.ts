@@ -216,8 +216,12 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
   const user = await verifyFirebaseAuth(request, env);
   const userId = user.uid || user.id;
 
-  // 1. Generate or Retrieve Verification Record (POST /api/domains/token or POST /api/domains/generate)
-  if ((pathname === '/api/domains/token' || pathname === '/api/domains/generate') && request.method === 'POST') {
+  // Normalize pathname variations (/api/domain/verify vs /api/domains/verify)
+  const isTokenRoute = pathname === '/api/domains/token' || pathname === '/api/domains/generate' || pathname === '/api/domain/token' || pathname === '/api/domain/generate';
+  const isVerifyRoute = pathname === '/api/domains/verify' || pathname === '/api/domain/verify';
+
+  // 1. Generate or Retrieve Verification Record
+  if (isTokenRoute && request.method === 'POST') {
     const body = await request.json().catch(() => ({})) as any;
     const rawDomain = body.domain || body.websiteUrl;
 
@@ -225,57 +229,13 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
       throw new ApiError('Domain is required for verification setup', 400, 'MISSING_DOMAIN');
     }
 
-    const isWorkers = isWorkersDevDomain(rawDomain);
     const domain = normalizeDomain(rawDomain);
 
     if (!isValidDomain(domain)) {
       throw new ApiError(`Invalid domain format: "${rawDomain}". Please enter a valid domain (e.g. example.com or app.example.com).`, 400, 'INVALID_DOMAIN');
     }
 
-    // Special Handling for Cloudflare Workers Domains (*.workers.dev)
-    if (isWorkers) {
-      const probe = await validateWorkersReachability(domain);
-      const now = new Date().toISOString();
-      const token = generateVerificationToken();
-      const fullUrl = probe.url || `https://${domain}`;
-      const siteId = `site_${domain.replace(/[^a-z0-9]/g, '_')}`;
-
-      const record: DomainVerificationRecord = {
-        id: `dv_${userId}_${domain}`,
-        userId,
-        domain,
-        hostname: domain,
-        url: fullUrl,
-        token,
-        txtRecordValue: `customerlens-verification=${token}`,
-        connectionType: 'cloudflare_workers',
-        verificationStatus: 'verified',
-        verified: true,
-        verifiedAt: now,
-        createdAt: now,
-        lastCheckedAt: now,
-        siteId
-      };
-
-      await db.saveDomainVerification(record);
-      await db.setWorkspaceVerified(domain, true, 'cloudflare_workers');
-      Logger.info('Connected Cloudflare Workers domain in test/supported mode', { domain, userId, url: fullUrl });
-
-      return jsonResponse({
-        success: true,
-        verified: true,
-        domain,
-        hostname: domain,
-        url: fullUrl,
-        connectionType: 'cloudflare_workers',
-        verificationStatus: 'verified',
-        siteId,
-        record,
-        message: `✓ Cloudflare Workers domain ${domain} connected successfully! DNS TXT verification skipped for *.workers.dev.`
-      });
-    }
-
-    // Standard Custom Domain flow
+    // Standard Custom Domain flow - strict verification required for ALL domains
     let record = await db.getDomainVerification(userId, domain);
 
     if (!record) {
@@ -296,7 +256,7 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
         siteId: `site_${domain.replace(/[^a-z0-9]/g, '_')}`
       };
       await db.saveDomainVerification(record);
-      Logger.info('Generated new DNS TXT verification token', { domain, userId });
+      Logger.info('Generated new DNS TXT verification token', { domain, userId, token: record.txtRecordValue });
     }
 
     return jsonResponse({
@@ -312,8 +272,8 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
     });
   }
 
-  // 2. Verify Domain via Real DNS TXT Lookup (POST /api/domains/verify)
-  if (pathname === '/api/domains/verify' && request.method === 'POST') {
+  // 2. Verify Domain via Real DNS TXT Lookup (POST /api/domains/verify or POST /api/domain/verify)
+  if (isVerifyRoute && request.method === 'POST') {
     const body = await request.json().catch(() => ({})) as any;
     const rawDomain = body.domain || body.websiteUrl;
 
@@ -321,72 +281,14 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
       throw new ApiError('Domain is required for DNS verification', 400, 'MISSING_DOMAIN');
     }
 
-    const isWorkers = isWorkersDevDomain(rawDomain);
     const domain = normalizeDomain(rawDomain);
 
     if (!isValidDomain(domain)) {
       throw new ApiError(`Invalid domain format: "${rawDomain}".`, 400, 'INVALID_DOMAIN');
     }
 
-    // Cloudflare Workers (*.workers.dev) Verification
-    if (isWorkers) {
-      const probe = await validateWorkersReachability(domain);
-      const now = new Date().toISOString();
-      const fullUrl = probe.url || `https://${domain}`;
-      const siteId = `site_${domain.replace(/[^a-z0-9]/g, '_')}`;
-
-      let record = await db.getDomainVerification(userId, domain);
-      if (!record) {
-        const token = generateVerificationToken();
-        record = {
-          id: `dv_${userId}_${domain}`,
-          userId,
-          domain,
-          hostname: domain,
-          url: fullUrl,
-          token,
-          txtRecordValue: `customerlens-verification=${token}`,
-          connectionType: 'cloudflare_workers',
-          verificationStatus: 'verified',
-          verified: true,
-          verifiedAt: now,
-          createdAt: now,
-          siteId
-        };
-      } else {
-        record.verified = true;
-        record.verifiedAt = now;
-        record.lastCheckedAt = now;
-        record.connectionType = 'cloudflare_workers';
-        record.verificationStatus = 'verified';
-        record.url = fullUrl;
-        record.hostname = domain;
-        record.siteId = record.siteId || siteId;
-        record.errorMessage = undefined;
-      }
-
-      await db.saveDomainVerification(record);
-      await db.setWorkspaceVerified(domain, true, 'cloudflare_workers');
-
-      return jsonResponse({
-        success: true,
-        verified: true,
-        domain,
-        hostname: domain,
-        url: fullUrl,
-        connectionType: 'cloudflare_workers',
-        verificationStatus: 'verified',
-        verifiedAt: now,
-        method: 'cloudflare_workers',
-        message: `✓ Cloudflare Workers domain ${domain} connected and verified in test mode!`,
-        record
-      });
-    }
-
-    // Standard Custom Domain DNS Verification
     let record = await db.getDomainVerification(userId, domain);
     if (!record) {
-      // Auto-generate token if not already generated
       const token = generateVerificationToken();
       record = {
         id: `dv_${userId}_${domain}`,
@@ -409,12 +311,12 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
     const expectedToken = record.token;
     const expectedRecordValue = `customerlens-verification=${expectedToken}`;
 
-    // Perform REAL DNS CNAME & TXT Lookups
-    Logger.info('Starting real DNS verification lookup', { domain, userId });
+    // Perform REAL DNS TXT & CNAME Lookups via DoH
+    Logger.info('Starting real DNS verification lookup', { domain, userId, expectedRecordValue });
     const dnsRecords = await queryDnsTxtRecords(domain);
     const cnameTargets = await queryDnsCnameRecords(domain);
 
-    // Also check apex domain if subdomain was provided or vice versa for flexibility
+    // Also check apex domain if subdomain was provided or vice versa
     let apexRecords: string[] = [];
     if (domain.startsWith('www.')) {
       const apex = domain.substring(4);
@@ -435,12 +337,11 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
       );
     });
 
-    // 2. Check CNAME record verification (pointing to customerlens edge / pages / custom app)
+    // 2. Check CNAME record verification
     const validCnameTargets = [
       'custom.customerlens.app',
       'cname.customerlens.app',
       'customerlens.pages.dev',
-      'your-app.pages.dev',
       'customerlens-ai.pages.dev'
     ];
     const isCnameMatched = cnameTargets.some(target => {
@@ -460,7 +361,6 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
       record.errorMessage = undefined;
       await db.saveDomainVerification(record);
 
-      // Also mark workspace verified if matched
       const methodUsed = isCnameMatched ? 'dns_cname' : 'dns_txt';
       await db.setWorkspaceVerified(domain, true, methodUsed);
 
@@ -474,18 +374,21 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
         connectionType: 'custom_domain',
         verificationStatus: 'verified',
         method: methodUsed,
-        message: `✓ Domain ${domain} connected successfully via DNS record!`,
+        message: `✓ Domain ${domain} verified successfully via DNS record!`,
         record
       });
     } else {
-      // DNS record not propagated or missing
+      // NEVER set verified=true if DNS records do not match
+      record.verified = false;
+      record.verifiedAt = null;
       record.lastCheckedAt = now;
       record.connectionType = 'custom_domain';
       record.verificationStatus = 'pending';
-      record.errorMessage = "We couldn't find the verification record yet. DNS changes can take some time to propagate. Check again later.";
+      record.errorMessage = "The required DNS TXT or CNAME record was not detected by public DNS resolvers. Please verify your DNS settings and try again.";
       await db.saveDomainVerification(record);
+      await db.setWorkspaceVerified(domain, false, 'unverified');
 
-      Logger.info('DNS records not found for domain', { domain, txtCount: allTxtRecords.length, cnameCount: cnameTargets.length });
+      Logger.info('DNS records not found for domain', { domain, expected: expectedRecordValue, found: allTxtRecords });
 
       return jsonResponse({
         success: false,
@@ -494,7 +397,7 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
         propagated: false,
         connectionType: 'custom_domain',
         verificationStatus: 'pending',
-        message: "We couldn't find the verification record yet. DNS changes can take some time to propagate. Check again later.",
+        message: "The required DNS record was not detected. Please add the DNS TXT record and allow DNS propagation to complete before verifying.",
         expectedRecord: expectedRecordValue,
         record
       });
