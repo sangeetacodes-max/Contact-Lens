@@ -264,21 +264,7 @@ export default function Dashboard({
     recipient: string;
     status: 'Delivered' | 'Scheduled' | 'Sent';
     responsesCount?: number;
-  }>>([
-    {
-      id: 'notif-101',
-      type: 'System Status',
-      channel: 'Telemetry Feed',
-      title: 'CustomerLens Survey Engine Active',
-      summary: 'Telemetry listener is active and waiting for live visitor survey responses.',
-      sentTime: 'Just now',
-      sentDate: new Date().toISOString().split('T')[0],
-      dayOfWeek: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
-      recipient: user.email || 'workspace-admin@customerlens.app',
-      status: 'Delivered',
-      responsesCount: 0
-    }
-  ]);
+  }>>([]);
 
   const handleTriggerManualBulletin = () => {
     setTriggeringNewNotif(true);
@@ -306,7 +292,7 @@ export default function Dashboard({
   };
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{ sender: 'user' | 'ai'; text: string; timestamp: Date }[]>(() => [
-    { sender: 'ai', text: 'Hello, please ask me anything about this survey!', timestamp: new Date() }
+    { sender: 'ai', text: 'hello, I am your smart customer lens AI', timestamp: new Date() }
   ]);
   const [isChatTyping, setIsChatTyping] = useState(false);
 
@@ -918,6 +904,10 @@ export default function Dashboard({
   };
 
   const triggerRecommendationsLoad = async (forceRefresh?: boolean) => {
+    if (responses.length === 0) {
+      setRecommendations([]);
+      return;
+    }
     const cacheKey = `cl_recs_cache_${workspace.id}`;
     if (!forceRefresh) {
       const cached = localStorage.getItem(cacheKey);
@@ -2454,9 +2444,7 @@ export default function Dashboard({
                     <div className="flex-grow space-y-4 overflow-y-auto max-h-[350px] p-2 bg-slate-50/50 rounded-xl border border-slate-100">
                       {chatHistory.length === 0 ? (
                         <div className="p-4 bg-white border border-slate-150 rounded-2xl text-xs font-semibold leading-relaxed text-slate-800 shadow-sm">
-                          {totalCount === 0 
-                            ? `Your survey is live on ${activeDomain}. As soon as visitors respond, your analytics and AI insights will appear here.`
-                            : `Hello! I have scanned ${totalCount} live response(s) from ${activeDomain}. Ask me any questions regarding trends, feedback, or optimization strategies.`}
+                          hello, I am your smart customer lens AI
                         </div>
                       ) : (
                         chatHistory.map((msg, idx) => (
@@ -2546,6 +2534,12 @@ export default function Dashboard({
                 const totalCount = responses.length;
                 const activeDomain = workspace.url ? workspace.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '') : (websites[0]?.url || 'your website');
 
+                if (totalCount === 0) {
+                  return (
+                    <div className="min-h-[200px]" />
+                  );
+                }
+
                 return (
                   <div className="space-y-6">
                     {/* Revenue Growth Banner */}
@@ -2556,22 +2550,20 @@ export default function Dashboard({
                             AI Growth Strategy Engine
                           </span>
                           <h2 className="text-2xl font-black mt-2 tracking-tight">
-                            {totalCount === 0 ? 'Awaiting Live Visitor Responses' : 'E-Commerce Conversion Playbook'}
+                            E-Commerce Conversion Playbook
                           </h2>
                           <p className="text-xs text-slate-300 mt-1 max-w-xl">
-                            {totalCount === 0 
-                              ? `Your survey is live on ${activeDomain}. As soon as visitors respond, your analytics and AI insights will appear here.`
-                              : `Calculated directly from ${totalCount} visitor feedback response(s) on ${activeDomain}.`}
+                            Calculated directly from {totalCount} visitor feedback response(s) on {activeDomain}.
                           </p>
                         </div>
 
                         <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 text-center min-w-[160px]">
                           <span className="text-[10px] font-mono text-slate-300 uppercase block">Est. Revenue Uplift</span>
                           <span className="text-2xl font-black text-emerald-400 font-mono mt-0.5 block">
-                            {totalCount === 0 ? 'Awaiting Data' : `+${(totalCount * 45).toLocaleString()} / mo`}
+                            +{ (totalCount * 45).toLocaleString() } / mo
                           </span>
                           <span className="text-[9px] text-slate-400 block mt-1">
-                            {totalCount === 0 ? 'Calculates with responses' : `Based on ${totalCount} responses`}
+                            Based on {totalCount} responses
                           </span>
                         </div>
                       </div>
@@ -2590,9 +2582,7 @@ export default function Dashboard({
                           </div>
                           <h3 className="font-extrabold text-slate-900 text-sm">Optimize Exit Flow & Shipping Transparency</h3>
                           <p className="text-xs text-slate-600 leading-relaxed">
-                            {totalCount === 0 
-                              ? `Deploy your survey on ${activeDomain} to identify exact friction points leading to drop-off.`
-                              : `Survey feedback highlights pricing and clarity as primary motivators for purchasing.`}
+                            Survey feedback highlights pricing and clarity as primary motivators for purchasing.
                           </p>
                         </div>
                         <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
@@ -2656,6 +2646,12 @@ export default function Dashboard({
 
               {/* MODE 4: AI NOTIFICATION DATA LOG (KEEPING TIME, DATE & DAY) */}
               {insightView === 'notification-data' && (() => {
+                if (notificationLogs.length === 0) {
+                  return (
+                    <div className="min-h-[200px]" />
+                  );
+                }
+
                 const filteredNotifLogs = notificationLogs.filter(log => {
                   if (!notifSearchFilter.trim()) return true;
                   const query = notifSearchFilter.toLowerCase().trim();

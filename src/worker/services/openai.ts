@@ -129,6 +129,57 @@ export class OpenAIService {
   }
 
   /**
+   * Intelligent Behavioral Trigger Evaluation (Decision: NOW / WAIT / DON'T SHOW)
+   */
+  async evaluateBehaviorTrigger(event: any, sessionSummary?: any): Promise<{ decision: 'NOW' | 'WAIT' | 'DONT_SHOW'; reason: string; confidence: number }> {
+    const systemPrompt = `You are CustomerLens AI Behavior Arbiter.
+Analyze the visitor's live session activity and determine whether to trigger a contextual micro-survey right now.
+Decision options:
+- "NOW": The visitor exhibits strong hesitation, exit intent, cart uncertainty, or high interest with completed reading depth.
+- "WAIT": The visitor is actively reading or smoothly progressing through navigation; do not interrupt yet.
+- "DONT_SHOW": The visitor is in a rapid checkout flow or event noise is low.
+
+Output MUST strictly be valid JSON:
+{
+  "decision": "NOW" | "WAIT" | "DONT_SHOW",
+  "reason": "Short 1-sentence reason",
+  "confidence": 0.95
+}`;
+
+    const userPrompt = `Event Type: ${event.eventType}
+Time On Page: ${event.timeOnPage || 0}s
+Page URL: ${event.pageUrl || ''}
+Device: ${event.device || 'Desktop'}
+Payload: ${JSON.stringify(event.payload || {})}
+Session Context: ${JSON.stringify(sessionSummary || {})}`;
+
+    try {
+      const rawJson = await this.createCompletion(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        true
+      );
+      const parsed = JSON.parse(rawJson);
+      return {
+        decision: ['NOW', 'WAIT', 'DONT_SHOW'].includes(parsed.decision) ? parsed.decision : 'NOW',
+        reason: parsed.reason || 'Trigger condition met.',
+        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.9
+      };
+    } catch {
+      // Rule-based fallback if AI is offline
+      const isNow = ['exit_intent', 'hesitation', 'rage_clicks', 'cart_action'].includes(event.eventType) ||
+        (event.eventType === 'scroll_depth' && (event.payload?.scrollPercent || 0) >= 50);
+      return {
+        decision: isNow ? 'NOW' : 'WAIT',
+        reason: isNow ? 'Critical friction or exit milestone detected.' : 'Monitoring visitor interaction.',
+        confidence: 0.85
+      };
+    }
+  }
+
+  /**
    * AI Survey Generation & Wizard
    */
   async generateSurvey(businessType: string, websiteUrl: string, goal: string) {

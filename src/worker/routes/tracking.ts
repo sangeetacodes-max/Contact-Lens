@@ -296,21 +296,31 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
     // Archive raw log to R2
     await storage.r2PutLog(`events/${event.siteId}/${event.id}.json`, event);
 
-    // Check behavioral trigger rules
-    let triggerSurvey: any = null;
-    if (
+    // Behavior Aggregator & Significance Assessment
+    const isSignificant =
       event.eventType === 'exit_intent' ||
       event.eventType === 'hesitation' ||
       event.eventType === 'rage_clicks' ||
       (event.eventType === 'cart_action' && event.pageUrl.includes('cart')) ||
-      (event.eventType === 'scroll_depth' && (event.payload?.scrollPercent || 0) >= 50)
-    ) {
-      triggerSurvey = await storage.kvGet(`active_survey:${event.siteId}`) || await db.getSurveyBySiteId(event.siteId);
+      (event.eventType === 'scroll_depth' && (event.payload?.scrollPercent || 0) >= 50);
+
+    let triggerSurvey: any = null;
+    let aiDecision: { decision: 'NOW' | 'WAIT' | 'DONT_SHOW'; reason: string; confidence: number } | null = null;
+
+    if (isSignificant) {
+      // Call OpenAI API for intelligent decision (NOW / WAIT / DON'T SHOW)
+      const openai = new OpenAIService(env);
+      aiDecision = await openai.evaluateBehaviorTrigger(event);
+
+      if (aiDecision.decision === 'NOW') {
+        triggerSurvey = (await storage.kvGet(`active_survey:${event.siteId}`)) || (await db.getSurveyBySiteId(event.siteId));
+      }
     }
 
     return jsonResponse({
       recorded: true,
       eventId: event.id,
+      aiDecision,
       triggerSurvey
     });
   }

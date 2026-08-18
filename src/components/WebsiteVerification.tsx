@@ -54,9 +54,23 @@ export function WebsiteVerification({
     return d;
   };
 
-  const notify = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+  const getErrorString = (err: any, fallback = 'Operation failed'): string => {
+    if (!err) return fallback;
+    if (typeof err === 'string') return err;
+    if (typeof err === 'object') {
+      if (typeof err.message === 'string') return err.message;
+      if (err.error) {
+        if (typeof err.error === 'string') return err.error;
+        if (typeof err.error === 'object' && typeof err.error.message === 'string') return err.error.message;
+      }
+    }
+    return fallback;
+  };
+
+  const notify = (msg: any, type: 'success' | 'error' | 'info' = 'info') => {
     if (showNotification) {
-      showNotification(msg, type);
+      const cleanMsg = typeof msg === 'string' ? msg : getErrorString(msg, 'Notification');
+      showNotification(cleanMsg, type);
     }
   };
 
@@ -146,10 +160,11 @@ export function WebsiteVerification({
         }
         notify(`DNS verification token generated for ${cleanDomain}`, 'success');
       } else {
-        notify(data.error || data.message || 'Failed to setup domain', 'error');
+        const errorMsg = getErrorString(data.error || data.message, 'Failed to setup domain');
+        notify(errorMsg, 'error');
       }
     } catch (err: any) {
-      notify(err.message || 'Network error while generating token', 'error');
+      notify(getErrorString(err, 'Network error while generating token'), 'error');
     } finally {
       setLoading(false);
     }
@@ -186,20 +201,22 @@ export function WebsiteVerification({
         onVerificationSuccess?.(domain);
         onStatusChange?.(true, domain);
       } else {
+        const errorMsg = getErrorString(payload?.message || payload?.error, `DNS TXT record not detected yet. Looked for name "_customerlens" on ${domain}. Please allow 1–5 minutes for DNS propagation.`);
         setVerificationResult({
           verified: false,
           domain,
-          message: payload.message || `DNS TXT record not detected yet. Looked for name "_customerlens" on ${domain}. Please allow 1–5 minutes for DNS propagation.`,
+          message: errorMsg,
           checkedAt: new Date().toLocaleTimeString()
         });
         notify(`DNS record not found yet. Please check your DNS provider.`, 'error');
         onStatusChange?.(false, domain);
       }
     } catch (err: any) {
+      const errorMsg = getErrorString(err, 'Error checking DNS records. Please try again.');
       setVerificationResult({
         verified: false,
         domain,
-        message: err.message || 'Error checking DNS records. Please try again.',
+        message: errorMsg,
         checkedAt: new Date().toLocaleTimeString()
       });
       notify('Could not perform DNS lookup at this moment.', 'error');
@@ -375,8 +392,19 @@ export function WebsiteVerification({
             </div>
           </div>
 
-          <p className="text-xs text-slate-500 text-center">
-            Add this to your DNS provider (Cloudflare, GoDaddy, Namecheap, Google Domains, etc.)
+          {/* Dedicated [ Copy ] button */}
+          <button
+            type="button"
+            id="btn_copy_record"
+            onClick={() => handleCopy(selectedRecord.token, 'main_copy')}
+            className="w-full bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
+          >
+            {copiedField === 'main_copy' ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+            <span>{copiedField === 'main_copy' ? 'Copied to Clipboard!' : 'Copy Value'}</span>
+          </button>
+
+          <p className="text-xs text-slate-500 text-center font-medium">
+            Add this to your DNS provider
           </p>
 
           {/* Action: [ Verify DNS ] */}

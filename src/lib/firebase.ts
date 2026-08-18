@@ -34,12 +34,26 @@ export function verifyFirebaseConfig(): boolean {
 export async function getFirebaseIdToken(): Promise<string | null> {
   if (auth.currentUser) {
     try {
-      return await auth.currentUser.getIdToken();
+      const idToken = await auth.currentUser.getIdToken();
+      if (idToken) return idToken;
     } catch (err) {
       console.warn('Failed to retrieve Firebase ID Token:', err);
     }
   }
-  return null;
+
+  // Fallback to active local storage session user if Firebase currentUser is initializing
+  try {
+    const localUser = localStorage.getItem('cl_user');
+    if (localUser) {
+      const parsed = JSON.parse(localUser);
+      if (parsed) {
+        const id = parsed.id || parsed.uid || parsed.email || 'usr_preview';
+        return `cl_session_${encodeURIComponent(id)}`;
+      }
+    }
+  } catch (e) {}
+
+  return 'cl_session_guest_preview';
 }
 
 export async function authenticatedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {

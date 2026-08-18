@@ -665,16 +665,18 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
             ) : (
               <>
                 <button 
+                  id="btn_landing_nav_signin"
                   onClick={() => onNavigate('login')}
-                  className="text-xs font-bold text-slate-300 hover:text-white px-3 py-2 transition-all"
+                  className="text-xs font-bold text-slate-300 hover:text-white px-3 py-2 transition-all cursor-pointer"
                 >
                   SIGN IN
                 </button>
                 <button 
-                  onClick={() => onNavigate('register')}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-900/30"
+                  id="btn_landing_nav_preview_login"
+                  onClick={() => onNavigate('login')}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-900/30 flex items-center gap-1.5 cursor-pointer"
                 >
-                  FREE TRIAL
+                  <span>⚡ Preview Sign In</span>
                 </button>
               </>
             )}

@@ -83,10 +83,10 @@ export async function validateWorkersReachability(hostname: string): Promise<{ v
  * Generates a cryptographically secure random verification token
  */
 export function generateVerificationToken(): string {
-  const bytes = new Uint8Array(16);
+  const bytes = new Uint8Array(12);
   crypto.getRandomValues(bytes);
   const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-  return `cl_${hex}`;
+  return `cl_verify_${hex}`;
 }
 
 /**
@@ -247,7 +247,7 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
         hostname: domain,
         url: `https://${domain}`,
         token,
-        txtRecordValue: `customerlens-verification=${token}`,
+        txtRecordValue: token,
         connectionType: 'custom_domain',
         verificationStatus: 'pending',
         verified: false,
@@ -256,7 +256,7 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
         siteId: `site_${domain.replace(/[^a-z0-9]/g, '_')}`
       };
       await db.saveDomainVerification(record);
-      Logger.info('Generated new DNS TXT verification token', { domain, userId, token: record.txtRecordValue });
+      Logger.info('Generated new DNS TXT verification token', { domain, userId, token: record.token });
     }
 
     return jsonResponse({
@@ -264,10 +264,11 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
       record,
       instructions: {
         type: 'TXT',
-        host: '@',
+        name: '_customerlens',
+        host: '_customerlens',
         domain,
-        value: record.txtRecordValue,
-        description: `Add a DNS TXT record with Host "@" and Value "${record.txtRecordValue}" in your domain's DNS management panel (Cloudflare, GoDaddy, Namecheap, Google Domains/Squarespace, etc.).`
+        value: record.token,
+        description: `Add a DNS TXT record with Name "_customerlens" and Value "${record.token}" to your DNS provider (Cloudflare, GoDaddy, Namecheap, Google Domains, etc.).`
       }
     });
   }
@@ -297,7 +298,7 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
         hostname: domain,
         url: `https://${domain}`,
         token,
-        txtRecordValue: `customerlens-verification=${token}`,
+        txtRecordValue: token,
         connectionType: 'custom_domain',
         verificationStatus: 'pending',
         verified: false,
@@ -311,10 +312,10 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
     const expectedToken = record.token;
     const expectedRecordValue = `customerlens-verification=${expectedToken}`;
 
-    // Perform REAL DNS TXT & CNAME Lookups via DoH
-    Logger.info('Starting real DNS verification lookup', { domain, userId, expectedRecordValue });
-    const dnsRecords = await queryDnsTxtRecords(domain);
+    // Perform REAL DNS TXT & CNAME Lookups via Cloudflare and Google DoH
+    Logger.info('Starting real DNS verification lookup', { domain, userId, expectedToken });
     const subRecords = await queryDnsTxtRecords(`_customerlens.${domain}`);
+    const dnsRecords = await queryDnsTxtRecords(domain);
     const cnameTargets = await queryDnsCnameRecords(domain);
 
     // Also check apex domain if subdomain was provided or vice versa
@@ -322,23 +323,23 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
     let apexSubRecords: string[] = [];
     if (domain.startsWith('www.')) {
       const apex = domain.substring(4);
-      apexRecords = await queryDnsTxtRecords(apex);
       apexSubRecords = await queryDnsTxtRecords(`_customerlens.${apex}`);
+      apexRecords = await queryDnsTxtRecords(apex);
     }
 
-    const allTxtRecords = [...dnsRecords, ...subRecords, ...apexRecords, ...apexSubRecords];
+    const allTxtRecords = [...subRecords, ...dnsRecords, ...apexSubRecords, ...apexRecords];
     Logger.info('Retrieved DNS records from resolvers', { domain, txtCount: allTxtRecords.length, cnameCount: cnameTargets.length, records: allTxtRecords });
 
-    // 1. Check TXT record verification (matches token or customerlens-verification=token)
+    // 1. Check TXT record verification (matches token, cl_verify_..., or customerlens-verification=token)
     const isTokenFound = allTxtRecords.some(rec => {
       const trimmed = rec.trim();
       return (
-        trimmed === expectedRecordValue ||
         trimmed === expectedToken ||
-        trimmed.toLowerCase() === expectedRecordValue.toLowerCase() ||
+        trimmed === expectedRecordValue ||
         trimmed.toLowerCase() === expectedToken.toLowerCase() ||
-        trimmed.includes(expectedRecordValue) ||
-        trimmed.includes(expectedToken)
+        trimmed.toLowerCase() === expectedRecordValue.toLowerCase() ||
+        trimmed.includes(expectedToken) ||
+        trimmed.includes(expectedRecordValue)
       );
     });
 

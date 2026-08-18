@@ -1936,8 +1936,6 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                     <span className="h-4 w-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-[10px] font-black">
                       ✓
                     </span>
-                  ) : !isStep1Completed ? (
-                    <Lock size={12} className="text-slate-500" />
                   ) : null}
                 </button>
 
@@ -2002,8 +2000,10 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                   <span className="text-slate-400 font-mono">3.</span>
                   <span>Publish Workspace</span>
                 </span>
-                {(!isStep1Completed || !isStep2Completed) && (
-                  <Lock size={12} className="text-slate-500" />
+                {step === 3 && isStep1Completed && isStep2Completed && (
+                  <span className="h-4 w-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-[10px] font-black">
+                    ✓
+                  </span>
                 )}
               </button>
             </div>
