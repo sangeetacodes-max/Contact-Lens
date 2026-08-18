@@ -314,26 +314,31 @@ export async function handleDomainRoutes(request: Request, env: Env, pathname: s
     // Perform REAL DNS TXT & CNAME Lookups via DoH
     Logger.info('Starting real DNS verification lookup', { domain, userId, expectedRecordValue });
     const dnsRecords = await queryDnsTxtRecords(domain);
+    const subRecords = await queryDnsTxtRecords(`_customerlens.${domain}`);
     const cnameTargets = await queryDnsCnameRecords(domain);
 
     // Also check apex domain if subdomain was provided or vice versa
     let apexRecords: string[] = [];
+    let apexSubRecords: string[] = [];
     if (domain.startsWith('www.')) {
       const apex = domain.substring(4);
       apexRecords = await queryDnsTxtRecords(apex);
+      apexSubRecords = await queryDnsTxtRecords(`_customerlens.${apex}`);
     }
 
-    const allTxtRecords = [...dnsRecords, ...apexRecords];
-    Logger.info('Retrieved DNS records from resolvers', { domain, txtCount: allTxtRecords.length, cnameCount: cnameTargets.length });
+    const allTxtRecords = [...dnsRecords, ...subRecords, ...apexRecords, ...apexSubRecords];
+    Logger.info('Retrieved DNS records from resolvers', { domain, txtCount: allTxtRecords.length, cnameCount: cnameTargets.length, records: allTxtRecords });
 
-    // 1. Check TXT record verification
+    // 1. Check TXT record verification (matches token or customerlens-verification=token)
     const isTokenFound = allTxtRecords.some(rec => {
       const trimmed = rec.trim();
       return (
         trimmed === expectedRecordValue ||
         trimmed === expectedToken ||
         trimmed.toLowerCase() === expectedRecordValue.toLowerCase() ||
-        trimmed.includes(expectedRecordValue)
+        trimmed.toLowerCase() === expectedToken.toLowerCase() ||
+        trimmed.includes(expectedRecordValue) ||
+        trimmed.includes(expectedToken)
       );
     });
 

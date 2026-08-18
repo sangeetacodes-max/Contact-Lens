@@ -53,7 +53,8 @@ import {
   Maximize2,
   Search,
   Filter,
-  Home
+  Home,
+  Lock
 } from 'lucide-react';
 import { BusinessType, Survey, Workspace } from '../types';
 
@@ -996,13 +997,10 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
     }
   };
 
-  // Step 1 completion check: Completed if custom domain is set or maxStepReached >= 2
+  // Step 1 completion check: Completed ONLY when real DNS record verification is done!
   const isStep1Completed = useMemo(() => {
-    return (
-      (Boolean(websiteUrl) && websiteUrl !== 'https://yourwebsite.com' && websiteUrl.trim().length > 0) ||
-      maxStepReached >= 2
-    );
-  }, [websiteUrl, maxStepReached]);
+    return isDomainVerified;
+  }, [isDomainVerified]);
 
   // Dynamic connected app / store name (from Shopify integration or website URL)
   const connectedAppName = useMemo(() => {
@@ -1214,12 +1212,12 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
     { id: 'q3', type: 'Text Answer', title: 'Is there anything stopping you from making a purchase today?', choices: [] },
   ]);
 
-  // Step 2 completion check: Completed if at least 1 question is configured or maxStepReached >= 3
+  // Step 2 completion check: Completed when at least 1 survey question is configured
   const isStep2Completed = useMemo(() => {
-    return surveyQuestions.length > 0 || maxStepReached >= 3;
-  }, [surveyQuestions.length, maxStepReached]);
+    return surveyQuestions.length > 0;
+  }, [surveyQuestions.length]);
 
-  // Strict Navigation Control: Cannot go forward without completing current step, but CAN go back!
+  // Strict Step-by-Step Navigation Control: No user can go to next step without completing first step, then second, then third!
   const handleGoToStep = (targetStep: 1 | 2 | 3) => {
     if (targetStep === step) return;
 
@@ -1230,39 +1228,36 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
       return;
     }
 
-    // GOING NEXT: Must complete current step before advancing
-    if (step === 1 && targetStep >= 2) {
+    // TARGET STEP 2: Requires Step 1 (DNS record verification) to be completed!
+    if (targetStep === 2) {
       if (!isStep1Completed) {
-        if (websiteUrl && websiteUrl.trim().length > 0) {
-          setWebsiteUrl(websiteUrl);
-        }
+        showNotification("🔒 Please complete DNS record verification in Step 1 before proceeding to Step 2.", "error");
+        return;
       }
       setMaxStepReached(prev => Math.max(prev, 2) as 1 | 2 | 3);
-      setStep(targetStep);
+      setStep(2);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
-    if (step === 2 && targetStep === 3) {
+    // TARGET STEP 3: Requires Step 1 (DNS Verification) AND Step 2 (Survey Questions)!
+    if (targetStep === 3) {
+      if (!isStep1Completed) {
+        showNotification("🔒 Please complete DNS record verification in Step 1 first.", "error");
+        setStep(1);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
       if (!isStep2Completed) {
-        alert("Please select at least 1 survey question in Step 2 before proceeding to Step 3.");
+        showNotification("🔒 Please configure your survey questions in Step 2 before proceeding to Step 3.", "error");
+        setStep(2);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
       setMaxStepReached(prev => Math.max(prev, 3) as 1 | 2 | 3);
       setStep(3);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
-    }
-
-    if (targetStep <= maxStepReached) {
-      setStep(targetStep);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      if (!isStep1Completed) {
-        handleConnectShopifyDirect();
-      } else {
-        alert("Please complete the current step before advancing.");
-      }
     }
   };
 
@@ -1909,9 +1904,13 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                   <span className="text-slate-400 font-mono">1.</span>
                   <span>Connect Website</span>
                 </span>
-                {isStep1Completed && (
+                {isStep1Completed ? (
                   <span className="h-4 w-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-[10px] font-black">
                     ✓
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                    DNS
                   </span>
                 )}
               </button>
@@ -1924,18 +1923,22 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                   className={`w-full px-3 py-2 rounded-lg text-xs font-black text-left flex items-center justify-between transition-all cursor-pointer ${
                     step === 2
                       ? 'bg-[#132238] text-white border-l-2 border-emerald-400'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                      : isStep1Completed 
+                        ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60' 
+                        : 'text-slate-600 opacity-60 hover:opacity-80'
                   }`}
                 >
                   <span className="flex items-center gap-2">
                     <span className="text-emerald-400 font-mono">2.</span>
                     <span>AI Survey Setup</span>
                   </span>
-                  {step > 2 && (
+                  {step > 2 && isStep2Completed ? (
                     <span className="h-4 w-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-[10px] font-black">
                       ✓
                     </span>
-                  )}
+                  ) : !isStep1Completed ? (
+                    <Lock size={12} className="text-slate-500" />
+                  ) : null}
                 </button>
 
                 {/* Sub-options open when in step 2 */}
@@ -1988,13 +1991,20 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                 type="button"
                 onClick={() => handleGoToStep(3)}
                 className={`w-full px-3 py-2 rounded-lg text-xs font-semibold text-left flex items-center justify-between transition-all cursor-pointer ${
-                  step === 3 ? 'bg-[#132238] text-white font-bold border-l-2 border-emerald-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  step === 3 
+                    ? 'bg-[#132238] text-white font-bold border-l-2 border-emerald-400' 
+                    : isStep1Completed && isStep2Completed 
+                      ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60' 
+                      : 'text-slate-600 opacity-60 hover:opacity-80'
                 }`}
               >
                 <span className="flex items-center gap-2">
                   <span className="text-slate-400 font-mono">3.</span>
                   <span>Publish Workspace</span>
                 </span>
+                {(!isStep1Completed || !isStep2Completed) && (
+                  <Lock size={12} className="text-slate-500" />
+                )}
               </button>
             </div>
           </div>
@@ -2051,7 +2061,9 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
               className={`mb-6 p-4 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-sm border ${
                 toastNotification.type === 'success' 
                   ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                  : 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                  : toastNotification.type === 'error'
+                    ? 'bg-rose-50 text-rose-800 border-rose-200'
+                    : 'bg-indigo-50 text-indigo-800 border-indigo-200'
               }`}
             >
               <span>{toastNotification.message}</span>
@@ -2086,33 +2098,56 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                   onVerificationSuccess={(verifiedDom) => {
                     setWebsiteUrl(`https://${verifiedDom}`);
                     setIsDomainVerified(true);
-                    showNotification(`Domain ${verifiedDom} connected successfully!`, 'success');
+                    showNotification(`Domain ${verifiedDom} connected successfully! DNS record verified.`, 'success');
+                  }}
+                  onStatusChange={(verified, verifiedDom) => {
+                    setIsDomainVerified(verified);
+                    if (verified && verifiedDom) {
+                      setWebsiteUrl(`https://${verifiedDom}`);
+                    }
                   }}
                   showNotification={showNotification}
                 />
 
-                {/* Continue to Step 2 Button */}
+                {/* Continue to Step 2 Button with Strict DNS Verification Guard */}
                 <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="space-y-0.5 text-center sm:text-left">
-                    <h4 className="text-sm font-bold text-slate-900">Next: Configure Survey Questions</h4>
+                    <div className="flex items-center justify-center sm:justify-start gap-2">
+                      <h4 className="text-sm font-bold text-slate-900">Next: Configure Survey Questions</h4>
+                      {isStep1Completed && (
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          ✓ DNS Verified
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-500">
-                      Customize questions, NPS scoring, and AI triggers for your website.
+                      {isStep1Completed 
+                        ? 'DNS record verified! You can now proceed to customize questions and AI triggers.' 
+                        : 'Please complete the DNS record verification above to unlock Step 2.'}
                     </p>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() => {
-                      if (!websiteUrl) {
-                        setWebsiteUrl('https://example.com');
-                      }
-                      setStep(2);
-                      setMaxStepReached(prev => Math.max(prev, 2));
-                    }}
-                    className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 px-6 rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                    onClick={() => handleGoToStep(2)}
+                    disabled={!isStep1Completed}
+                    className={`w-full sm:w-auto font-extrabold text-xs py-3.5 px-6 rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2 shrink-0 ${
+                      isStep1Completed
+                        ? 'bg-[#008060] hover:bg-[#006048] text-white cursor-pointer shadow-emerald-900/20 shadow-md'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                    }`}
                   >
-                    <span>Continue to Survey Setup</span>
-                    <ArrowRight size={14} />
+                    {isStep1Completed ? (
+                      <>
+                        <span>Continue to Survey Setup</span>
+                        <ArrowRight size={14} />
+                      </>
+                    ) : (
+                      <>
+                        <Lock size={14} className="text-slate-400" />
+                        <span>Verify DNS Record to Continue</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </motion.div>
