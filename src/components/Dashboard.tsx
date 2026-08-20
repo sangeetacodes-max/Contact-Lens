@@ -1273,40 +1273,9 @@ export default function Dashboard({
   };
 
   const handleSimulatedFollowUpSubmit = () => {
-    const newResp: SurveyResponse = {
-      id: `sim-resp-${Date.now()}`,
-      surveyId: selectedSurveyId,
-      timestamp: new Date().toISOString(),
-      answers: [
-        { questionId: 'q1', answer: simulatedUserResponse },
-        { questionId: 'q2', answer: '5' },
-        { questionId: 'q3', answer: simulatedFollowUpAnswer || 'Simulated user typing feedback.' }
-      ],
-      visitorMeta: {
-        browser: 'Chrome (AI Simulated)',
-        country: 'US',
-        pageUrl: '/simulated-store'
-      }
-    };
-
-    setResponses([newResp, ...responses]);
+    // Simulator feedback is kept strictly isolated from production analytics
     setSimulatedSurveyState('success');
-    showNotification('Simulated feedback logged successfully!', 'success');
-
-    try {
-      fetch('/api/events/survey-response', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          siteId: workspace.siteId || 'cl_default',
-          surveyId: selectedSurveyId,
-          answers: newResp.answers,
-          visitorMeta: newResp.visitorMeta
-        })
-      }).catch(console.warn);
-    } catch (e) {}
-
-    triggerExitAnalysisLoad();
+    showNotification('Simulated feedback logged successfully! (Simulation/Preview Only — isolated from production analytics)', 'success');
   };
 
   // Custom Domain Setup - Real DNS verification via backend
@@ -4000,19 +3969,24 @@ async function makeSurvey() {
             </motion.div>
           )}
 
-          {/* TAB 4: INTERACTIVE AI BEHAVIORAL TRIGGER SIMULATOR */}
+          {/* TAB 4: INTERACTIVE AI BEHAVIORAL TRIGGER SIMULATOR (SIMULATION / PREVIEW ONLY) */}
           {activeTab === 'simulator' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold text-slate-900 tracking-tight">AI Behavior-Based Trigger Simulator</h1>
-                  <p className="text-slate-500 text-xs">Test how CustomerLens tracks customer behavior patterns in real-time, instantly authoring personalized surveys.</p>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">AI Behavior-Based Trigger Simulator</h1>
+                    <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider font-mono">
+                      Simulation / Preview Only
+                    </span>
+                  </div>
+                  <p className="text-slate-500 text-xs mt-1">Test how CustomerLens tracks customer behavior patterns in real-time. Simulated events are isolated from production analytics.</p>
                 </div>
                 
                 <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
                   <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] font-mono font-bold text-slate-600">AI SDK Core: ACTIVE</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-600">AI Simulator Core: ACTIVE (Sandbox)</span>
                 </div>
               </div>
 

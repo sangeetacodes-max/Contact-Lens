@@ -1,7 +1,8 @@
-import { Env, TrackingEvent, SurveyResponse, SurveyConfig } from '../types';
+import { Env, TrackingEvent, SurveyResponse, SurveyConfig, ResponseSignal } from '../types';
 import { DatabaseService } from '../services/db';
 import { StorageService } from '../services/storage';
 import { OpenAIService } from '../services/openai';
+import { NotificationService } from '../services/notifications';
 import { jsonResponse, ApiError } from '../utils/errors';
 import { corsHeaders } from '../middleware/cors';
 import { Logger } from '../utils/logger';
@@ -52,8 +53,13 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
     fetch(configUrl)
       .then(function(res) { return res.json(); })
       .then(function(data) {
-        if (data && data.enabled) {
+        if (data && data.enabled && data.surveys && data.surveys.length > 0) {
           widgetConfig = data;
+          // Only start behavioral telemetry if site is active and verified
+          sendBehaviorEvent({ eventType: 'pageview' });
+          attachInteractionListeners();
+        } else {
+          console.warn('[CustomerLens] Survey widget is inactive or unverified for siteId: ' + siteId, data && data.error);
         }
       })
       .catch(function(err) {
@@ -102,58 +108,57 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
     .catch(function(err) {});
   }
 
-  // 3. Pageview Event
-  sendBehaviorEvent({ eventType: 'pageview' });
+  function attachInteractionListeners() {
+    // Scroll Tracking
+    window.addEventListener('scroll', function() {
+      var h = document.documentElement, b = document.body;
+      var st = 'scrollTop' in h ? h.scrollTop : b.scrollTop;
+      var sh = 'scrollHeight' in h ? h.scrollHeight : b.scrollHeight;
+      var clientH = h.clientHeight || window.innerHeight;
+      var percent = Math.min(100, Math.round((st / (sh - clientH)) * 100) || 0);
 
-  // 4. Scroll Tracking
-  window.addEventListener('scroll', function() {
-    var h = document.documentElement, b = document.body;
-    var st = 'scrollTop' in h ? h.scrollTop : b.scrollTop;
-    var sh = 'scrollHeight' in h ? h.scrollHeight : b.scrollHeight;
-    var clientH = h.clientHeight || window.innerHeight;
-    var percent = Math.min(100, Math.round((st / (sh - clientH)) * 100) || 0);
-
-    if (percent > maxScrollPercent) {
-      maxScrollPercent = percent;
-      if (maxScrollPercent >= 60 && !hesitationDetected) {
-        sendBehaviorEvent({ eventType: 'scroll_depth', scrollPercent: maxScrollPercent });
+      if (percent > maxScrollPercent) {
+        maxScrollPercent = percent;
+        if (maxScrollPercent >= 60 && !hesitationDetected) {
+          sendBehaviorEvent({ eventType: 'scroll_depth', scrollPercent: maxScrollPercent });
+        }
       }
-    }
-  }, { passive: true });
+    }, { passive: true });
 
-  // 5. Hesitation Detection (Idling > 20s or Cursor lingering)
-  setTimeout(function() {
-    if (!isWidgetOpen && !isSurveyCompleted) {
-      hesitationDetected = true;
-      sendBehaviorEvent({ eventType: 'hesitation', reason: 'time_dwell_20s' });
-    }
-  }, 20000);
+    // Hesitation Detection (Idling > 20s or Cursor lingering)
+    setTimeout(function() {
+      if (!isWidgetOpen && !isSurveyCompleted) {
+        hesitationDetected = true;
+        sendBehaviorEvent({ eventType: 'hesitation', reason: 'time_dwell_20s' });
+      }
+    }, 20000);
 
-  setTimeout(function() {
-    if (!isWidgetOpen && !isSurveyCompleted) {
-      hesitationDetected = true;
-      sendBehaviorEvent({ eventType: 'hesitation', reason: 'time_dwell_40s' });
-    }
-  }, 40000);
+    setTimeout(function() {
+      if (!isWidgetOpen && !isSurveyCompleted) {
+        hesitationDetected = true;
+        sendBehaviorEvent({ eventType: 'hesitation', reason: 'time_dwell_40s' });
+      }
+    }, 40000);
 
-  // 6. Exit Intent Detection (Mouse moving to top window boundary)
-  document.addEventListener('mouseleave', function(e) {
-    if (e.clientY <= 15 && !exitIntentDetected && !isWidgetOpen && !isSurveyCompleted) {
-      exitIntentDetected = true;
-      sendBehaviorEvent({ eventType: 'exit_intent', clientY: e.clientY });
-    }
-  });
+    // Exit Intent Detection (Mouse moving to top window boundary)
+    document.addEventListener('mouseleave', function(e) {
+      if (e.clientY <= 15 && !exitIntentDetected && !isWidgetOpen && !isSurveyCompleted) {
+        exitIntentDetected = true;
+        sendBehaviorEvent({ eventType: 'exit_intent', clientY: e.clientY });
+      }
+    });
 
-  // 7. Repeated Clicks / Rage Click Detection
-  document.addEventListener('click', function(e) {
-    var now = Date.now();
-    clickTimestamps.push(now);
-    clickTimestamps = clickTimestamps.filter(function(t) { return now - t < 1500; });
-    if (clickTimestamps.length >= 3) {
-      repeatedClicksCount = clickTimestamps.length;
-      sendBehaviorEvent({ eventType: 'rage_clicks', clickCount: repeatedClicksCount });
-    }
-  });
+    // Repeated Clicks / Rage Click Detection
+    document.addEventListener('click', function(e) {
+      var now = Date.now();
+      clickTimestamps.push(now);
+      clickTimestamps = clickTimestamps.filter(function(t) { return now - t < 1500; });
+      if (clickTimestamps.length >= 3) {
+        repeatedClicksCount = clickTimestamps.length;
+        sendBehaviorEvent({ eventType: 'rage_clicks', clickCount: repeatedClicksCount });
+      }
+    });
+  }
 
   // ---------------------------------------------------------------------------------
   // 8. RENDER MICRO-SURVEY WIDGET IN CONNECTED WEBSITE
@@ -342,8 +347,37 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
   // -----------------------------------------------------------------------------------
   if (pathname === '/api/widget-config' && request.method === 'GET') {
     const url = new URL(request.url);
-    const siteId = url.searchParams.get('siteId') || 'cl_8f92a7bc';
+    const siteId = url.searchParams.get('siteId') || '';
     const page = url.searchParams.get('page') || '/';
+
+    if (!siteId) {
+      return jsonResponse({
+        siteId,
+        enabled: false,
+        error: 'Missing siteId parameter.',
+        surveys: []
+      }, 400);
+    }
+
+    // Look up Site/Workspace in DB
+    const siteInfo = await db.getSiteById(siteId);
+    if (!siteInfo) {
+      return jsonResponse({
+        siteId,
+        enabled: false,
+        error: 'Site ID not found or inactive. Verify your domain inside the CustomerLens dashboard.',
+        surveys: []
+      }, 404);
+    }
+
+    if (siteInfo.status === 'PAUSED' || siteInfo.status === 'UNVERIFIED' || siteInfo.verified === false) {
+      return jsonResponse({
+        siteId,
+        enabled: false,
+        error: 'Domain is unverified or survey is paused in CustomerLens.',
+        surveys: []
+      });
+    }
 
     // Look up active survey for site in DB or KV
     let activeSurvey = await storage.kvGet<SurveyConfig>(`active_survey:${siteId}`);
@@ -384,7 +418,7 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
   if ((pathname === '/api/events' || pathname === '/api/events/track') && request.method === 'POST') {
     const body = (await request.json().catch(() => ({}))) as any;
 
-    const siteId = body.siteId || 'cl_8f92a7bc';
+    const siteId = body.siteId || '';
     const sessionId = body.sessionId || 'session_xyz';
     const page = body.page || body.pageUrl || '/';
     const timeOnPage = typeof body.timeOnPage === 'number' ? body.timeOnPage : 0;
@@ -392,6 +426,15 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
     const hesitation = Boolean(body.hesitation || body.eventType === 'hesitation');
     const repeatedClicks = typeof body.repeatedClicks === 'number' ? body.repeatedClicks : (body.eventType === 'rage_clicks' ? 3 : 0);
     const exitIntent = Boolean(body.exitIntent || body.eventType === 'exit_intent');
+
+    if (!siteId) {
+      return jsonResponse({ recorded: false, error: 'Missing siteId' }, 400);
+    }
+
+    const siteInfo = await db.getSiteById(siteId);
+    if (!siteInfo) {
+      return jsonResponse({ recorded: false, error: 'Site not recognized' }, 404);
+    }
 
     // 1. Record event to Database
     const event: TrackingEvent = {
@@ -495,7 +538,7 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
   }
 
   // -----------------------------------------------------------------------------------
-  // 4. VISITOR SURVEY RESPONSE & SHORT AI DIPLOMATIC FOLLOW-UP (POST /api/survey-response)
+  // 4. VISITOR SURVEY RESPONSE, OPENAI INDIVIDUAL ANALYSIS & MULTI-RESPONSE PATTERN RECOGNITION
   // -----------------------------------------------------------------------------------
   if ((pathname === '/api/survey-response' || pathname === '/api/events/survey-response') && request.method === 'POST') {
     const body = (await request.json().catch(() => ({}))) as any;
@@ -504,33 +547,103 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
     const sessionId = body.sessionId || 'session_xyz';
     const answer = body.answer || (body.answers && body.answers[0]?.answer) || '';
     const question = body.question || 'What is stopping you from continuing?';
+    const pageUrl = body.page || body.pageUrl || '/';
 
-    // 1. Save Response in Database
+    const openai = new OpenAIService(env);
+
+    // 1. OpenAI analyzes this response individually and classifies the business signal
+    const aiSignal = await openai.analyzeIndividualResponse({
+      answer,
+      question,
+      pageUrl,
+      sessionId,
+      visitorMeta: body.visitorMeta,
+      websiteContext: { name: body.businessName || siteId, type: 'ecommerce' }
+    });
+
+    // 2. Save Response & AI Signal in Database
     const responseRecord: SurveyResponse = {
       id: 'resp_' + crypto.randomUUID().substring(0, 8),
       siteId,
       surveyId,
       sessionId,
       answers: body.answers || [{ questionId: 'q1', questionText: question, answer }],
-      pageUrl: body.page || body.pageUrl || '',
+      pageUrl,
       visitorMeta: {
         sessionId,
-        submittedAt: new Date().toISOString()
+        submittedAt: new Date().toISOString(),
+        aiSignal
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      aiSignal
     };
 
     await db.recordResponse(responseRecord);
 
-    // 2. Call OpenAI for short diplomatic follow-up question (Max 15 words)
-    const openai = new OpenAIService(env);
+    // 3. Notify workspace owner if individual response is critical or needs urgent attention
+    if (aiSignal.importance === 'high' || aiSignal.importance === 'critical' || aiSignal.needs_attention === true) {
+      try {
+        const siteInfo = await db.getSiteById(siteId);
+        if (siteInfo && siteInfo.userId) {
+          const notifService = new NotificationService(env);
+          await notifService.sendNotification(
+            siteInfo.userId,
+            `High Impact Feedback on ${siteInfo.name || siteId}`,
+            `AI classified: [${aiSignal.category.toUpperCase()}] "${answer}" - Business signal: ${aiSignal.signal}`,
+            aiSignal.importance === 'critical' ? 'alert' : 'info'
+          );
+        }
+      } catch (nErr: any) {
+        Logger.warn('Notification dispatch error on individual response:', nErr.message);
+      }
+    }
+
+    // 4. CustomerLens Backend compares signals over time & detects repeated patterns
+    try {
+      const recentResponses = await db.getRecentResponses(siteId, 25);
+      const recentSignals: ResponseSignal[] = recentResponses
+        .map(r => r.aiSignal || r.visitorMeta?.aiSignal)
+        .filter((s): s is ResponseSignal => Boolean(s));
+
+      const detectedPattern = await openai.detectMultiResponsePattern(recentSignals, { siteId });
+
+      if (detectedPattern && detectedPattern.patternDetected && detectedPattern.triggerNotification) {
+        const siteInfo = await db.getSiteById(siteId);
+        if (siteInfo && siteInfo.userId) {
+          const notifService = new NotificationService(env);
+          await notifService.sendNotification(
+            siteInfo.userId,
+            detectedPattern.title,
+            `${detectedPattern.summary} Action: ${detectedPattern.recommendation}`,
+            detectedPattern.severity === 'critical' ? 'alert' : 'info'
+          );
+          Logger.info('Multi-response pattern recognized and owner notified:', {
+            siteId,
+            title: detectedPattern.title,
+            category: detectedPattern.category,
+            affectedCount: detectedPattern.affectedSignalsCount
+          });
+        }
+      }
+    } catch (err: any) {
+      Logger.warn('Multi-response pattern evaluation error:', err.message);
+    }
+
+    // 5. Call OpenAI for short diplomatic follow-up question (Max 15 words)
     const followUp = await openai.generateShortDiplomaticFollowUp(answer, question, body.history);
 
-    Logger.info('AI Follow-up generated for response:', { siteId, answer, reply: followUp.reply });
+    Logger.info('Response saved with AI classification signal:', {
+      siteId,
+      answer,
+      importance: aiSignal.importance,
+      category: aiSignal.category,
+      business_impact: aiSignal.business_impact
+    });
 
     return jsonResponse({
       recorded: true,
       responseId: responseRecord.id,
+      aiSignal,
       reply: followUp.reply,
       continue: followUp.continue,
       followUpCount: 1

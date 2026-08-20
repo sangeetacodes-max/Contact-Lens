@@ -1,4 +1,4 @@
-import { Env } from '../types';
+import { Env, ResponseSignal, MultiResponsePattern } from '../types';
 import { ApiError } from '../utils/errors';
 import { Logger } from '../utils/logger';
 import { GoogleGenAI } from '@google/genai';
@@ -230,6 +230,213 @@ Available Survey: ${JSON.stringify(availableSurvey || {})}`;
         decision: isShow ? 'SHOW' : 'WAIT',
         reason: isShow ? 'The visitor shows sustained engagement and decision hesitation.' : 'Monitoring visitor browsing activity.'
       };
+    }
+  }
+
+  /**
+   * Evaluate an individual visitor response in context and extract structured business signal
+   * "Evaluate this individual visitor response in the context of the website and identify whether it contains a meaningful signal that could affect customer experience, conversion, retention, product decisions, or business growth. Do not assume every response is important. Explain why a signal matters and assign an importance level."
+   */
+  async analyzeIndividualResponse(params: {
+    answer: string;
+    question?: string;
+    pageUrl?: string;
+    sessionId?: string;
+    visitorMeta?: any;
+    websiteContext?: { name?: string; type?: string; goal?: string };
+  }): Promise<ResponseSignal> {
+    const systemPrompt = `You are CustomerLens AI Intelligence Engine.
+Evaluate this individual visitor response in the context of the website and identify whether it contains a meaningful signal that could affect customer experience, conversion, retention, product decisions, or business growth.
+
+CRITICAL DIRECTIVES:
+- Do NOT assume every response is important. If a response is casual, brief acknowledgment, or low substance, mark importance as "low" and needs_attention as false.
+- Identify signals that matter to business growth, including:
+  * Customer hesitating before purchase or pricing confusion
+  * A feature or capability customers really want
+  * Checkout friction or abandonment reasons
+  * Competitor comparisons or mentions
+  * Recurring usability / UX friction
+  * Positive highlights worth promoting
+  * Retention or churn risks
+  * Suggestions that could improve the product
+- Explain why the signal matters and assign an importance level.
+
+Output MUST strictly be valid JSON with this exact schema:
+{
+  "importance": "high" | "medium" | "low",
+  "category": "pricing" | "checkout_friction" | "feature_request" | "usability" | "competitor" | "positive_highlight" | "retention" | "general_feedback",
+  "business_impact": "conversion" | "churn" | "product_growth" | "trust" | "low",
+  "signal": "concise description of the visitor's core signal",
+  "reason": "why this signal matters to the business",
+  "needs_attention": true | false,
+  "sentiment": "negative" | "positive" | "neutral",
+  "growth_opportunity": "specific actionable recommendation or opportunity"
+}`;
+
+    const userPrompt = `Visitor Response: "${params.answer}"
+Survey Question: "${params.question || 'Customer Feedback'}"
+Page URL: ${params.pageUrl || '/'}
+Website Context: ${JSON.stringify(params.websiteContext || {})}
+Visitor Metadata: ${JSON.stringify(params.visitorMeta || {})}`;
+
+    try {
+      const rawJson = await this.createCompletion(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        true
+      );
+      const parsed = JSON.parse(rawJson);
+      return {
+        importance: ['high', 'medium', 'low'].includes(parsed.importance) ? parsed.importance : 'medium',
+        category: parsed.category || 'general_feedback',
+        business_impact: parsed.business_impact || 'low',
+        signal: parsed.signal || params.answer.substring(0, 80),
+        reason: parsed.reason || 'Individual response evaluated.',
+        needs_attention: Boolean(parsed.needs_attention),
+        sentiment: ['negative', 'positive', 'neutral'].includes(parsed.sentiment) ? parsed.sentiment : 'neutral',
+        growth_opportunity: parsed.growth_opportunity || '',
+        analyzedAt: new Date().toISOString()
+      };
+    } catch {
+      const lower = params.answer.toLowerCase();
+      const isPricing = lower.includes('price') || lower.includes('cost') || lower.includes('expensive') || lower.includes('afford') || lower.includes('tier');
+      const isCheckout = lower.includes('pay') || lower.includes('cart') || lower.includes('card') || lower.includes('checkout') || lower.includes('error');
+      const isFeature = lower.includes('need') || lower.includes('want') || lower.includes('support') || lower.includes('feature') || lower.includes('integrate');
+      
+      const importance: 'high' | 'medium' | 'low' = (isPricing || isCheckout) ? 'high' : (isFeature ? 'medium' : 'low');
+      const category = isPricing ? 'pricing' : (isCheckout ? 'checkout_friction' : (isFeature ? 'feature_request' : 'general_feedback'));
+      
+      return {
+        importance,
+        category,
+        business_impact: (isPricing || isCheckout) ? 'conversion' : (isFeature ? 'product_growth' : 'low'),
+        signal: isPricing ? 'Customer considers pricing unclear or high' : (isCheckout ? 'Checkout obstacle reported' : 'General visitor feedback'),
+        reason: 'Identified key commercial or operational keyword in feedback.',
+        needs_attention: importance === 'high',
+        sentiment: isPricing || isCheckout ? 'negative' : 'neutral',
+        growth_opportunity: isPricing ? 'Review pricing tier clarity and highlight free trial/ROI' : 'Investigate visitor feedback',
+        analyzedAt: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Deep Analysis on Aggregated Signals Over Time
+   * Recognizes when multiple independent responses point toward the same business problem/opportunity
+   */
+  async detectMultiResponsePattern(
+    recentSignals: ResponseSignal[],
+    context?: { siteId?: string; domain?: string; businessName?: string }
+  ): Promise<MultiResponsePattern | null> {
+    if (!recentSignals || recentSignals.length < 2) {
+      return null;
+    }
+
+    // Filter for medium/high signals
+    const substantiveSignals = recentSignals.filter(s => s.importance === 'high' || s.importance === 'medium');
+    if (substantiveSignals.length < 2) {
+      return null;
+    }
+
+    const systemPrompt = `You are CustomerLens AI Strategic Pattern Detector.
+Analyze this list of individual visitor signals gathered over time. Determine whether multiple independent responses are pointing toward the same business problem, conversion risk, or growth opportunity.
+
+RULES:
+- Only detect a pattern if AT LEAST 2 independent visitor signals point to the same recurring issue, barrier, or high-value opportunity (e.g. pricing confusion, checkout friction, missing integration, feature demand).
+- If signals are random, scattered, or isolated, return "patternDetected": false.
+- When a repeated pattern is verified, synthesize a high-impact business notification for the site owner with a root cause diagnosis and actionable recommendation.
+
+Output format MUST strictly be JSON:
+{
+  "patternDetected": true | false,
+  "severity": "critical" | "warning" | "opportunity" | "info",
+  "title": "🔴 Potential conversion problem detected" (or appropriate emoji title),
+  "summary": "Multiple visitors have independently mentioned pricing confusion. Consider reviewing how pricing and plan differences are presented.",
+  "category": "pricing" | "checkout_friction" | "feature_request" | "usability" | "competitor" | "positive_highlight",
+  "affectedSignalsCount": 2,
+  "rootCause": "Detailed explanation of the recurring root problem",
+  "recommendation": "Concrete tactical step the business owner should take",
+  "triggerNotification": true
+}`;
+
+    const userPrompt = `Recent Visitor Signals (${substantiveSignals.length} items):
+${JSON.stringify(substantiveSignals.slice(0, 15), null, 2)}
+Website Context: ${JSON.stringify(context || {})}`;
+
+    try {
+      const rawJson = await this.createCompletion(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        true
+      );
+      const parsed = JSON.parse(rawJson);
+      if (!parsed.patternDetected) {
+        return null;
+      }
+      return {
+        patternDetected: true,
+        severity: ['critical', 'warning', 'opportunity', 'info'].includes(parsed.severity) ? parsed.severity : 'warning',
+        title: parsed.title || '🔴 Potential conversion problem detected',
+        summary: parsed.summary || 'Multiple visitors have reported similar issues. Review recommended.',
+        category: parsed.category || 'general_feedback',
+        affectedSignalsCount: typeof parsed.affectedSignalsCount === 'number' ? parsed.affectedSignalsCount : 2,
+        rootCause: parsed.rootCause || '',
+        recommendation: parsed.recommendation || '',
+        triggerNotification: parsed.triggerNotification !== false
+      };
+    } catch {
+      // Heuristic fallback: Group by category
+      const categoryCounts: Record<string, number> = {};
+      substantiveSignals.forEach(s => {
+        categoryCounts[s.category] = (categoryCounts[s.category] || 0) + 1;
+      });
+
+      for (const [cat, count] of Object.entries(categoryCounts)) {
+        if (count >= 2) {
+          if (cat === 'pricing') {
+            return {
+              patternDetected: true,
+              severity: 'critical',
+              title: '🔴 Potential conversion problem detected',
+              summary: 'Multiple visitors have independently mentioned pricing confusion. Consider reviewing how pricing and plan differences are presented.',
+              category: 'pricing',
+              affectedSignalsCount: count,
+              rootCause: 'Visitors report ambiguity around pricing tiers and plan inclusions.',
+              recommendation: 'Add a clear plan comparison table and emphasize value proposition on the pricing page.',
+              triggerNotification: true
+            };
+          } else if (cat === 'checkout_friction') {
+            return {
+              patternDetected: true,
+              severity: 'critical',
+              title: '⚠️ Checkout friction identified',
+              summary: 'Multiple visitors encountered difficulties during checkout or payment.',
+              category: 'checkout_friction',
+              affectedSignalsCount: count,
+              rootCause: 'Payment or form validation obstacles during checkout.',
+              recommendation: 'Verify payment gateway availability and streamline required checkout fields.',
+              triggerNotification: true
+            };
+          } else if (cat === 'feature_request') {
+            return {
+              patternDetected: true,
+              severity: 'opportunity',
+              title: '💡 High-demand feature opportunity',
+              summary: 'Multiple visitors have requested similar product features.',
+              category: 'feature_request',
+              affectedSignalsCount: count,
+              rootCause: 'Product capability gap requested by active visitors.',
+              recommendation: 'Evaluate prioritized feature addition to accelerate product adoption.',
+              triggerNotification: true
+            };
+          }
+        }
+      }
+      return null;
     }
   }
 

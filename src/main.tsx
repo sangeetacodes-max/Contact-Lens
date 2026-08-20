@@ -42,9 +42,12 @@ window.getAIInsights = async function(siteId?: string): Promise<string> {
     if (data && data.insightsSummary) {
       return `<strong>AI Insights:</strong> ${data.insightsSummary}`;
     }
-    return "<strong>AI Insights Active:</strong> Exit-intent engagement rate is at 24.8%. 82% of respondents cited price clarity as key motivator.";
+    if (data && data.today && data.today.insight) {
+      return `<strong>AI Insights:</strong> ${data.today.insight}`;
+    }
+    return "<strong>AI Insights:</strong> No real data available yet. Collect visitor responses to view live AI analytics.";
   } catch (err) {
-    return "<strong>AI Insights Active:</strong> Exit-intent engagement rate is at 24.8%.";
+    return "<strong>AI Insights:</strong> No real data available yet. Collect visitor responses to view live AI analytics.";
   }
 };
 

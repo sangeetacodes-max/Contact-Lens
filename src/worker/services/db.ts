@@ -16,6 +16,81 @@ export class DatabaseService {
     this.env = env;
   }
 
+  /** Get Site/Workspace details by siteId */
+  async getSiteById(siteId: string): Promise<{ id: string; userId: string; name?: string; verified?: boolean; status?: string } | null> {
+    if (!siteId) return null;
+
+    if (this.env.D1_DATABASE) {
+      try {
+        const row = await this.env.D1_DATABASE.prepare(`
+          SELECT * FROM sites WHERE id = ? OR domain = ? LIMIT 1
+        `).bind(siteId, siteId).first<any>();
+        if (row) {
+          return {
+            id: row.id,
+            userId: row.user_id,
+            name: row.name,
+            verified: Boolean(row.verified),
+            status: row.status || (Boolean(row.verified) ? 'LIVE' : 'UNVERIFIED')
+          };
+        }
+
+        const ws = await this.env.D1_DATABASE.prepare(`
+          SELECT * FROM workspaces WHERE site_id = ? OR id = ? LIMIT 1
+        `).bind(siteId, siteId).first<any>();
+        if (ws) {
+          return {
+            id: ws.id,
+            userId: ws.user_id,
+            name: ws.business_name,
+            verified: Boolean(ws.verified),
+            status: Boolean(ws.verified) ? 'LIVE' : 'UNVERIFIED'
+          };
+        }
+
+        const dv = await this.env.D1_DATABASE.prepare(`
+          SELECT * FROM domain_verifications WHERE site_id = ? OR domain = ? LIMIT 1
+        `).bind(siteId, siteId).first<any>();
+        if (dv) {
+          return {
+            id: dv.site_id || dv.id,
+            userId: dv.user_id,
+            name: dv.domain,
+            verified: Boolean(dv.verified),
+            status: Boolean(dv.verified) ? 'LIVE' : 'UNVERIFIED'
+          };
+        }
+      } catch (err: any) {
+        Logger.warn('D1 Database getSiteById error:', err.message);
+      }
+    }
+
+    // Check in-memory stores for dev workspace mapping
+    const memWs = memoryWorkspaces.get(siteId);
+    if (memWs && memWs.userId) {
+      return {
+        id: memWs.id || siteId,
+        userId: memWs.userId,
+        name: memWs.businessName || memWs.name,
+        verified: memWs.verified !== false,
+        status: memWs.status || 'LIVE'
+      };
+    }
+
+    const memDomain = memoryDomains.get(siteId);
+    if (memDomain && memDomain.userId) {
+      return {
+        id: memDomain.id || siteId,
+        userId: memDomain.userId,
+        name: memDomain.domain,
+        verified: memDomain.verified,
+        status: memDomain.verified ? 'LIVE' : 'UNVERIFIED'
+      };
+    }
+
+    return null;
+  }
+
   /** Save or update a Survey */
   async saveSurvey(survey: SurveyConfig): Promise<void> {
     if (this.env.D1_DATABASE) {
@@ -120,6 +195,11 @@ export class DatabaseService {
 
   /** Record a Survey Response */
   async recordResponse(response: SurveyResponse): Promise<void> {
+    const metaWithSignal = {
+      ...(response.visitorMeta || {}),
+      aiSignal: response.aiSignal || response.visitorMeta?.aiSignal
+    };
+
     if (this.env.D1_DATABASE) {
       try {
         await this.env.D1_DATABASE.prepare(`
@@ -132,7 +212,7 @@ export class DatabaseService {
           response.sessionId || 'sess_submitted',
           JSON.stringify(response.answers),
           response.pageUrl || '',
-          JSON.stringify(response.visitorMeta || {}),
+          JSON.stringify(metaWithSignal),
           response.timestamp
         ).run();
         return;
@@ -141,7 +221,46 @@ export class DatabaseService {
       }
     }
 
-    memoryResponses.push(response);
+    const existingIdx = memoryResponses.findIndex(r => r.id === response.id);
+    if (existingIdx >= 0) {
+      memoryResponses[existingIdx] = { ...response, visitorMeta: metaWithSignal };
+    } else {
+      memoryResponses.push({ ...response, visitorMeta: metaWithSignal });
+    }
+  }
+
+  /** Get Recent Responses for Site */
+  async getRecentResponses(siteId: string, limit: number = 30): Promise<SurveyResponse[]> {
+    if (this.env.D1_DATABASE) {
+      try {
+        const res = await this.env.D1_DATABASE.prepare(`
+          SELECT * FROM responses WHERE site_id = ? ORDER BY timestamp DESC LIMIT ?
+        `).bind(siteId, limit).all<any>();
+        if (res.results) {
+          return res.results.map((r: any) => {
+            const visitorMeta = JSON.parse(r.visitor_meta_json || '{}');
+            return {
+              id: r.id,
+              siteId: r.site_id,
+              surveyId: r.survey_id,
+              sessionId: r.session_id,
+              answers: JSON.parse(r.answers_json || '[]'),
+              pageUrl: r.page_url,
+              visitorMeta,
+              timestamp: r.timestamp,
+              aiSignal: visitorMeta.aiSignal
+            };
+          });
+        }
+      } catch (err: any) {
+        Logger.warn('D1 Database getRecentResponses fallback:', err.message);
+      }
+    }
+
+    return memoryResponses
+      .filter(r => !siteId || r.siteId === siteId)
+      .slice(-limit)
+      .reverse();
   }
 
   /** Get Analytics Summary Data */

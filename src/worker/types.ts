@@ -148,13 +148,38 @@ export interface TrackingEvent {
 }
 
 // Survey Response
+export interface ResponseSignal {
+  importance: 'critical' | 'high' | 'medium' | 'low';
+  category: string;
+  business_impact: string;
+  signal: string;
+  reason: string;
+  needs_attention: boolean;
+  sentiment?: 'positive' | 'negative' | 'neutral';
+  growth_opportunity?: string;
+  analyzedAt?: string;
+}
+
+export interface MultiResponsePattern {
+  patternDetected: boolean;
+  severity: 'critical' | 'warning' | 'opportunity' | 'info';
+  title: string;
+  summary: string;
+  category: string;
+  affectedSignalsCount: number;
+  rootCause: string;
+  recommendation: string;
+  triggerNotification: boolean;
+}
+
 export interface SurveyResponse {
   id: string;
   siteId: string;
   surveyId: string;
   sessionId: string;
-  answers: Array<{ questionId: string; answer: string }>;
+  answers: Array<{ questionId: string; answer: string; questionText?: string }>;
   pageUrl: string;
   visitorMeta?: Record<string, any>;
   timestamp: string;
+  aiSignal?: ResponseSignal;
 }
