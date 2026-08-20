@@ -2166,29 +2166,11 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                             type="text"
                             value={websiteDomainInput}
                             onChange={(e) => setWebsiteDomainInput(e.target.value)}
-                            placeholder="e.g. shop-a.com, app-b.com, or site-c.com"
+                            placeholder="e.g. yourstore.com or myapp.io"
                             className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-300 focus:border-[#008060] focus:bg-white focus:ring-2 focus:ring-[#008060]/20 rounded-2xl text-sm font-mono text-slate-900 placeholder:text-slate-400 transition-all outline-none"
                             autoFocus
                           />
                         </div>
-                      </div>
-
-                      {/* Suggestion Chips */}
-                      <div className="flex items-center gap-2 flex-wrap pt-1">
-                        <span className="text-xs text-slate-500 font-medium">Quick examples:</span>
-                        {['shop-a.com', 'app-b.com', 'site-c.com'].map((domainExample) => (
-                          <button
-                            key={domainExample}
-                            type="button"
-                            onClick={() => {
-                              setWebsiteDomainInput(domainExample);
-                              handleGenerateSnippet(domainExample);
-                            }}
-                            className="text-xs font-mono bg-slate-100 hover:bg-emerald-50 hover:text-[#008060] hover:border-emerald-300 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 transition-all cursor-pointer"
-                          >
-                            {domainExample}
-                          </button>
-                        ))}
                       </div>
 
                       <div className="pt-2">
@@ -2221,7 +2203,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                         </button>
                       </div>
                       <p className="text-sm sm:text-base font-medium text-slate-600 leading-relaxed">
-                        paste it before the closing <code className="bg-slate-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold text-xs sm:text-sm border border-slate-200">&lt;/head&gt;</code> tag, or another global layout/template.
+                        Paste the snippet of code in the <code className="bg-slate-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold text-xs sm:text-sm border border-slate-200">&lt;head&gt;</code> part of main html code.
                       </p>
                     </div>
 

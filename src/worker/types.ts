@@ -1,6 +1,7 @@
 // Cloudflare Worker Environment bindings interface
 export interface Env {
   ASSETS?: { fetch(request: Request | string | URL): Promise<Response> };
+  GEMINI_API_KEY?: string;
   OPENAI_API_KEY?: string;
   SHOPIFY_API_KEY?: string;
   SHOPIFY_API_SECRET?: string;
