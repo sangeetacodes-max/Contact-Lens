@@ -56,16 +56,22 @@ export async function handleAiRoutes(request: Request, env: Env, pathname: strin
     return jsonResponse(customSurvey);
   }
 
-  // 4. AI Follow-up Question (/api/ai/follow-up)
-  if (pathname === '/api/ai/follow-up' && request.method === 'POST') {
+  // 4. AI Follow-up Question (/api/ai/follow-up or /api/ai/followup)
+  if ((pathname === '/api/ai/follow-up' || pathname === '/api/ai/followup') && request.method === 'POST') {
     const body = (await request.json().catch(() => ({}))) as any;
-    const { answerText, pageUrl } = body;
+    const answerText = body.answer || body.answerText || body.text || '';
+    const questionText = body.question || body.questionText || '';
+    const pageUrl = body.page || body.pageUrl || '';
     if (!answerText) {
-      throw new ApiError('answerText is required', 400, 'MISSING_ANSWER');
+      throw new ApiError('answer or answerText is required', 400, 'MISSING_ANSWER');
     }
 
-    const followUp = await openai.generateFollowUp(answerText, pageUrl || '');
-    return jsonResponse(followUp);
+    const followUp = await openai.generateShortDiplomaticFollowUp(answerText, questionText, body.history);
+    return jsonResponse({
+      reply: followUp.reply,
+      followup: followUp.reply,
+      continue: followUp.continue
+    });
   }
 
   // 5. AI Survey Chat / Follow-Up Chat (/api/ai/survey-chat)

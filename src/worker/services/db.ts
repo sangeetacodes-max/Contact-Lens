@@ -161,7 +161,7 @@ export class DatabaseService {
       }
     }
 
-    return memorySurveys.get(siteId) || Array.from(memorySurveys.values())[0] || null;
+    return memorySurveys.get(siteId) || null;
   }
 
   /** Record a Tracking Event */

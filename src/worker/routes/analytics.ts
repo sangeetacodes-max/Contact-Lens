@@ -5,12 +5,12 @@ import { jsonResponse } from '../utils/errors';
 export async function handleAnalyticsRoutes(request: Request, env: Env, pathname: string): Promise<Response> {
   const analyticsService = new RealAnalyticsService(env);
   const url = new URL(request.url);
-  const siteId = url.searchParams.get('siteId') || 'default_workspace';
+  const siteId = url.searchParams.get('site_id') || url.searchParams.get('siteId') || '';
   const businessName = url.searchParams.get('businessName') || 'My Workspace';
   const goal = url.searchParams.get('goal') || 'Conversion';
 
-  // 1. Analytics Overview Endpoint (/api/analytics/overview or /api/ai/workspace-analytics)
-  if (pathname === '/api/analytics/overview' || pathname === '/api/ai/workspace-analytics') {
+  // 1. Analytics Overview Endpoint (/api/analytics, /api/analytics/overview or /api/ai/workspace-analytics)
+  if (pathname === '/api/analytics' || pathname === '/api/analytics/overview' || pathname === '/api/ai/workspace-analytics') {
     const stats = await analyticsService.getSiteAnalytics(siteId);
     const exitAnalysis = await analyticsService.getExitAnalysis(siteId, businessName, goal);
 

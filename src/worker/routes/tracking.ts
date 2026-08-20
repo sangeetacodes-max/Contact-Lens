@@ -26,8 +26,8 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
   if (window.__CUSTOMERLENS_INITIALIZED__) return;
   window.__CUSTOMERLENS_INITIALIZED__ = true;
 
-  var scriptTag = document.currentScript || document.querySelector('script[src*="customerlens.js"]') || document.querySelector('script[src*="tracker.js"]') || document.querySelector('script[data-site-id]');
-  var siteId = scriptTag ? (scriptTag.getAttribute('data-site-id') || 'cl_8f92a7bc') : 'cl_8f92a7bc';
+  var scriptTag = document.currentScript || document.querySelector('script[src*="customerlens.js"]') || document.querySelector('script[src*="tracker.js"]') || document.querySelector('script[data-site-id]') || document.querySelector('script[data-site]');
+  var siteId = scriptTag ? (scriptTag.getAttribute('data-site-id') || scriptTag.getAttribute('data-site') || '') : '';
   var endpoint = scriptTag && scriptTag.src ? scriptTag.src.replace(/\\/(customerlens|tracker)\\.js.*/, '') : '${origin}';
   if (!endpoint || endpoint === 'null' || endpoint.startsWith('file:')) {
     endpoint = '${origin}';
@@ -47,23 +47,27 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
 
   var currentPage = window.location.pathname || '/';
 
-  // 1. Fetch Widget Configuration from Backend
+  // 1. Fetch Widget Configuration from Backend for this specific site_id
   function initWidgetConfig() {
-    var configUrl = endpoint + '/api/widget-config?siteId=' + encodeURIComponent(siteId) + '&page=' + encodeURIComponent(currentPage);
+    if (!siteId) {
+      console.warn('[CustomerLens] Missing data-site-id attribute on tracker script tag.');
+      return;
+    }
+    var configUrl = endpoint + '/api/tracker/config?site_id=' + encodeURIComponent(siteId) + '&page=' + encodeURIComponent(currentPage);
     fetch(configUrl)
       .then(function(res) { return res.json(); })
       .then(function(data) {
         if (data && data.enabled && data.surveys && data.surveys.length > 0) {
           widgetConfig = data;
           // Only start behavioral telemetry if site is active and verified
-          sendBehaviorEvent({ eventType: 'pageview' });
+          sendBehaviorEvent({ event: 'pageview', eventType: 'pageview' });
           attachInteractionListeners();
         } else {
-          console.warn('[CustomerLens] Survey widget is inactive or unverified for siteId: ' + siteId, data && data.error);
+          console.warn('[CustomerLens] Survey widget is inactive or unconfigured for site_id: ' + siteId, data && data.error);
         }
       })
       .catch(function(err) {
-        console.warn('[CustomerLens] Config fetch fallback:', err);
+        console.warn('[CustomerLens] Config fetch failed:', err);
       });
   }
 
@@ -71,21 +75,27 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
 
   // 2. Behavioral Telemetry Dispatcher
   function sendBehaviorEvent(customPayload) {
-    if (isSurveyCompleted || isWidgetOpen) return;
+    if (isSurveyCompleted || isWidgetOpen || !siteId) return;
 
     var timeOnPage = Math.round((Date.now() - pageStartTime) / 1000);
     var payload = customPayload || {};
 
     var eventBody = {
+      site_id: siteId,
       siteId: siteId,
+      session_id: sessionId,
       sessionId: sessionId,
       page: currentPage,
       pageUrl: window.location.href,
+      time_on_page: timeOnPage,
       timeOnPage: timeOnPage,
+      scroll_depth: maxScrollPercent,
       scrollDepth: maxScrollPercent,
       hesitation: hesitationDetected,
       repeatedClicks: repeatedClicksCount,
       exitIntent: exitIntentDetected,
+      event: payload.event || payload.eventType || 'behavior_update',
+      eventType: payload.eventType || payload.event || 'behavior_update',
       payload: payload
     };
 
@@ -343,18 +353,18 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
   }
 
   // -----------------------------------------------------------------------------------
-  // 2. GET WIDGET CONFIGURATION (GET /api/widget-config)
+  // 2. GET WIDGET CONFIGURATION (GET /api/tracker/config or /api/widget-config)
   // -----------------------------------------------------------------------------------
-  if (pathname === '/api/widget-config' && request.method === 'GET') {
+  if ((pathname === '/api/tracker/config' || pathname === '/api/widget-config') && request.method === 'GET') {
     const url = new URL(request.url);
-    const siteId = url.searchParams.get('siteId') || '';
+    const siteId = url.searchParams.get('site_id') || url.searchParams.get('siteId') || '';
     const page = url.searchParams.get('page') || '/';
 
     if (!siteId) {
       return jsonResponse({
         siteId,
         enabled: false,
-        error: 'Missing siteId parameter.',
+        error: 'Missing site_id parameter.',
         surveys: []
       }, 400);
     }
@@ -365,7 +375,7 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
       return jsonResponse({
         siteId,
         enabled: false,
-        error: 'Site ID not found or inactive. Verify your domain inside the CustomerLens dashboard.',
+        error: 'Site ID not found or inactive. Register your website domain in CustomerLens dashboard.',
         surveys: []
       }, 404);
     }
@@ -379,25 +389,34 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
       });
     }
 
-    // Look up active survey for site in DB or KV
+    // Look up active survey strictly for this site_id
     let activeSurvey = await storage.kvGet<SurveyConfig>(`active_survey:${siteId}`);
     if (!activeSurvey) {
       activeSurvey = await db.getSurveyBySiteId(siteId);
     }
 
-    const defaultQuestion = (activeSurvey?.questions && activeSurvey.questions[0]?.questionText) ||
-      activeSurvey?.headline ||
+    if (!activeSurvey) {
+      return jsonResponse({
+        siteId,
+        enabled: false,
+        error: 'No active survey configured for this site_id.',
+        surveys: []
+      });
+    }
+
+    const defaultQuestion = (activeSurvey.questions && activeSurvey.questions[0]?.questionText) ||
+      activeSurvey.headline ||
       'What is stopping you from continuing?';
 
     const surveys = [
       {
-        surveyId: activeSurvey?.id || 'survey_123',
+        surveyId: activeSurvey.id || `survey_${siteId}`,
         question: defaultQuestion,
-        headline: activeSurvey?.headline || 'Quick question',
+        headline: activeSurvey.headline || 'Quick question',
         pages: ['*', '/pricing', page],
         aiEnabled: true,
         maxFollowUps: 3,
-        colors: activeSurvey?.colors || {
+        colors: activeSurvey.colors || {
           background: '#0B1320',
           text: '#ffffff',
           accent: '#008060'
@@ -418,17 +437,18 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
   if ((pathname === '/api/events' || pathname === '/api/events/track') && request.method === 'POST') {
     const body = (await request.json().catch(() => ({}))) as any;
 
-    const siteId = body.siteId || '';
-    const sessionId = body.sessionId || 'session_xyz';
+    const siteId = body.site_id || body.siteId || '';
+    const sessionId = body.session_id || body.sessionId || 'session_xyz';
     const page = body.page || body.pageUrl || '/';
-    const timeOnPage = typeof body.timeOnPage === 'number' ? body.timeOnPage : 0;
-    const scrollDepth = typeof body.scrollDepth === 'number' ? body.scrollDepth : (body.payload?.scrollPercent || 0);
-    const hesitation = Boolean(body.hesitation || body.eventType === 'hesitation');
-    const repeatedClicks = typeof body.repeatedClicks === 'number' ? body.repeatedClicks : (body.eventType === 'rage_clicks' ? 3 : 0);
-    const exitIntent = Boolean(body.exitIntent || body.eventType === 'exit_intent');
+    const timeOnPage = typeof body.time_on_page === 'number' ? body.time_on_page : (typeof body.timeOnPage === 'number' ? body.timeOnPage : 0);
+    const scrollDepth = typeof body.scroll_depth === 'number' ? body.scroll_depth : (typeof body.scrollDepth === 'number' ? body.scrollDepth : (body.payload?.scrollPercent || 0));
+    const hesitation = Boolean(body.hesitation || body.eventType === 'hesitation' || body.event === 'hesitation');
+    const repeatedClicks = typeof body.repeatedClicks === 'number' ? body.repeatedClicks : (body.eventType === 'rage_clicks' || body.event === 'rage_clicks' ? 3 : 0);
+    const exitIntent = Boolean(body.exitIntent || body.eventType === 'exit_intent' || body.event === 'exit_intent');
+    const eventType = body.event || body.eventType || 'behavior_update';
 
     if (!siteId) {
-      return jsonResponse({ recorded: false, error: 'Missing siteId' }, 400);
+      return jsonResponse({ recorded: false, error: 'Missing site_id' }, 400);
     }
 
     const siteInfo = await db.getSiteById(siteId);
@@ -441,8 +461,8 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
       id: 'evt_' + crypto.randomUUID().substring(0, 8),
       siteId,
       sessionId,
-      eventType: body.eventType || 'behavior_update',
-      pageUrl: body.pageUrl || page,
+      eventType,
+      pageUrl: body.pageUrl || body.page || page,
       referrer: body.referrer || '',
       timestamp: new Date().toISOString(),
       timeOnPage,
@@ -542,9 +562,13 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
   // -----------------------------------------------------------------------------------
   if ((pathname === '/api/survey-response' || pathname === '/api/events/survey-response') && request.method === 'POST') {
     const body = (await request.json().catch(() => ({}))) as any;
-    const siteId = body.siteId || 'cl_8f92a7bc';
-    const surveyId = body.surveyId || 'survey_123';
-    const sessionId = body.sessionId || 'session_xyz';
+    const url = new URL(request.url);
+    const siteId = body.site_id || body.siteId || url.searchParams.get('site_id') || url.searchParams.get('siteId') || '';
+    if (!siteId) {
+      return jsonResponse({ error: 'site_id is required to record a response' }, 400);
+    }
+    const surveyId = body.survey_id || body.surveyId || 'survey_active';
+    const sessionId = body.session_id || body.sessionId || ('sess_' + crypto.randomUUID().substring(0, 8));
     const answer = body.answer || (body.answers && body.answers[0]?.answer) || '';
     const question = body.question || 'What is stopping you from continuing?';
     const pageUrl = body.page || body.pageUrl || '/';
@@ -642,8 +666,11 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
 
     return jsonResponse({
       recorded: true,
+      saved: true,
+      siteId,
       responseId: responseRecord.id,
       aiSignal,
+      followup: followUp.reply,
       reply: followUp.reply,
       continue: followUp.continue,
       followUpCount: 1

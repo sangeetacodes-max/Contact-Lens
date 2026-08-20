@@ -909,7 +909,27 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(5);
 
   // --- STEP 1 STATE ---
-  const [websiteUrl, setWebsiteUrl] = useState('https://yourwebsite.com');
+  const [websiteDomainInput, setWebsiteDomainInput] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('cl_domain');
+      if (saved && saved !== 'https://yourwebsite.com') return saved;
+    }
+    return '';
+  });
+  const [isSnippetGenerated, setIsSnippetGenerated] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('cl_domain');
+      return Boolean(saved && saved !== 'https://yourwebsite.com' && saved.trim().length > 0);
+    }
+    return false;
+  });
+  const [websiteUrl, setWebsiteUrl] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('cl_domain');
+      if (saved && saved !== 'https://yourwebsite.com') return `https://${saved}`;
+    }
+    return 'https://yourwebsite.com';
+  });
   const [activePlatform, setActivePlatform] = useState<string>('Custom Website');
   const [verifyMethod, setVerifyMethod] = useState<'script' | 'dns' | 'meta'>('dns');
   const [isDomainVerified, setIsDomainVerified] = useState(false);
@@ -1771,21 +1791,50 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
   };
 
   const userSiteId = useMemo(() => {
-    const seed = (userEmail || 'user') + (websiteUrl || 'store') + Date.now().toString(36);
+    const domain = (websiteDomainInput || websiteUrl || 'site')
+      .toLowerCase()
+      .trim()
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/.*$/, '');
+    if (!domain || domain === 'yourwebsite.com') {
+      return 'site_a8f29';
+    }
     let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    for (let i = 0; i < domain.length; i++) {
+      hash = ((hash << 5) - hash) + domain.charCodeAt(i);
       hash |= 0;
     }
-    const cleanHash = Math.abs(hash).toString(36).toUpperCase();
-    return `cl_live_${cleanHash}`;
-  }, [userEmail, websiteUrl]);
+    const cleanHash = Math.abs(hash).toString(36).substring(0, 5);
+    return `site_${cleanHash}`;
+  }, [websiteDomainInput, websiteUrl]);
+
+  const handleGenerateSnippet = (customDomain?: string) => {
+    const domainToUse = customDomain || websiteDomainInput;
+    const clean = domainToUse.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+    if (!clean) {
+      showNotification('Please enter a website URL or domain first.', 'warning');
+      return;
+    }
+    setWebsiteDomainInput(clean);
+    setWebsiteUrl(`https://${clean}`);
+    setIsSnippetGenerated(true);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cl_domain', clean);
+      localStorage.setItem('cl_site_id', userSiteId);
+    }
+    showNotification(`Generated unique tracker snippet for ${clean}!`, 'success');
+  };
+
+  const handleChangeDomain = () => {
+    setIsSnippetGenerated(false);
+  };
 
   const handleCopyCode = () => {
-    const code = `<script async src="${window.location.origin}/tracker.js" data-site-id="${userSiteId}"></script>`;
+    const code = `<script\n  src="https://customerlens-ai.sangeeta-codes.workers.dev/tracker.js"\n  data-site-id="${userSiteId}"\n  async>\n</script>`;
     navigator.clipboard.writeText(code);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    showNotification('Tracker script copied to clipboard!', 'success');
+    setTimeout(() => setCopied(false), 2500);
   };
 
   // Final onboarding completion callback
@@ -2087,98 +2136,185 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                   </span>
                 </div>
 
-                {/* Main Card with Big Bold Heading and Subheads */}
-                <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-                  
-                  {/* HEADING (BOLD AND BIG) & SUBHEADS */}
-                  <div className="space-y-2">
-                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-slate-900 leading-tight">
-                      INSTALL CUSTOMER LENS AI IN YOUR WEBSITE
-                    </h1>
-                    <p className="text-sm sm:text-base font-medium text-slate-600 leading-relaxed">
-                      paste it before the closing <code className="bg-slate-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold text-xs sm:text-sm border border-slate-200">&lt;/head&gt;</code> tag, or another global layout/template.
-                    </p>
-                  </div>
+                {/* Main Card with Dynamic Website URL Input or Generated Snippet */}
+                {!isSnippetGenerated ? (
+                  <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                    <div className="space-y-2">
+                      <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-slate-900 leading-tight">
+                        Enter your Website URL
+                      </h1>
+                      <p className="text-sm sm:text-base font-medium text-slate-600 leading-relaxed">
+                        Enter your website domain to generate your unique site ID and tracking code snippet.
+                      </p>
+                    </div>
 
-                  {/* COLLAPSIBLE CODE SNIPPET BAR WITH COPY BUTTON & CHEVRON ARROW */}
-                  <div className="bg-[#0B1320] border border-slate-800 rounded-2xl overflow-hidden shadow-inner transition-all">
-                    
-                    {/* Header Bar: Preview text on left, Copy & Chevron Toggle on right */}
-                    <div 
-                      onClick={() => setIsCodeExpanded(!isCodeExpanded)}
-                      className="px-4 py-3.5 flex items-center justify-between cursor-pointer hover:bg-slate-900/60 transition-colors select-none group"
+                    {/* Input Form */}
+                    <form 
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleGenerateSnippet();
+                      }}
+                      className="space-y-4"
                     >
-                      <div className="flex items-center gap-3 overflow-hidden pr-2">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
-                        <span className="font-mono text-xs sm:text-sm text-emerald-300 truncate">
-                          &lt;script src="https://customerlens-ai.sangeeta-codes.workers.dev/tracker.js" ...&gt;
-                        </span>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                          Website Domain or Store URL
+                        </label>
+                        <div className="relative flex items-center">
+                          <Globe className="absolute left-4 text-slate-400" size={18} />
+                          <input
+                            type="text"
+                            value={websiteDomainInput}
+                            onChange={(e) => setWebsiteDomainInput(e.target.value)}
+                            placeholder="e.g. shop-a.com, app-b.com, or site-c.com"
+                            className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-300 focus:border-[#008060] focus:bg-white focus:ring-2 focus:ring-[#008060]/20 rounded-2xl text-sm font-mono text-slate-900 placeholder:text-slate-400 transition-all outline-none"
+                            autoFocus
+                          />
+                        </div>
                       </div>
 
-                      {/* Right Control Icons: Copy button + Arrow Toggle (matching user image) */}
-                      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        {/* Copy Icon Button */}
-                        <button
-                          type="button"
-                          title="Copy tracker code"
-                          onClick={() => {
-                            const snippet = `<script\n  src="https://customerlens-ai.sangeeta-codes.workers.dev/tracker.js"\n  data-site-id="cl_8f92a7bc"\n  async>\n</script>`;
-                            navigator.clipboard.writeText(snippet);
-                            setCopied(true);
-                            showNotification('Tracker script copied to clipboard!', 'success');
-                            setTimeout(() => setCopied(false), 2500);
-                          }}
-                          className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer border border-slate-700/60 flex items-center justify-center"
-                        >
-                          {copied ? (
-                            <Check size={16} className="text-emerald-400" />
-                          ) : (
-                            <Copy size={16} />
-                          )}
-                        </button>
+                      {/* Suggestion Chips */}
+                      <div className="flex items-center gap-2 flex-wrap pt-1">
+                        <span className="text-xs text-slate-500 font-medium">Quick examples:</span>
+                        {['shop-a.com', 'app-b.com', 'site-c.com'].map((domainExample) => (
+                          <button
+                            key={domainExample}
+                            type="button"
+                            onClick={() => {
+                              setWebsiteDomainInput(domainExample);
+                              handleGenerateSnippet(domainExample);
+                            }}
+                            className="text-xs font-mono bg-slate-100 hover:bg-emerald-50 hover:text-[#008060] hover:border-emerald-300 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 transition-all cursor-pointer"
+                          >
+                            {domainExample}
+                          </button>
+                        ))}
+                      </div>
 
-                        {/* Expand / Collapse Chevron Arrow (like the image) */}
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          className="w-full font-extrabold text-sm py-3.5 px-6 rounded-2xl transition-all shadow-md shadow-emerald-900/20 flex items-center justify-center gap-2 bg-[#008060] hover:bg-[#006048] text-white cursor-pointer"
+                        >
+                          <Sparkles size={16} />
+                          <span>Generate Unique Tracker Snippet</span>
+                          <ArrowRight size={16} />
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : (
+                  <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                    {/* HEADING (BOLD AND BIG) & SUBHEADS */}
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-slate-900 leading-tight">
+                          INSTALL CUSTOMER LENS AI IN YOUR WEBSITE
+                        </h1>
                         <button
                           type="button"
-                          title={isCodeExpanded ? "Hide complete code" : "View complete code"}
-                          onClick={() => setIsCodeExpanded(!isCodeExpanded)}
-                          className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer border border-slate-700/60 flex items-center justify-center"
+                          onClick={handleChangeDomain}
+                          className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl border border-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
                         >
-                          {isCodeExpanded ? (
-                            <ChevronUp size={16} className="text-slate-200" />
-                          ) : (
-                            <ChevronDown size={16} className="text-slate-400 group-hover:text-slate-200" />
-                          )}
+                          <span>Change URL</span>
+                          <Globe size={12} />
                         </button>
+                      </div>
+                      <p className="text-sm sm:text-base font-medium text-slate-600 leading-relaxed">
+                        paste it before the closing <code className="bg-slate-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold text-xs sm:text-sm border border-slate-200">&lt;/head&gt;</code> tag, or another global layout/template.
+                      </p>
+                    </div>
+
+                    {/* DOMAIN & UNIQUE SITE ID BADGE STRIP */}
+                    <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-emerald-900">Website:</span>
+                        <span className="font-mono font-bold text-[#008060] bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
+                          {websiteDomainInput || websiteUrl.replace(/^https?:\/\//, '')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-emerald-900">Unique Site ID:</span>
+                        <span className="font-mono font-bold text-emerald-900 bg-emerald-100/90 px-2 py-0.5 rounded-lg border border-emerald-300">
+                          {userSiteId}
+                        </span>
                       </div>
                     </div>
 
-                    {/* EXPANDED COMPLETE CODE BLOCK */}
-                    <AnimatePresence>
-                      {isCodeExpanded && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="border-t border-slate-800 bg-[#070D18] px-5 py-4 font-mono text-xs sm:text-sm overflow-x-auto"
-                        >
-                          <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-800/60 text-[11px] text-slate-400 select-none">
-                            <span className="text-[10px] text-slate-400 font-mono">customerlens-tracker.html</span>
-                            <span className="text-[10px] text-emerald-400 font-mono font-semibold">Complete Script Tag</span>
-                          </div>
-                          <pre className="text-emerald-300 font-mono leading-relaxed whitespace-pre select-all">
+                    {/* COLLAPSIBLE CODE SNIPPET BAR WITH COPY BUTTON & CHEVRON ARROW */}
+                    <div className="bg-[#0B1320] border border-slate-800 rounded-2xl overflow-hidden shadow-inner transition-all">
+                      
+                      {/* Header Bar: Preview text on left, Copy & Chevron Toggle on right */}
+                      <div 
+                        onClick={() => setIsCodeExpanded(!isCodeExpanded)}
+                        className="px-4 py-3.5 flex items-center justify-between cursor-pointer hover:bg-slate-900/60 transition-colors select-none group"
+                      >
+                        <div className="flex items-center gap-3 overflow-hidden pr-2">
+                          <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+                          <span className="font-mono text-xs sm:text-sm text-emerald-300 truncate">
+                            &lt;script src="https://customerlens-ai.sangeeta-codes.workers.dev/tracker.js" data-site-id="{userSiteId}" ...&gt;
+                          </span>
+                        </div>
+
+                        {/* Right Control Icons: Copy button + Arrow Toggle */}
+                        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {/* Copy Icon Button */}
+                          <button
+                            type="button"
+                            title="Copy tracker code"
+                            onClick={handleCopyCode}
+                            className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer border border-slate-700/60 flex items-center justify-center"
+                          >
+                            {copied ? (
+                              <Check size={16} className="text-emerald-400" />
+                            ) : (
+                              <Copy size={16} />
+                            )}
+                          </button>
+
+                          {/* Expand / Collapse Chevron Arrow */}
+                          <button
+                            type="button"
+                            title={isCodeExpanded ? "Hide complete code" : "View complete code"}
+                            onClick={() => setIsCodeExpanded(!isCodeExpanded)}
+                            className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer border border-slate-700/60 flex items-center justify-center"
+                          >
+                            {isCodeExpanded ? (
+                              <ChevronUp size={16} className="text-slate-200" />
+                            ) : (
+                              <ChevronDown size={16} className="text-slate-400 group-hover:text-slate-200" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* EXPANDED COMPLETE CODE BLOCK */}
+                      <AnimatePresence>
+                        {isCodeExpanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="border-t border-slate-800 bg-[#070D18] px-5 py-4 font-mono text-xs sm:text-sm overflow-x-auto"
+                          >
+                            <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-800/60 text-[11px] text-slate-400 select-none">
+                              <span className="text-[10px] text-slate-400 font-mono">customerlens-tracker.html</span>
+                              <span className="text-[10px] text-emerald-400 font-mono font-semibold">Complete Script Tag</span>
+                            </div>
+                            <pre className="text-emerald-300 font-mono leading-relaxed whitespace-pre select-all">
 {`<script
   src="https://customerlens-ai.sangeeta-codes.workers.dev/tracker.js"
-  data-site-id="cl_8f92a7bc"
+  data-site-id="${userSiteId}"
   async>
 </script>`}
-                          </pre>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                            </pre>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Continue to Step 2 Action Card */}
                 <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">

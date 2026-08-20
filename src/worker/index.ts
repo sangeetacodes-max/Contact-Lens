@@ -48,6 +48,7 @@ export default {
         response = await handleSurveyRoutes(request, env, pathname);
       } else if (
         pathname.startsWith('/api/events') ||
+        pathname.startsWith('/api/tracker') ||
         pathname === '/api/widget-config' ||
         pathname === '/api/survey-response' ||
         pathname === '/api/survey-chat' ||

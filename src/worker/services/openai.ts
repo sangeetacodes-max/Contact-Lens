@@ -1,44 +1,26 @@
 import { Env, ResponseSignal, MultiResponsePattern } from '../types';
 import { ApiError } from '../utils/errors';
 import { Logger } from '../utils/logger';
-import { GoogleGenAI } from '@google/genai';
-
-let geminiClient: GoogleGenAI | null = null;
-function getGeminiClient(): GoogleGenAI | null {
-  if (!geminiClient) {
-    const key = typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined;
-    if (key) {
-      geminiClient = new GoogleGenAI({ apiKey: key });
-    }
-  }
-  return geminiClient;
-}
 
 export class OpenAIService {
   private apiKey?: string;
-  private static isApiKeyInvalid = false;
-  private static lastTestedKey = '';
 
   constructor(env?: Partial<Env>) {
     this.apiKey = env?.OPENAI_API_KEY || (typeof process !== 'undefined' ? process.env?.OPENAI_API_KEY : undefined);
-    if (this.apiKey && this.apiKey !== OpenAIService.lastTestedKey) {
-      OpenAIService.lastTestedKey = this.apiKey;
-      OpenAIService.isApiKeyInvalid = false;
-    }
   }
 
-  private getHeaders(): Record<string, string> | null {
-    if (!this.apiKey || OpenAIService.isApiKeyInvalid || this.apiKey.includes('****')) {
-      return null;
+  private getHeaders(): Record<string, string> {
+    if (!this.apiKey || this.apiKey.includes('****') || !this.apiKey.trim()) {
+      throw new ApiError('OpenAI API key is not configured. Please set the OPENAI_API_KEY environment secret.', 503, 'AI_CONFIG_REQUIRED');
     }
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`
+      'Authorization': `Bearer ${this.apiKey.trim()}`
     };
   }
 
   /**
-   * Universal AI Completion (OpenAI with Gemini & Mock CRO Engine Fallbacks)
+   * Universal AI Completion with OpenAI
    */
   async createCompletion(
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
@@ -46,86 +28,39 @@ export class OpenAIService {
   ): Promise<string> {
     const headers = this.getHeaders();
 
-    // 1. Try OpenAI API if key is available and not marked invalid
-    if (headers) {
-      const body: any = {
-        model: 'gpt-4o-mini',
-        messages,
-        temperature: 0.7
-      };
+    const body: any = {
+      model: 'gpt-4o-mini',
+      messages,
+      temperature: 0.7
+    };
 
-      if (jsonMode) {
-        body.response_format = { type: 'json_object' };
-      }
-
-      try {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(body)
-        });
-
-        if (response.ok) {
-          const data = (await response.json()) as any;
-          const content = data.choices?.[0]?.message?.content;
-          if (content) return content;
-        } else {
-          if (response.status === 401 || response.status === 403) {
-            OpenAIService.isApiKeyInvalid = true;
-            Logger.info('OpenAI key not authorized (401). Switching to secondary AI provider.', { status: response.status });
-          }
-        }
-      } catch (err: any) {
-        Logger.info('OpenAI network probe skipped, using secondary AI engine:', { error: err?.message });
-      }
+    if (jsonMode) {
+      body.response_format = { type: 'json_object' };
     }
 
-    // 2. Try Gemini AI if available with automatic fallback cascade and retries
     try {
-      const ai = getGeminiClient();
-      if (ai) {
-        const systemMsg = messages.find(m => m.role === 'system')?.content || '';
-        const userMsgs = messages.filter(m => m.role !== 'system').map(m => `${m.role}: ${m.content}`).join('\n\n');
-        const prompt = `${systemMsg ? `System Instruction:\n${systemMsg}\n\n` : ''}${userMsgs}`;
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+      });
 
-        const candidateModels = ['gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
-        for (const model of candidateModels) {
-          try {
-            const response = await ai.models.generateContent({
-              model,
-              contents: prompt,
-              config: jsonMode ? { responseMimeType: 'application/json' } : undefined
-            });
-
-            let text = response.text?.trim();
-            if (text) {
-              if (jsonMode) {
-                // Strip markdown code fences if model returned ```json ... ```
-                text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-              }
-              return text;
-            }
-          } catch (modelErr: any) {
-            const errMsg = String(modelErr?.message || modelErr);
-            const isDemandOrRateLimit = errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('UNAVAILABLE');
-            
-            if (isDemandOrRateLimit) {
-              Logger.info(`Gemini model ${model} busy/high-demand. Cascading to next model...`);
-              // Brief delay before trying next fallback model
-              await new Promise(r => setTimeout(r, 250));
-              continue;
-            } else {
-              Logger.info(`Gemini model ${model} error:`, { error: errMsg });
-              break;
-            }
-          }
-        }
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        Logger.warn('OpenAI API call failed', { status: response.status, error: errText });
+        throw new ApiError(`OpenAI API error (${response.status}): ${errText || response.statusText}`, response.status, 'OPENAI_API_ERROR');
       }
-    } catch (gErr: any) {
-      Logger.info('Gemini AI fallback note:', { error: gErr?.message || String(gErr) });
-    }
 
-    throw new ApiError('AI is not configured yet. Add the required production API secret.', 503, 'AI_CONFIG_REQUIRED');
+      const data = (await response.json()) as any;
+      const content = data.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new ApiError('Empty completion returned by OpenAI', 502, 'OPENAI_EMPTY_RESPONSE');
+      }
+      return content.trim();
+    } catch (err: any) {
+      if (err instanceof ApiError) throw err;
+      throw new ApiError(`Failed to reach OpenAI service: ${err?.message || 'Network error'}`, 503, 'OPENAI_NETWORK_ERROR');
+    }
   }
 
   /**
@@ -156,35 +91,20 @@ Page URL: ${event.pageUrl || event.page || ''}
 Device: ${event.device || 'Desktop'}
 Session Context: ${JSON.stringify(sessionSummary || {})}`;
 
-    try {
-      const rawJson = await this.createCompletion(
-        [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        true
-      );
-      const parsed = JSON.parse(rawJson);
-      const decisionVal = parsed.decision === 'NOW' ? 'SHOW' : parsed.decision;
-      return {
-        decision: ['SHOW', 'WAIT', 'DONT_SHOW'].includes(decisionVal) ? decisionVal : 'SHOW',
-        reason: parsed.reason || 'Visitor behavior indicates optimal moment for contextual survey.',
-        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.9
-      };
-    } catch {
-      // Rule-based fallback if AI is offline
-      const isNow = ['exit_intent', 'hesitation', 'rage_clicks', 'cart_action'].includes(event.eventType) ||
-        event.exitIntent === true ||
-        event.hesitation === true ||
-        (event.repeatedClicks && event.repeatedClicks >= 2) ||
-        (event.timeOnPage && event.timeOnPage >= 35) ||
-        ((event.scrollDepth || event.payload?.scrollPercent || 0) >= 60);
-      return {
-        decision: isNow ? 'SHOW' : 'WAIT',
-        reason: isNow ? 'The visitor shows sustained engagement and decision hesitation.' : 'Monitoring visitor interaction.',
-        confidence: 0.85
-      };
-    }
+    const rawJson = await this.createCompletion(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      true
+    );
+    const parsed = JSON.parse(rawJson);
+    const decisionVal = parsed.decision === 'NOW' ? 'SHOW' : parsed.decision;
+    return {
+      decision: ['SHOW', 'WAIT', 'DONT_SHOW'].includes(decisionVal) ? decisionVal : 'SHOW',
+      reason: parsed.reason || 'Visitor behavior indicates optimal moment for contextual survey.',
+      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.9
+    };
   }
 
   /**
@@ -210,32 +130,23 @@ Page: ${page}
 Behavior: ${JSON.stringify(behavior || {})}
 Available Survey: ${JSON.stringify(availableSurvey || {})}`;
 
-    try {
-      const rawJson = await this.createCompletion(
-        [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        true
-      );
-      const parsed = JSON.parse(rawJson);
-      const decisionVal = parsed.decision === 'NOW' ? 'SHOW' : parsed.decision;
-      return {
-        decision: ['SHOW', 'WAIT', 'DONT_SHOW'].includes(decisionVal) ? decisionVal : 'SHOW',
-        reason: parsed.reason || 'The visitor shows sustained engagement and decision hesitation.'
-      };
-    } catch {
-      const isShow = (behavior?.timeOnPage >= 30) || behavior?.hesitation || behavior?.exitIntent || (behavior?.repeatedClicks >= 2) || (behavior?.scrollDepth >= 60);
-      return {
-        decision: isShow ? 'SHOW' : 'WAIT',
-        reason: isShow ? 'The visitor shows sustained engagement and decision hesitation.' : 'Monitoring visitor browsing activity.'
-      };
-    }
+    const rawJson = await this.createCompletion(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      true
+    );
+    const parsed = JSON.parse(rawJson);
+    const decisionVal = parsed.decision === 'NOW' ? 'SHOW' : parsed.decision;
+    return {
+      decision: ['SHOW', 'WAIT', 'DONT_SHOW'].includes(decisionVal) ? decisionVal : 'SHOW',
+      reason: parsed.reason || 'The visitor shows sustained engagement and decision hesitation.'
+    };
   }
 
   /**
    * Evaluate an individual visitor response in context and extract structured business signal
-   * "Evaluate this individual visitor response in the context of the website and identify whether it contains a meaningful signal that could affect customer experience, conversion, retention, product decisions, or business growth. Do not assume every response is important. Explain why a signal matters and assign an importance level."
    */
   async analyzeIndividualResponse(params: {
     answer: string;
@@ -299,24 +210,17 @@ Visitor Metadata: ${JSON.stringify(params.visitorMeta || {})}`;
         growth_opportunity: parsed.growth_opportunity || '',
         analyzedAt: new Date().toISOString()
       };
-    } catch {
-      const lower = params.answer.toLowerCase();
-      const isPricing = lower.includes('price') || lower.includes('cost') || lower.includes('expensive') || lower.includes('afford') || lower.includes('tier');
-      const isCheckout = lower.includes('pay') || lower.includes('cart') || lower.includes('card') || lower.includes('checkout') || lower.includes('error');
-      const isFeature = lower.includes('need') || lower.includes('want') || lower.includes('support') || lower.includes('feature') || lower.includes('integrate');
-      
-      const importance: 'high' | 'medium' | 'low' = (isPricing || isCheckout) ? 'high' : (isFeature ? 'medium' : 'low');
-      const category = isPricing ? 'pricing' : (isCheckout ? 'checkout_friction' : (isFeature ? 'feature_request' : 'general_feedback'));
-      
+    } catch (err: any) {
+      Logger.warn('OpenAI analyzeIndividualResponse error, returning unanalyzed signal state:', err?.message);
       return {
-        importance,
-        category,
-        business_impact: (isPricing || isCheckout) ? 'conversion' : (isFeature ? 'product_growth' : 'low'),
-        signal: isPricing ? 'Customer considers pricing unclear or high' : (isCheckout ? 'Checkout obstacle reported' : 'General visitor feedback'),
-        reason: 'Identified key commercial or operational keyword in feedback.',
-        needs_attention: importance === 'high',
-        sentiment: isPricing || isCheckout ? 'negative' : 'neutral',
-        growth_opportunity: isPricing ? 'Review pricing tier clarity and highlight free trial/ROI' : 'Investigate visitor feedback',
+        importance: 'low',
+        category: 'general_feedback',
+        business_impact: 'low',
+        signal: params.answer.substring(0, 80) || 'Visitor feedback',
+        reason: 'Raw visitor response captured (AI evaluation pending).',
+        needs_attention: false,
+        sentiment: 'neutral',
+        growth_opportunity: '',
         analyzedAt: new Date().toISOString()
       };
     }
@@ -352,7 +256,7 @@ Output format MUST strictly be JSON:
 {
   "patternDetected": true | false,
   "severity": "critical" | "warning" | "opportunity" | "info",
-  "title": "🔴 Potential conversion problem detected" (or appropriate emoji title),
+  "title": "🔴 Potential conversion problem detected",
   "summary": "Multiple visitors have independently mentioned pricing confusion. Consider reviewing how pricing and plan differences are presented.",
   "category": "pricing" | "checkout_friction" | "feature_request" | "usability" | "competitor" | "positive_highlight",
   "affectedSignalsCount": 2,
@@ -388,54 +292,8 @@ Website Context: ${JSON.stringify(context || {})}`;
         recommendation: parsed.recommendation || '',
         triggerNotification: parsed.triggerNotification !== false
       };
-    } catch {
-      // Heuristic fallback: Group by category
-      const categoryCounts: Record<string, number> = {};
-      substantiveSignals.forEach(s => {
-        categoryCounts[s.category] = (categoryCounts[s.category] || 0) + 1;
-      });
-
-      for (const [cat, count] of Object.entries(categoryCounts)) {
-        if (count >= 2) {
-          if (cat === 'pricing') {
-            return {
-              patternDetected: true,
-              severity: 'critical',
-              title: '🔴 Potential conversion problem detected',
-              summary: 'Multiple visitors have independently mentioned pricing confusion. Consider reviewing how pricing and plan differences are presented.',
-              category: 'pricing',
-              affectedSignalsCount: count,
-              rootCause: 'Visitors report ambiguity around pricing tiers and plan inclusions.',
-              recommendation: 'Add a clear plan comparison table and emphasize value proposition on the pricing page.',
-              triggerNotification: true
-            };
-          } else if (cat === 'checkout_friction') {
-            return {
-              patternDetected: true,
-              severity: 'critical',
-              title: '⚠️ Checkout friction identified',
-              summary: 'Multiple visitors encountered difficulties during checkout or payment.',
-              category: 'checkout_friction',
-              affectedSignalsCount: count,
-              rootCause: 'Payment or form validation obstacles during checkout.',
-              recommendation: 'Verify payment gateway availability and streamline required checkout fields.',
-              triggerNotification: true
-            };
-          } else if (cat === 'feature_request') {
-            return {
-              patternDetected: true,
-              severity: 'opportunity',
-              title: '💡 High-demand feature opportunity',
-              summary: 'Multiple visitors have requested similar product features.',
-              category: 'feature_request',
-              affectedSignalsCount: count,
-              rootCause: 'Product capability gap requested by active visitors.',
-              recommendation: 'Evaluate prioritized feature addition to accelerate product adoption.',
-              triggerNotification: true
-            };
-          }
-        }
-      }
+    } catch (err: any) {
+      Logger.warn('OpenAI detectMultiResponsePattern error:', err?.message);
       return null;
     }
   }
@@ -462,25 +320,18 @@ ${surveyQuestion ? `Survey question asked: "${surveyQuestion}"\n` : ''}
 ${history && history.length > 0 ? `Previous conversation: ${JSON.stringify(history)}\n` : ''}
 Ask ONE short, polite, neutral follow-up (max 15 words).`;
 
-    try {
-      const reply = await this.createCompletion(
-        [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        false
-      );
-      const cleanReply = reply.replace(/^["']|["']$/g, '').trim();
-      return {
-        reply: cleanReply || 'Which part could we improve to help you decide today?',
-        continue: true
-      };
-    } catch {
-      return {
-        reply: 'Which part of the pricing or features felt unclear?',
-        continue: true
-      };
-    }
+    const reply = await this.createCompletion(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      false
+    );
+    const cleanReply = reply.replace(/^["']|["']$/g, '').trim();
+    return {
+      reply: cleanReply || 'Which part could we improve to help you decide today?',
+      continue: true
+    };
   }
 
   /**
@@ -510,12 +361,8 @@ Maximum 15 words. Keep it natural, human, and professional.`;
 
     conversation.push({ role: 'user', content: newMessage });
 
-    try {
-      const response = await this.createCompletion(conversation, false);
-      return response.replace(/^["']|["']$/g, '').trim();
-    } catch {
-      return 'Thank you! Is there any other detail we can share with the team?';
-    }
+    const response = await this.createCompletion(conversation, false);
+    return response.replace(/^["']|["']$/g, '').trim();
   }
 
   /**
@@ -813,11 +660,11 @@ Output MUST strictly be valid JSON:
       parsed.responseCount = responses.length;
       return parsed;
     } catch (err: any) {
-      Logger.warn('AI analyzeExit evaluation note:', err.message);
+      Logger.warn('OpenAI analyzeExit evaluation note:', err.message);
       return {
         hasEnoughData: false,
         responseCount: responses.length,
-        message: 'AI is not configured yet. Add the required production API secret.',
+        message: err.message || 'OpenAI API key is required to analyze responses.',
         topExitReasons: [],
         mostCommonComplaints: [],
         sentiment: 'AI processing unavailable',
