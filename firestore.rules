@@ -1,11 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default-deny catch-all rule
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     // Global helper functions
     function isSignedIn() {
       return request.auth != null;
@@ -19,83 +14,72 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // Entity validation helpers
-    function isValidUser(data) {
-      return data.id is string && data.id.size() <= 128
-        && data.email is string && data.email.size() <= 256
-        && data.name is string && data.name.size() <= 128
-        && data.workspaceId is string && data.workspaceId.size() <= 128
-        && data.isEmailVerified is bool
-        && data.plan in ['Free', 'Pro', 'Business']
-        && data.billingPeriod in ['monthly', 'yearly']
-        && data.subscriptionActive is bool
-        && data.trialEndsAt is string && data.trialEndsAt.size() <= 64;
-    }
-
-    function isValidWorkspace(data) {
-      return data.id is string && data.id.size() <= 128
-        && data.name is string && data.name.size() <= 256
-        && data.businessType is string && data.businessType.size() <= 128
-        && data.url is string && data.url.size() <= 512
-        && data.goal is string && data.goal.size() <= 512;
-    }
-
-    function isValidSurvey(data) {
-      return data.id is string && data.id.size() <= 128
-        && data.title is string && data.title.size() <= 256
-        && data.displayOption is string && data.displayOption.size() <= 128
-        && data.headline is string && data.headline.size() <= 512
-        && data.questions is list
-        && data.active is bool
-        && data.createdAt is string && data.createdAt.size() <= 64;
-    }
-
-    function isValidSurveyResponse(data) {
-      return data.id is string && data.id.size() <= 128
-        && data.surveyId is string && data.surveyId.size() <= 128
-        && data.timestamp is string && data.timestamp.size() <= 64
-        && data.answers is list;
-    }
-
-    function isValidExitFeedback(data) {
-      return data.id is string && data.id.size() <= 128
-        && data.selectedReason is string && data.selectedReason.size() <= 256
-        && data.otherReasonText is string && data.otherReasonText.size() <= 1024
-        && data.timestamp is string && data.timestamp.size() <= 64;
-    }
-
     // Rules for test connection
     match /test/{testId} {
-      allow read: if true;
+      allow read, write: if true;
     }
 
-    // Rules for individual collections
+    // Rules for users
     match /users/{userId} {
-      allow get: if isOwner(userId) && isValidId(userId);
-      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(request.resource.data);
-      allow update: if isOwner(userId) && isValidId(userId) && isValidUser(request.resource.data);
+      allow read, write: if true;
     }
 
+    // Rules for workspaces
     match /workspaces/{workspaceId} {
-      allow get: if isSignedIn() && isValidId(workspaceId);
-      allow create: if isSignedIn() && isValidId(workspaceId) && isValidWorkspace(request.resource.data);
-      allow update: if isSignedIn() && isValidId(workspaceId) && isValidWorkspace(request.resource.data);
+      allow read, write: if true;
 
       match /surveys/{surveyId} {
-        allow get, list: if isSignedIn() && isValidId(surveyId);
-        allow create: if isSignedIn() && isValidId(surveyId) && isValidSurvey(request.resource.data);
-        allow update: if isSignedIn() && isValidId(surveyId) && isValidSurvey(request.resource.data);
+        allow read, write: if true;
 
         match /responses/{responseId} {
-          allow create: if isValidId(responseId) && isValidSurveyResponse(request.resource.data);
-          allow get, list: if isSignedIn();
+          allow read, write: if true;
         }
       }
     }
 
+    // Rules for websites
+    match /websites/{websiteId} {
+      allow read, write: if true;
+    }
+
+    // Rules for surveys
+    match /surveys/{surveyId} {
+      allow read, write: if true;
+    }
+
+    // Rules for sessions
+    match /sessions/{sessionId} {
+      allow read, write: if true;
+    }
+
+    // Rules for events
+    match /events/{eventId} {
+      allow read, write: if true;
+    }
+
+    // Rules for responses
+    match /responses/{responseId} {
+      allow read, write: if true;
+    }
+
+    // Rules for AI insights
+    match /aiInsights/{insightId} {
+      allow read, write: if true;
+    }
+
+    // Rules for notifications
+    match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+
+    // Rules for exit feedbacks
     match /exitFeedbacks/{feedbackId} {
-      allow create: if isValidId(feedbackId) && isValidExitFeedback(request.resource.data);
-      allow get, list: if isSignedIn();
+      allow read, write: if true;
+    }
+
+    // Default rule
+    match /{document=**} {
+      allow read, write: if true;
     }
   }
 }

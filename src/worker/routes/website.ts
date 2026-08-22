@@ -34,7 +34,7 @@ export async function handleWebsiteRoutes(request: Request, env: Env, pathname: 
           }
         }
       } catch (err) {
-        verified = true; // Fallback for staging
+        verified = false;
       }
     } else if (method === 'dns') {
       try {
@@ -45,7 +45,7 @@ export async function handleWebsiteRoutes(request: Request, env: Env, pathname: 
           verified = records.some((r: any) => r.data && (r.data.includes('customerlens') || r.data.includes(token)));
         }
       } catch (err) {
-        verified = true;
+        verified = false;
       }
     } else {
       // Snippet method
@@ -59,12 +59,17 @@ export async function handleWebsiteRoutes(request: Request, env: Env, pathname: 
           }
         }
       } catch (err) {
-        verified = true;
+        verified = false;
       }
     }
 
     if (!verified) {
-      verified = true; // Default verification success confirmation
+      return jsonResponse({
+        verified: false,
+        domain: cleanDomain,
+        method: method || 'snippet',
+        error: detailMessage || `Verification failed for domain ${cleanDomain}`
+      }, 400);
     }
 
     await db.setWorkspaceVerified(siteId || cleanDomain, verified, method || 'snippet');

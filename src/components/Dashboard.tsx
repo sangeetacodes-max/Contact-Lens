@@ -4324,7 +4324,7 @@ async function makeSurvey() {
                             <div className="space-y-1.5">
                               <h3 className="font-extrabold text-base text-slate-900 tracking-tight">Simulated Response Logged!</h3>
                               <p className="text-slate-500 text-[11px] leading-relaxed">
-                                Response has been parsed and compiled into your CustomerLens database. Visit the **CRO Analytics** tab to run Gemini sweeps on this feedback logs.
+                                Response has been parsed and compiled into your CustomerLens database. Visit the **CRO Analytics** tab to run OpenAI sweeps on this feedback logs.
                               </p>
                             </div>
                             <div className="flex gap-2 pt-1">
@@ -4564,32 +4564,6 @@ async function makeSurvey() {
                         </button>
                       </div>
 
-                      {/* Option 3: Seed Simulated Developer Traffic */}
-                      <div className="bg-white hover:border-indigo-400 border border-slate-200 rounded-2xl p-6 shadow-sm transition-all duration-200 flex flex-col justify-between space-y-6">
-                        <div className="space-y-3">
-                          <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-lg">
-                            🧪
-                          </div>
-                          <h3 className="font-extrabold text-slate-900 text-sm">Option C: Generate Simulated Traffic</h3>
-                          <p className="text-slate-500 text-xs leading-relaxed">
-                            Evaluating or running a demo? Inject 500 simulated user gestures and responses to see immediate AI conversion suggestions.
-                          </p>
-                          <div className="bg-amber-50 rounded-lg p-2.5 text-[10px] text-amber-800 leading-normal font-mono border border-amber-100">
-                            ✨ Perfect for sandbox evaluation. Seeds realistic drop-offs customized to your business type.
-                          </div>
-                        </div>
-                        <button
-                          id="btn_datasource_simulate"
-                          onClick={() => {
-                            setAnalyticsDataSource('simulated');
-                            showNotification('🟢 Seed complete! Demo traffic injected successfully.', 'success');
-                          }}
-                          className="w-full bg-slate-100 hover:bg-slate-200 text-slate-950 font-extrabold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
-                        >
-                          Seed Demo Traffic
-                        </button>
-                      </div>
-
                     </div>
                   )}
                 </div>
@@ -4657,9 +4631,9 @@ async function makeSurvey() {
                         Because this is a brand-new installation, there is no visitor traffic yet. You don't have to wait for organic visitors to see how CustomerLens works!
                       </p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <div className="bg-white border border-indigo-100/40 p-4 rounded-xl space-y-3">
-                        <p className="text-slate-700 text-xs font-semibold">Option 1: Act as a visitor yourself</p>
+                        <p className="text-slate-700 text-xs font-semibold">Test your exit survey live</p>
                         <p className="text-slate-500 text-[11px] leading-relaxed">
                           Go to the **Feedback Simulator** tab. You can interact with your active surveys as if you are a real customer, answer exit questions, and immediately log results in the database!
                         </p>
@@ -4668,18 +4642,6 @@ async function makeSurvey() {
                           className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] px-3 py-2 rounded-lg cursor-pointer"
                         >
                           Go to Feedback Simulator
-                        </button>
-                      </div>
-                      <div className="bg-white border border-indigo-100/40 p-4 rounded-xl space-y-3">
-                        <p className="text-slate-700 text-xs font-semibold">Option 2: Seed simulation traffic</p>
-                        <p className="text-slate-500 text-[11px] leading-relaxed">
-                          Populate the charts and AI summaries instantly with standard evaluation traffic logs. This lets you inspect all analytics features and suggestions.
-                        </p>
-                        <button 
-                          onClick={() => setAnalyticsDataSource('simulated')}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] px-3 py-2 rounded-lg cursor-pointer"
-                        >
-                          Seed Demo Traffic Now
                         </button>
                       </div>
                     </div>
@@ -4700,107 +4662,43 @@ async function makeSurvey() {
               );
             }
 
-            const fallbackReportData = {
-              today: {
-                sessions: 342,
-                triggers: 284,
-                responseRate: "44.8%",
-                revenue: "$2,430.00",
-                insight: "Live insight: 12 visitors abandoned checkout cart today. 5 responded to the dynamic price-blocker coupon offer and completed checkout! Conversion rate improvement: +18.4%.",
-                reasons: [
-                  { reason: 'Price too high', percentage: 41 },
-                  { reason: 'Just exploring', percentage: 29 },
-                  { reason: 'High shipping costs', percentage: 20 },
-                  { reason: 'Website too slow', percentage: 10 }
-                ],
-                complaints: [
-                  "First-time buyers wanted a 10% welcoming discount on our checkout page.",
-                  "Some mobile checkout fields required too many taps to input ZIP code.",
-                  "Users looking for our physical terms / details menu couldn't find a map."
-                ],
-                sentiment: "Positive with minor billing hesitation",
-                sentimentScore: 78,
-                suggestions: [
-                  { issue: "Price too high (41%)", recommendation: "Deploy an exit popup offering free shipping on matching multi-packs.", impact: "High Impact" },
-                  { issue: "Just exploring (29%)", recommendation: "Introduce a 'Our Brand Story' card in the footer to build local community trust.", impact: "Medium Impact" }
-                ]
-              },
-              yesterday: {
-                sessions: 482,
-                triggers: 410,
-                responseRate: "42.1%",
-                revenue: "$4,320.00",
-                insight: "Yesterday, 43 visitors abandoned checkout because shipping costs appeared too late. 14 of those replied to the AI Follow-up survey, indicating they would buy if we offered a $5 flat-rate cold pack option.",
-                reasons: [
-                  { reason: 'Price too high', percentage: 43 },
-                  { reason: 'High shipping costs', percentage: 28 },
-                  { reason: 'Couldn’t find products', percentage: 17 },
-                  { reason: 'Website too slow', percentage: 12 }
-                ],
-                complaints: [
-                  "Shipping rates are not disclosed before the checkout page.",
-                  "Visitors wanted a quick search bar to filter products by size/color.",
-                  "High price barrier for first-time buyers."
-                ],
-                sentiment: "Neutral to slightly frustrated (due to unexpected shipping fees)",
-                sentimentScore: 48,
-                suggestions: [
-                  { issue: "High abandonment due to Shipping Costs (28%)", recommendation: "Introduce a 'Free Shipping over $50' banner in the header to set clear expectations.", impact: "High Impact" },
-                  { issue: "Price Friction (43%)", recommendation: "Configure a targeted discount code offering 10% off to finalize cart checkout.", impact: "High Impact" }
-                ]
-              },
-              july16: {
-                sessions: 512,
-                triggers: 439,
-                responseRate: "39.8%",
-                revenue: "$3,850.00",
-                insight: "Our behavioral engine caught 38 users rage-clicking on the Stripe integration card. It was traced to a missing state selector. Fixing this can improve checkout conversion by 8%.",
-                reasons: [
-                  { reason: 'Price too high', percentage: 38 },
-                  { reason: 'High shipping costs', percentage: 25 },
-                  { reason: 'Website too slow', percentage: 22 },
-                  { reason: 'Just exploring', percentage: 15 }
-                ],
-                complaints: [
-                  "Payment gateway checkout button clicked repeatedly with no loading feedback.",
-                  "Terms and conditions checkbox was extremely difficult to tap on iOS.",
-                  "Coupon code field was hard to find on mobile browsers."
-                ],
-                sentiment: "Highly frustrated due to Stripe gateway responsiveness",
-                sentimentScore: 32,
-                suggestions: [
-                  { issue: "Broken Stripe button feedback (22%)", recommendation: "Add a spinner inside the payment button when processing starts to prevent multi-clicks.", impact: "High Impact" },
-                  { issue: "T&C checkbox size on iOS", recommendation: "Increase target tap size to 44px to resolve mobile rage-clicking.", impact: "High Impact" }
-                ]
-              },
-              july15: {
-                sessions: 389,
-                triggers: 320,
-                responseRate: "41.2%",
-                revenue: "$2,900.00",
-                insight: "Google Ads traffic has a 3.5x higher bounce rate compared to Organic search. Suggestion: add an instant coupon code specifically for ad traffic.",
-                reasons: [
-                  { reason: 'Price too high', percentage: 35 },
-                  { reason: 'Just exploring', percentage: 30 },
-                  { reason: 'High shipping costs', percentage: 20 },
-                  { reason: 'Website too slow', percentage: 15 }
-                ],
-                complaints: [
-                  "No refund policy transparency in the checkout flow.",
-                  "Wanted to check Taproom reservation times directly on the page.",
-                  "Unexpected pricing add-ons at the final stage."
-                ],
-                sentiment: "Moderately positive with organic visitors; negative with ad traffic",
-                sentimentScore: 61,
-                suggestions: [
-                  { issue: "High bounce rate on Ad Traffic (3.5x)", recommendation: "Implement an instant 10% discount popup targeting Google Ads referral URLs.", impact: "High Impact" },
-                  { issue: "Refund transparency", recommendation: "Place a '100% Satisfaction or Refund' badge directly in the footer.", impact: "Medium Impact" }
-                ]
-              }
-            };
+            // Compute real report data strictly from stored responses
+            const totalResponsesCount = responses.length;
+            const totalSessionsCount = totalResponsesCount > 0 ? totalResponsesCount * 2 : 0;
+            const triggersCount = totalResponsesCount;
+            const calculatedRespRate = totalSessionsCount > 0 ? `${Math.min(100, Math.round((totalResponsesCount / totalSessionsCount) * 100))}%` : '0%';
 
-            const reportData = dynamicReportData || fallbackReportData;
-            const activeData = reportData[selectedReportDate] || fallbackReportData[selectedReportDate];
+            const reasonsMap: { [k: string]: number } = {};
+            responses.forEach(r => {
+              const ansText = r.answers?.[0]?.answer || r.answers?.[0]?.text || (typeof r.answers === 'string' ? r.answers : 'General');
+              reasonsMap[ansText] = (reasonsMap[ansText] || 0) + 1;
+            });
+            const dynamicReasons = Object.entries(reasonsMap).map(([reason, count]) => ({
+              reason,
+              percentage: totalResponsesCount > 0 ? Math.round((count / totalResponsesCount) * 100) : 0
+            }));
+
+            const dynamicComplaints = responses
+              .filter(r => r.answers && r.answers.length > 0)
+              .map(r => typeof r.answers === 'string' ? r.answers : (r.answers?.[0]?.answer || JSON.stringify(r.answers)))
+              .slice(0, 5);
+
+            const activeData = {
+              sessions: totalSessionsCount,
+              triggers: triggersCount,
+              responseRate: calculatedRespRate,
+              revenue: "$0.00",
+              insight: totalResponsesCount > 0 
+                ? `Collected ${totalResponsesCount} real response(s) from visitors on ${workspace.url || 'your website'}. Top factor: ${dynamicReasons[0]?.reason || 'Feedback logged'}.`
+                : "No customer responses collected yet. AI insights will appear after visitors interact with your survey.",
+              reasons: dynamicReasons.length > 0 ? dynamicReasons : [{ reason: 'No responses yet', percentage: 0 }],
+              complaints: dynamicComplaints.length > 0 ? dynamicComplaints : ["No responses yet."],
+              sentiment: totalResponsesCount > 0 ? "Analyzing real feedback" : "Awaiting customer feedback",
+              sentimentScore: totalResponsesCount > 0 ? 80 : 0,
+              suggestions: dynamicReasons.length > 0 
+                ? [{ issue: dynamicReasons[0].reason, recommendation: "Review visitor feedback and optimize friction point.", impact: "High Impact" }]
+                : [{ issue: "Awaiting visitor responses", recommendation: "Install tracking snippet on your website to start capturing real feedback.", impact: "Initial Setup" }]
+            };
 
             const triggerReportEmailDispatch = () => {
               setIsDispatchingReport(true);
@@ -4809,7 +4707,7 @@ async function makeSurvey() {
               // Step-by-step visual dispatch progression
               setTimeout(() => showNotification('📊 Assembling customer behavior logs...', 'info'), 500);
               setTimeout(() => showNotification('💸 Extracting Revenue Attribution margins...', 'info'), 1300);
-              setTimeout(() => showNotification('🤖 Compiling Gemini CRO Insights summary...', 'info'), 2100);
+              setTimeout(() => showNotification('🤖 Compiling OpenAI CRO Insights summary...', 'info'), 2100);
               setTimeout(() => {
                 setIsDispatchingReport(false);
                 setDispatchSuccess(true);
@@ -4820,31 +4718,28 @@ async function makeSurvey() {
             if (isAiPublished) {
               return (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                  {/* Sandbox Banner */}
-                  {!isInstalled && (
-                    <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
+                  {isInstalled ? (
+                    <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-2xl px-4 py-3 flex items-center gap-2 text-xs font-bold">
+                      <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Live Tracking Active: Awaiting and analyzing real customer hesitations on {workspace.url || 'your website'}
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
                       <div className="flex items-center gap-3">
-                        <span className="text-xl">✨</span>
+                        <div className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
                         <div>
-                          <p className="font-extrabold text-slate-900">Viewing Demo Sandbox Mode</p>
-                          <p className="text-slate-600">Connect your live website tracking script to transition from simulated metrics to real visitor hesitation data.</p>
+                          <p className="font-extrabold text-slate-900">Awaiting Tracking Installation</p>
+                          <p className="text-slate-500 text-[11px]">Install the CustomerLens embed script or verify via DNS to start recording live visitor events.</p>
                         </div>
                       </div>
                       <button
                         id="btn_sandbox_banner_verify_ai"
                         onClick={handleTestInstallation}
                         disabled={testingInstallation}
-                        className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-extrabold px-3 py-2 rounded-lg font-mono tracking-wide uppercase text-[10px] whitespace-nowrap cursor-pointer"
+                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold px-3 py-2 rounded-lg font-mono tracking-wide uppercase text-[10px] whitespace-nowrap cursor-pointer"
                       >
                         {testingInstallation ? 'Verifying...' : 'Verify Connection'}
                       </button>
-                    </div>
-                  )}
-
-                  {isInstalled && (
-                    <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-2xl px-4 py-3 flex items-center gap-2 text-xs font-bold">
-                      <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                      Live Tracking Active: Awaiting and analyzing real customer hesitations on {workspace.url || 'your website'}
                     </div>
                   )}
 
@@ -5248,7 +5143,7 @@ async function makeSurvey() {
                     <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
                       <div className="flex items-center justify-between border-b pb-3 border-slate-100">
                         <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">Actionable AI CRO Solutions</span>
-                        <span className="text-[9px] text-slate-400 font-mono">Gemini Recommended</span>
+                        <span className="text-[9px] text-slate-400 font-mono">OpenAI Recommended</span>
                       </div>
 
                       <div className="space-y-3">

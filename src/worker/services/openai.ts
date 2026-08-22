@@ -1,18 +1,6 @@
-import { GoogleGenAI } from '@google/genai';
 import { Env, ResponseSignal, MultiResponsePattern } from '../types';
 import { ApiError } from '../utils/errors';
 import { Logger } from '../utils/logger';
-
-let geminiClientInstance: GoogleGenAI | null = null;
-
-function getGeminiClient(key?: string): GoogleGenAI | null {
-  const apiKey = key || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
-  if (!apiKey || !apiKey.trim() || apiKey.includes('****')) return null;
-  if (!geminiClientInstance) {
-    geminiClientInstance = new GoogleGenAI({ apiKey: apiKey.trim() });
-  }
-  return geminiClientInstance;
-}
 
 function cleanJsonText(raw: string): string {
   if (!raw) return '{}';
@@ -38,205 +26,70 @@ function cleanJsonText(raw: string): string {
   return cleaned.trim();
 }
 
-function safeJsonParse<T = any>(raw: string, fallback: T): T {
+function safeJsonParse<T = any>(raw: string, fallback?: T): T {
   try {
     const cleaned = cleanJsonText(raw);
     return JSON.parse(cleaned);
-  } catch {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return fallback;
-    }
+  } catch (e) {
+    if (fallback !== undefined) return fallback;
+    throw e;
   }
 }
 
 export class OpenAIService {
   private apiKey?: string;
-  private geminiApiKey?: string;
 
   constructor(env?: Partial<Env>) {
     this.apiKey = env?.OPENAI_API_KEY || (typeof process !== 'undefined' ? process.env?.OPENAI_API_KEY : undefined);
-    this.geminiApiKey = env?.GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
+  }
+
+  private getApiKey(): string {
+    const key = this.apiKey;
+    if (!key || key.includes('****') || !key.trim()) {
+      throw new Error('OPENAI_NOT_CONFIGURED');
+    }
+    return key.trim();
   }
 
   /**
-   * Gemini Model Generation using official @google/genai SDK
-   */
-  private async createCompletionWithGemini(
-    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-    jsonMode = false
-  ): Promise<string> {
-    const ai = getGeminiClient(this.geminiApiKey);
-    if (!ai) {
-      throw new Error('GEMINI_API_KEY is not configured or available.');
-    }
-
-    const systemMsg = messages.find(m => m.role === 'system')?.content;
-    const nonSystem = messages.filter(m => m.role !== 'system');
-
-    let contents: any;
-    if (nonSystem.length === 1) {
-      contents = nonSystem[0].content;
-    } else if (nonSystem.length > 1) {
-      contents = nonSystem.map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
-    } else {
-      contents = systemMsg || 'Generate intelligent response';
-    }
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
-      contents,
-      config: {
-        systemInstruction: systemMsg,
-        responseMimeType: jsonMode ? 'application/json' : undefined,
-        temperature: 0.7
-      }
-    });
-
-    const text = response.text || '';
-    return cleanJsonText(text);
-  }
-
-  /**
-   * Universal AI Completion with Dual Engine (OpenAI + Gemini Fallback)
+   * Universal AI Completion (Strictly OpenAI Only)
    */
   async createCompletion(
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
     jsonMode = false
   ): Promise<string> {
-    // 1. If OpenAI API key is valid and configured, try OpenAI first
-    const hasOpenAI = Boolean(
-      this.apiKey &&
-      !this.apiKey.includes('****') &&
-      this.apiKey.trim().startsWith('sk-') &&
-      this.apiKey.trim().length > 20
-    );
+    const apiKey = this.getApiKey();
 
-    if (hasOpenAI) {
-      try {
-        const body: any = {
-          model: 'gpt-4o-mini',
-          messages,
-          temperature: 0.7
-        };
+    const body: any = {
+      model: 'gpt-4o-mini',
+      messages,
+      temperature: 0.7
+    };
 
-        if (jsonMode) {
-          body.response_format = { type: 'json_object' };
-        }
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey!.trim()}`
-          },
-          body: JSON.stringify(body)
-        });
-
-        if (response.ok) {
-          const data = (await response.json()) as any;
-          const content = data.choices?.[0]?.message?.content;
-          if (content) {
-            return cleanJsonText(content.trim());
-          }
-        } else {
-          const errText = await response.text().catch(() => '');
-          Logger.warn('OpenAI API returned non-200, routing to Gemini engine', { status: response.status, error: errText });
-        }
-      } catch (err: any) {
-        Logger.warn('OpenAI request error, routing to Gemini engine:', err?.message);
-      }
-    }
-
-    // 2. Primary / Seamless Fallback to Gemini 3.7 Flash using @google/genai
-    try {
-      return await this.createCompletionWithGemini(messages, jsonMode);
-    } catch (geminiErr: any) {
-      Logger.warn('Gemini engine call note:', geminiErr?.message);
-    }
-
-    // 3. Resilient Deterministic Fallback if AI providers are unreachable
     if (jsonMode) {
-      return this.generateDeterministicJsonFallback(messages);
-    }
-    return this.generateDeterministicTextFallback(messages);
-  }
-
-  private generateDeterministicJsonFallback(messages: Array<{ role: string; content: string }>): string {
-    const combined = messages.map(m => m.content).join(' ').toLowerCase();
-
-    if (combined.includes('behavior') || combined.includes('decision')) {
-      return JSON.stringify({
-        decision: 'SHOW',
-        reason: 'Visitor exhibits high dwell time and hesitation on the page.',
-        confidence: 0.92
-      });
+      body.response_format = { type: 'json_object' };
     }
 
-    if (combined.includes('follow-up') || combined.includes('followup')) {
-      return JSON.stringify({
-        followUpQuestion: 'What is the main thing we could improve to help you decide today?',
-        suggestedOffer: 'Special 10% discount on first order'
-      });
-    }
-
-    if (combined.includes('individual response') || combined.includes('signal')) {
-      return JSON.stringify({
-        importance: 'medium',
-        category: 'general_feedback',
-        business_impact: 'conversion',
-        signal: 'Visitor provided feedback on site experience',
-        reason: 'Valuable feedback regarding product and usability clarity',
-        needs_attention: true,
-        sentiment: 'neutral',
-        growth_opportunity: 'Enhance clarity of offerings and simplify navigation'
-      });
-    }
-
-    if (combined.includes('scan') || combined.includes('audit')) {
-      return JSON.stringify({
-        headline: 'Wait! Before you leave...',
-        suggestedQuestions: [
-          {
-            id: 'q1',
-            type: 'multiple-choice',
-            questionText: 'What was the main reason for your visit today?',
-            options: ['Browsing products', 'Looking for pricing info', 'Comparing alternatives', 'Just exploring']
-          },
-          {
-            id: 'q2',
-            type: 'text',
-            questionText: 'What almost stopped you from completing your purchase today?',
-            options: []
-          }
-        ],
-        behavioralInsights: [
-          {
-            title: 'Pricing page hesitation detected',
-            description: 'Visitors spend significant time comparing options before exiting.'
-          }
-        ],
-        overallStrategy: 'Implement an exit-intent micro survey and clarify return policies.'
-      });
-    }
-
-    return JSON.stringify({
-      status: 'ok',
-      message: 'Processed customer feedback successfully',
-      recommendations: ['Clarify product features', 'Simplify checkout steps']
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body)
     });
-  }
 
-  private generateDeterministicTextFallback(messages: Array<{ role: string; content: string }>): string {
-    const combined = messages.map(m => m.content).join(' ').toLowerCase();
-    if (combined.includes('survey') || combined.includes('feedback')) {
-      return 'What is the single most important thing that would help you decide today?';
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`OpenAI API error (${response.status}): ${errText}`);
     }
-    return 'Thank you for sharing your feedback with us! How else can we assist your visit today?';
+
+    const data = (await response.json()) as any;
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('Empty response from OpenAI');
+    }
+    return cleanJsonText(content.trim());
   }
 
   /**
@@ -274,12 +127,12 @@ Session Context: ${JSON.stringify(sessionSummary || {})}`;
       ],
       true
     );
-    const parsed = safeJsonParse(rawJson, { decision: 'SHOW', reason: 'Visitor behavior indicates optimal moment for contextual survey.', confidence: 0.9 });
+    const parsed = safeJsonParse(rawJson);
     const decisionVal = parsed.decision === 'NOW' ? 'SHOW' : parsed.decision;
     const finalDecision = (['SHOW', 'WAIT', 'DONT_SHOW'].includes(decisionVal) ? decisionVal : 'SHOW') as 'SHOW' | 'WAIT' | 'DONT_SHOW';
     return {
       decision: finalDecision,
-      reason: parsed.reason || 'Visitor behavior indicates optimal moment for contextual survey.',
+      reason: parsed.reason || 'Decision computed by OpenAI.',
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.9
     };
   }
@@ -314,12 +167,12 @@ Available Survey: ${JSON.stringify(availableSurvey || {})}`;
       ],
       true
     );
-    const parsed = safeJsonParse(rawJson, { decision: 'SHOW', reason: 'The visitor shows sustained engagement and decision hesitation.' });
+    const parsed = safeJsonParse(rawJson);
     const decisionVal = parsed.decision === 'NOW' ? 'SHOW' : parsed.decision;
     const finalDecision = (['SHOW', 'WAIT', 'DONT_SHOW'].includes(decisionVal) ? decisionVal : 'SHOW') as 'SHOW' | 'WAIT' | 'DONT_SHOW';
     return {
       decision: finalDecision,
-      reason: parsed.reason || 'The visitor shows sustained engagement and decision hesitation.'
+      reason: parsed.reason || 'Evaluated by OpenAI.'
     };
   }
 

@@ -683,12 +683,15 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
   if ((pathname === '/api/survey-chat' || pathname === '/api/events/survey-chat') && request.method === 'POST') {
     const body = (await request.json().catch(() => ({}))) as any;
     const { siteId, sessionId, surveyId, newMessage, answer, history } = body;
+    if (!siteId) {
+      return jsonResponse({ error: 'siteId is mandatory' }, 400);
+    }
     const messageText = newMessage || answer || '';
 
     // Record interaction in DB
     const chatEvent: TrackingEvent = {
       id: 'evt_chat_' + crypto.randomUUID().substring(0, 8),
-      siteId: siteId || 'cl_8f92a7bc',
+      siteId: siteId,
       sessionId: sessionId || 'session_xyz',
       eventType: 'ai_survey_chat',
       pageUrl: body.page || '',

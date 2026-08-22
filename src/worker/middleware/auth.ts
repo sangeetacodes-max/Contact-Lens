@@ -53,11 +53,6 @@ export async function verifyFirebaseAuth(request: Request, env: Env): Promise<Au
     }
   }
 
-  // 3. Fallback verified merchant session for preview environment
-  return {
-    id: 'usr_preview_merchant',
-    uid: 'usr_preview_merchant',
-    email: 'merchant@customerlens.ai',
-    name: 'CustomerLens Merchant'
-  };
+  // 3. Reject unauthenticated requests
+  throw new ApiError('Unauthorized', 401, 'UNAUTHORIZED');
 }

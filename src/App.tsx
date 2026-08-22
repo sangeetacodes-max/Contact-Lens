@@ -444,9 +444,8 @@ export default function App() {
       setCurrentView('dashboard');
       triggerToast('🟢 Account created successfully! Welcome to CustomerLens.', 'success');
     } catch (err: any) {
-      console.warn('Registration fallback:', err);
-      // Seamless preview fallback so users are never blocked in iframe sandboxes
-      performDirectSessionSignIn(email, name);
+      console.error('Registration error:', err);
+      triggerToast(err.message || 'Registration failed', 'error');
     }
   };
 
@@ -475,9 +474,12 @@ export default function App() {
       setCurrentView('dashboard');
       triggerToast('🟢 Successfully signed in.', 'success');
     } catch (err: any) {
-      console.warn('Sign-in fallback to session in preview:', err);
-      // If user isn't found in Firebase Auth or in sandboxed preview, authenticate directly
-      performDirectSessionSignIn(email, email.split('@')[0]);
+      console.error('Sign-in error:', err);
+      let msg = err.message || 'Sign in failed.';
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        msg = 'Invalid email or password.';
+      }
+      triggerToast(msg, 'error');
     }
   };
 
@@ -525,9 +527,8 @@ export default function App() {
         triggerToast('🟢 Signed in with Google securely.', 'success');
       }
     } catch (err: any) {
-      console.warn('Google Login fallback in preview:', err);
-      // In sandboxed preview where popups or unauthorized domains are restricted, sign in smoothly
-      performDirectSessionSignIn('sangeeta.codes@gmail.com', 'Sangeeta Codes');
+      console.error('Google Login error:', err);
+      triggerToast(err.message || 'Google sign in failed.', 'error');
     }
   };
 
