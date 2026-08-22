@@ -1888,10 +1888,10 @@ export default function Dashboard({
                 ) : responses.length === 0 ? (
                   <div className="p-6 rounded-xl border border-dashed border-slate-200 text-center space-y-2">
                     <p className="text-xs font-semibold text-slate-700">
-                      Your survey is live on {workspace.url ? workspace.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '') : (websites[0]?.url || 'your website')}.
+                      Waiting for AI survey responses from {workspace.url ? workspace.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '') : (websites[0]?.url || 'your website')}.
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      As soon as visitors respond, your analytics and AI insights will appear here.
+                      Once the tracker script is installed on your website and visitors submit feedback, OpenAI will analyze the data and generate real-time analytics here.
                     </p>
                   </div>
                 ) : (
@@ -2067,21 +2067,21 @@ export default function Dashboard({
                     {/* Zero State Truthful Notice */}
                     {totalCount === 0 ? (
                       <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 shadow-sm text-center space-y-4">
-                        <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto ring-8 ring-emerald-50/50">
+                        <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto ring-8 ring-indigo-50/50">
                           <span className="relative flex h-3.5 w-3.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-indigo-500"></span>
                           </span>
                         </div>
                         <div className="max-w-md mx-auto space-y-2">
-                          <h3 className="font-bold text-slate-900 text-lg sm:text-xl">Your survey is live on {activeDomain}.</h3>
+                          <h3 className="font-bold text-slate-900 text-lg sm:text-xl">Waiting for First Visitor Response on {activeDomain}</h3>
                           <p className="text-slate-600 text-sm leading-relaxed">
-                            As soon as visitors respond, your analytics and AI insights will appear here.
+                            Your AI survey code is ready. As soon as visitors complete the survey on your site, response data will be saved and OpenAI analytics will generate real-time charts and sentiment summaries here.
                           </p>
                         </div>
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-600 font-mono">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                          Listening for responses on {activeDomain}
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                          Awaiting telemetry responses from {activeDomain}
                         </div>
                       </div>
                     ) : (

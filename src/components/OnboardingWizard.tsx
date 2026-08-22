@@ -4422,7 +4422,7 @@ export default function OnboardingWizard({ onComplete, userEmail, onBack, onGoTo
                   className="w-full sm:w-auto px-10 py-4 bg-[#008060] hover:bg-[#005e46] text-white font-extrabold text-sm md:text-base rounded-2xl transition-all shadow-lg hover:shadow-xl shadow-emerald-900/20 flex items-center justify-center gap-2.5 cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
                 >
                   <Sparkles size={18} />
-                  <span>Make Your Survey Live</span>
+                  <span>Open Workspace & Telemetry</span>
                   <ArrowRight size={18} />
                 </button>
               </div>
