@@ -17,7 +17,7 @@ export async function handleWebsiteRoutes(request: Request, env: Env, pathname: 
     }
 
     const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
-    const token = verificationToken || 'cl_token_123';
+    const token = verificationToken || siteId || '';
     let verified = false;
     let detailMessage = '';
 
@@ -27,14 +27,17 @@ export async function handleWebsiteRoutes(request: Request, env: Env, pathname: 
         const res = await fetch(targetUrl, { headers: { 'User-Agent': 'CustomerLens-Verifier/1.0' } });
         if (res.ok) {
           const html = await res.text();
-          if (html.includes('customerlens-site-verification') || html.includes(token)) {
+          if (html.includes('customerlens-site-verification') && (token ? html.includes(token) : true)) {
             verified = true;
           } else {
-            detailMessage = `Meta tag with token '${token}' not found on ${targetUrl}`;
+            detailMessage = `Meta tag customerlens-site-verification not found on ${targetUrl}`;
           }
+        } else {
+          detailMessage = `Could not reach ${targetUrl} (HTTP ${res.status})`;
         }
-      } catch (err) {
+      } catch (err: any) {
         verified = false;
+        detailMessage = `Connection error reaching ${cleanDomain}: ${err?.message || 'timeout'}`;
       }
     } else if (method === 'dns') {
       try {
@@ -42,10 +45,16 @@ export async function handleWebsiteRoutes(request: Request, env: Env, pathname: 
         if (dnsRes.ok) {
           const dnsData = await dnsRes.json() as any;
           const records = dnsData.Answer || [];
-          verified = records.some((r: any) => r.data && (r.data.includes('customerlens') || r.data.includes(token)));
+          verified = records.some((r: any) => r.data && (r.data.includes('customerlens-verification') || (token && r.data.includes(token))));
+          if (!verified) {
+            detailMessage = `TXT record with customerlens-verification not found for ${cleanDomain}`;
+          }
+        } else {
+          detailMessage = `DNS resolution query failed for ${cleanDomain}`;
         }
-      } catch (err) {
+      } catch (err: any) {
         verified = false;
+        detailMessage = `DNS resolution error for ${cleanDomain}: ${err?.message || 'network error'}`;
       }
     } else {
       // Snippet method
@@ -54,12 +63,17 @@ export async function handleWebsiteRoutes(request: Request, env: Env, pathname: 
         const res = await fetch(targetUrl, { headers: { 'User-Agent': 'CustomerLens-Verifier/1.0' } });
         if (res.ok) {
           const html = await res.text();
-          if (html.includes('customerlens.js') || html.includes('tracker.js') || html.includes('customerlens')) {
+          if (html.includes('customerlens.js') || html.includes('tracker.js') || (token && html.includes(token))) {
             verified = true;
+          } else {
+            detailMessage = `CustomerLens embed snippet not detected on ${targetUrl}`;
           }
+        } else {
+          detailMessage = `Could not reach ${targetUrl} (HTTP ${res.status})`;
         }
-      } catch (err) {
+      } catch (err: any) {
         verified = false;
+        detailMessage = `Connection error reaching ${cleanDomain}: ${err?.message || 'timeout'}`;
       }
     }
 
@@ -68,7 +82,7 @@ export async function handleWebsiteRoutes(request: Request, env: Env, pathname: 
         verified: false,
         domain: cleanDomain,
         method: method || 'snippet',
-        error: detailMessage || `Verification failed for domain ${cleanDomain}`
+        error: detailMessage || `Verification check failed for ${cleanDomain}. Ensure tag is deployed live.`
       }, 400);
     }
 
@@ -92,17 +106,12 @@ export async function handleWebsiteRoutes(request: Request, env: Env, pathname: 
     }
 
     const cleanUrl = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`;
-    let scrapedHtml = '';
-
-    try {
-      const fetchRes = await fetch(cleanUrl, { headers: { 'User-Agent': 'CustomerLens-Scanner/1.0' } });
-      if (fetchRes.ok) {
-        scrapedHtml = await fetchRes.text();
-      }
-    } catch (err) {
-      Logger.warn('Target website scrape fetch warning:', err);
-      scrapedHtml = `<h1>${websiteUrl}</h1><p>CustomerLens AI scanned store features, checkout flow, product cards, pricing table, and lead forms.</p>`;
+    
+    const fetchRes = await fetch(cleanUrl, { headers: { 'User-Agent': 'CustomerLens-Scanner/1.0' } });
+    if (!fetchRes.ok) {
+      throw new ApiError(`Unable to fetch real website content from ${cleanUrl} (HTTP ${fetchRes.status})`, 400, 'FETCH_FAILED');
     }
+    const scrapedHtml = await fetchRes.text();
 
     const scanResult = await openai.scanWebsite(cleanUrl, scrapedHtml);
 

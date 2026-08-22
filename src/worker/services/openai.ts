@@ -26,13 +26,12 @@ function cleanJsonText(raw: string): string {
   return cleaned.trim();
 }
 
-function safeJsonParse<T = any>(raw: string, fallback?: T): T {
+function safeJsonParse<T = any>(raw: string): T {
   try {
     const cleaned = cleanJsonText(raw);
     return JSON.parse(cleaned);
-  } catch (e) {
-    if (fallback !== undefined) return fallback;
-    throw e;
+  } catch (e: any) {
+    throw new ApiError(`Invalid OpenAI JSON output: ${e?.message || 'parse error'}`, 500, 'AI_INVALID_JSON');
   }
 }
 
@@ -46,7 +45,7 @@ export class OpenAIService {
   private getApiKey(): string {
     const key = this.apiKey;
     if (!key || key.includes('****') || !key.trim()) {
-      throw new Error('OPENAI_NOT_CONFIGURED');
+      throw new ApiError('OpenAI API key not configured or unavailable', 503, 'AI_UNAVAILABLE');
     }
     return key.trim();
   }
@@ -70,24 +69,29 @@ export class OpenAIService {
       body.response_format = { type: 'json_object' };
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(body)
-    });
+    let response: Response;
+    try {
+      response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(body)
+      });
+    } catch (err: any) {
+      throw new ApiError(`OpenAI network error: ${err?.message || 'Connection failed'}`, 503, 'AI_UNAVAILABLE');
+    }
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '');
-      throw new Error(`OpenAI API error (${response.status}): ${errText}`);
+      throw new ApiError(`OpenAI API error (${response.status}): ${errText}`, 503, 'AI_UNAVAILABLE');
     }
 
     const data = (await response.json()) as any;
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
-      throw new Error('Empty response from OpenAI');
+      throw new ApiError('Empty response from OpenAI', 503, 'AI_UNAVAILABLE');
     }
     return cleanJsonText(content.trim());
   }
@@ -221,51 +225,27 @@ Page URL: ${params.pageUrl || '/'}
 Website Context: ${JSON.stringify(params.websiteContext || {})}
 Visitor Metadata: ${JSON.stringify(params.visitorMeta || {})}`;
 
-    try {
-      const rawJson = await this.createCompletion(
-        [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        true
-      );
-      const parsed = safeJsonParse(rawJson, {
-        importance: 'medium',
-        category: 'general_feedback',
-        business_impact: 'conversion',
-        signal: params.answer.substring(0, 80),
-        reason: 'Individual response evaluated.',
-        needs_attention: false,
-        sentiment: 'neutral',
-        growth_opportunity: ''
-      });
-      const finalImportance = (['critical', 'high', 'medium', 'low'].includes(parsed.importance) ? parsed.importance : 'medium') as 'critical' | 'high' | 'medium' | 'low';
-      const finalSentiment = (['negative', 'positive', 'neutral'].includes(parsed.sentiment) ? parsed.sentiment : 'neutral') as 'negative' | 'positive' | 'neutral';
-      return {
-        importance: finalImportance,
-        category: parsed.category || 'general_feedback',
-        business_impact: parsed.business_impact || 'low',
-        signal: parsed.signal || params.answer.substring(0, 80),
-        reason: parsed.reason || 'Individual response evaluated.',
-        needs_attention: Boolean(parsed.needs_attention),
-        sentiment: finalSentiment,
-        growth_opportunity: parsed.growth_opportunity || '',
-        analyzedAt: new Date().toISOString()
-      };
-    } catch (err: any) {
-      Logger.warn('OpenAI analyzeIndividualResponse error, returning unanalyzed signal state:', err?.message);
-      return {
-        importance: 'low',
-        category: 'general_feedback',
-        business_impact: 'low',
-        signal: params.answer.substring(0, 80) || 'Visitor feedback',
-        reason: 'Raw visitor response captured (AI evaluation pending).',
-        needs_attention: false,
-        sentiment: 'neutral',
-        growth_opportunity: '',
-        analyzedAt: new Date().toISOString()
-      };
-    }
+    const rawJson = await this.createCompletion(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      true
+    );
+    const parsed = safeJsonParse(rawJson);
+    const finalImportance = (['critical', 'high', 'medium', 'low'].includes(parsed.importance) ? parsed.importance : 'medium') as 'critical' | 'high' | 'medium' | 'low';
+    const finalSentiment = (['negative', 'positive', 'neutral'].includes(parsed.sentiment) ? parsed.sentiment : 'neutral') as 'negative' | 'positive' | 'neutral';
+    return {
+      importance: finalImportance,
+      category: parsed.category || 'general_feedback',
+      business_impact: parsed.business_impact || 'low',
+      signal: parsed.signal || params.answer.substring(0, 80),
+      reason: parsed.reason || 'Individual response evaluated by OpenAI.',
+      needs_attention: Boolean(parsed.needs_attention),
+      sentiment: finalSentiment,
+      growth_opportunity: parsed.growth_opportunity || '',
+      analyzedAt: new Date().toISOString()
+    };
   }
 
   /**
@@ -280,7 +260,6 @@ Visitor Metadata: ${JSON.stringify(params.visitorMeta || {})}`;
       return null;
     }
 
-    // Filter for medium/high signals
     const substantiveSignals = recentSignals.filter(s => s.importance === 'high' || s.importance === 'medium');
     if (substantiveSignals.length < 2) {
       return null;
@@ -311,33 +290,28 @@ Output format MUST strictly be JSON:
 ${JSON.stringify(substantiveSignals.slice(0, 15), null, 2)}
 Website Context: ${JSON.stringify(context || {})}`;
 
-    try {
-      const rawJson = await this.createCompletion(
-        [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        true
-      );
-      const parsed = JSON.parse(rawJson);
-      if (!parsed.patternDetected) {
-        return null;
-      }
-      return {
-        patternDetected: true,
-        severity: ['critical', 'warning', 'opportunity', 'info'].includes(parsed.severity) ? parsed.severity : 'warning',
-        title: parsed.title || '🔴 Potential conversion problem detected',
-        summary: parsed.summary || 'Multiple visitors have reported similar issues. Review recommended.',
-        category: parsed.category || 'general_feedback',
-        affectedSignalsCount: typeof parsed.affectedSignalsCount === 'number' ? parsed.affectedSignalsCount : 2,
-        rootCause: parsed.rootCause || '',
-        recommendation: parsed.recommendation || '',
-        triggerNotification: parsed.triggerNotification !== false
-      };
-    } catch (err: any) {
-      Logger.warn('OpenAI detectMultiResponsePattern error:', err?.message);
+    const rawJson = await this.createCompletion(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      true
+    );
+    const parsed = safeJsonParse(rawJson);
+    if (!parsed.patternDetected) {
       return null;
     }
+    return {
+      patternDetected: true,
+      severity: ['critical', 'warning', 'opportunity', 'info'].includes(parsed.severity) ? parsed.severity : 'warning',
+      title: parsed.title || '🔴 Potential conversion problem detected',
+      summary: parsed.summary || 'Multiple visitors have reported similar issues. Review recommended.',
+      category: parsed.category || 'general_feedback',
+      affectedSignalsCount: typeof parsed.affectedSignalsCount === 'number' ? parsed.affectedSignalsCount : 2,
+      rootCause: parsed.rootCause || '',
+      recommendation: parsed.recommendation || '',
+      triggerNotification: parsed.triggerNotification !== false
+    };
   }
 
   /**
@@ -454,22 +428,7 @@ Generate the survey object now in JSON.`;
       true
     );
 
-    const parsed: any = safeJsonParse(rawJson, {
-      headline: 'Quick feedback before you go...',
-      description: 'Help us make your experience even better.',
-      recommendedPlacement: 'Exit Intent Popup',
-      thankYouMessage: 'Thank you for your feedback!',
-      colors: { background: '#09090b', text: '#ffffff', accent: '#3b82f6' },
-      questions: [
-        {
-          id: 'q1',
-          type: 'multiple-choice',
-          questionText: 'What is the main reason for your visit today?',
-          options: ['Exploring options', 'Checking pricing', 'Looking for specific features', 'Just browsing'],
-          required: true
-        }
-      ]
-    });
+    const parsed: any = safeJsonParse(rawJson);
     if (!parsed.suggestedQuestions && parsed.questions) {
       parsed.suggestedQuestions = parsed.questions;
     }
@@ -533,33 +492,7 @@ Output MUST strictly be a JSON object with these keys:
       true
     );
 
-    return safeJsonParse(rawJson, {
-      surveyName: 'Visitor Feedback Survey',
-      headline: 'Wait! Before you leave...',
-      description: 'Help us improve by answering one quick question.',
-      goal: 'Identify friction points',
-      bestTrigger: 'Exit intent mouse gesture',
-      thankYouMessage: 'Thank you for your valuable feedback!',
-      questions: [
-        {
-          id: 'q1',
-          type: 'multiple-choice',
-          questionText: 'What almost stopped you from proceeding today?',
-          options: ['Pricing', 'Missing a specific feature', 'Need more information', 'Just comparing'],
-          required: true
-        }
-      ],
-      logic: 'Show follow-up if pricing selected',
-      design: {
-        backgroundColor: '#09090b',
-        textColor: '#f4f4f5',
-        accentColor: '#8b5cf6',
-        description: 'Clean modern theme'
-      },
-      estimatedCompletionTime: '30 seconds',
-      deliveryMethod: 'Exit Intent Popup',
-      recommendedSurveyType: 'Exit Intent Survey'
-    });
+    return safeJsonParse(rawJson);
   }
 
   /**
@@ -591,10 +524,7 @@ Output MUST strictly be valid JSON:
       true
     );
 
-    return safeJsonParse(rawJson, {
-      followUpQuestion: 'What is the single most important thing we could improve for you today?',
-      suggestedOffer: ''
-    });
+    return safeJsonParse(rawJson);
   }
 
   /**
@@ -673,24 +603,7 @@ Perform a complete UX/CRO audit and output JSON.`;
       true
     );
 
-    return safeJsonParse(rawJson, {
-      headline: 'Wait! Before you leave...',
-      suggestedQuestions: [
-        {
-          id: 'q1',
-          type: 'multiple-choice',
-          questionText: 'What is the main reason for your visit today?',
-          options: ['Browsing products', 'Looking for pricing info', 'Comparing options', 'Just looking around']
-        }
-      ],
-      behavioralInsights: [
-        {
-          title: 'High visitor hesitation on key pages',
-          description: 'Visitors spend significant time reviewing details before deciding.'
-        }
-      ],
-      overallStrategy: 'Implement contextual exit-intent micro surveys to identify and remove purchasing friction.'
-    });
+    return safeJsonParse(rawJson);
   }
 
   /**
@@ -701,7 +614,7 @@ Perform a complete UX/CRO audit and output JSON.`;
       return {
         hasEnoughData: false,
         responseCount: 0,
-        message: 'Not enough customer data yet. AI insights will appear after visitors interact with your survey.',
+        message: 'No customer data yet. AI insights will appear after real visitors interact with your survey.',
         topExitReasons: [],
         mostCommonComplaints: [],
         sentiment: 'Awaiting customer feedback',
@@ -749,128 +662,44 @@ Output MUST strictly be valid JSON:
 
     const userPrompt = `Real survey responses to analyze (${responses.length} total):\n${formattedResponses}`;
 
-    try {
-      const rawJson = await this.createCompletion(
-        [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        true
-      );
+    const rawJson = await this.createCompletion(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      true
+    );
 
-      const parsed = safeJsonParse(rawJson, {
-        hasEnoughData: true,
-        responseCount: responses.length,
-        topExitReasons: [{ reason: 'Evaluating options', percentage: 100 }],
-        mostCommonComplaints: ['Need more pricing details'],
-        sentiment: 'Constructive feedback',
-        sentimentScore: 70,
-        aiSuggestions: [
-          {
-            issue: 'Clarity of value proposition',
-            recommendation: 'Highlight core benefits prominently on high-exit pages',
-            impact: 'High Impact'
-          }
-        ]
-      });
-      parsed.hasEnoughData = true;
-      parsed.responseCount = responses.length;
-      return parsed;
-    } catch (err: any) {
-      Logger.warn('OpenAI analyzeExit evaluation note:', err.message);
-      return {
-        hasEnoughData: false,
-        responseCount: responses.length,
-        message: err.message || 'AI processing unavailable.',
-        topExitReasons: [],
-        mostCommonComplaints: [],
-        sentiment: 'AI processing unavailable',
-        sentimentScore: null,
-        aiSuggestions: []
-      };
-    }
+    const parsed = safeJsonParse(rawJson);
+    parsed.hasEnoughData = true;
+    parsed.responseCount = responses.length;
+    return parsed;
   }
 
   /**
    * Dynamic Workspace Analytics (Real Data & Zero-State Compliance)
    */
   async generateWorkspaceAnalytics(businessName: string, websiteUrl: string, businessType: string, goal: string) {
-    const systemPrompt = `You are a Conversion Rate Optimization (CRO) expert. Generate an initial analytics report template for a website workspace.
+    const systemPrompt = `You are a Conversion Rate Optimization (CRO) expert. Generate an analytics report for a website workspace based on real telemetry.
 Business Name: ${businessName}
 Website URL: ${websiteUrl || 'mysite.com'}
 Business Type: ${businessType || 'SaaS'}
 Main Goal: ${goal || 'Feedback'}
 
 Output MUST strictly be a JSON structure containing four keys: "today", "yesterday", "july16", and "july15".
-If real visitor telemetry is 0, session counts should reflect fresh installation state.`;
+If real visitor telemetry is 0, session counts must strictly reflect 0.`;
 
-    try {
-      const rawJson = await this.createCompletion(
-        [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: 'Generate the workspace analytics report JSON.' }
-        ],
-        true
-      );
+    const rawJson = await this.createCompletion(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: 'Generate the workspace analytics report JSON.' }
+      ],
+      true
+    );
 
-      const data: any = safeJsonParse(rawJson, {
-        today: { sessions: 0, triggers: 0, responseRate: '0.0%', revenue: '$0.00', insight: `Telemetry listening for ${businessName}.` }
-      });
-      data.insightsSummary = data.today?.insight || `Telemetry listening for ${businessName}.`;
-      return data;
-    } catch (err: any) {
-      return {
-        today: {
-          sessions: 0,
-          triggers: 0,
-          responseRate: '0.0%',
-          revenue: '$0.00',
-          insight: 'No customer responses yet. Analytics will appear after real visitors interact with your survey.',
-          reasons: [],
-          complaints: [],
-          sentiment: 'Awaiting visitor interactions',
-          sentimentScore: null,
-          suggestions: []
-        },
-        yesterday: {
-          sessions: 0,
-          triggers: 0,
-          responseRate: '0.0%',
-          revenue: '$0.00',
-          insight: 'No prior telemetry stored.',
-          reasons: [],
-          complaints: [],
-          sentiment: 'Awaiting visitor interactions',
-          sentimentScore: null,
-          suggestions: []
-        },
-        july16: {
-          sessions: 0,
-          triggers: 0,
-          responseRate: '0.0%',
-          revenue: '$0.00',
-          insight: 'No prior telemetry stored.',
-          reasons: [],
-          complaints: [],
-          sentiment: 'Awaiting visitor interactions',
-          sentimentScore: null,
-          suggestions: []
-        },
-        july15: {
-          sessions: 0,
-          triggers: 0,
-          responseRate: '0.0%',
-          revenue: '$0.00',
-          insight: 'No prior telemetry stored.',
-          reasons: [],
-          complaints: [],
-          sentiment: 'Awaiting visitor interactions',
-          sentimentScore: null,
-          suggestions: []
-        },
-        insightsSummary: 'No customer responses yet. Analytics will appear after real visitors interact with your survey.'
-      };
-    }
+    const data: any = safeJsonParse(rawJson);
+    data.insightsSummary = data.today?.insight || `Live telemetry active for ${businessName}.`;
+    return data;
   }
 
   /**
@@ -895,18 +724,7 @@ Output MUST strictly be a JSON array of 4 objects:
       true
     );
 
-    const items = safeJsonParse(rawJson, [
-      {
-        title: 'Optimize exit intent timing',
-        description: 'Set exit survey trigger sensitivity based on dwell time and velocity.',
-        type: 'info'
-      },
-      {
-        title: 'Clarify pricing FAQ',
-        description: 'Address most frequent customer objections directly in the survey widget.',
-        type: 'warning'
-      }
-    ]);
+    const items = safeJsonParse(rawJson);
     const dateStr = new Date().toLocaleDateString();
     return (Array.isArray(items) ? items : []).map((item: any, idx: number) => ({
       id: `rec-${idx + 1}-${Date.now()}`,

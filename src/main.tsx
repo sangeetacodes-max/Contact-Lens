@@ -16,26 +16,35 @@ declare global {
 }
 
 window.chatWithAI = async function(userMsg: string, siteId?: string): Promise<string> {
+  if (!siteId) {
+    return "Error: A valid siteId is required to chat with CustomerLens AI.";
+  }
   try {
     const res = await fetch('/api/ai/survey-chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ newMessage: userMsg, siteId: siteId || 'default_site', option: 'General AI Chat' })
+      body: JSON.stringify({ newMessage: userMsg, siteId, option: 'General AI Chat' })
     });
-    if (!res.ok) throw new Error('Response error');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || 'Response error');
+    }
     const data = await res.json();
     return data.reply || "Thank you! CustomerLens AI has processed your message.";
-  } catch (err) {
-    return "CustomerLens AI is processing your request.";
+  } catch (err: any) {
+    return `AI Error: ${err.message || 'AI service unavailable.'}`;
   }
 };
 
 window.getAIInsights = async function(siteId?: string): Promise<string> {
+  if (!siteId) {
+    return "<strong>AI Insights:</strong> Error: A valid siteId is required.";
+  }
   try {
     const res = await fetch('/api/ai/workspace-analytics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ siteId: siteId || 'default_site', businessName: 'My Business', websiteUrl: window.location.hostname, businessType: 'eCommerce' })
+      body: JSON.stringify({ siteId, businessName: 'My Business', websiteUrl: window.location.hostname, businessType: 'eCommerce' })
     });
     if (!res.ok) throw new Error('Response error');
     const data = await res.json();
@@ -52,35 +61,29 @@ window.getAIInsights = async function(siteId?: string): Promise<string> {
 };
 
 window.generateSurvey = async function(siteId?: string, businessType?: string): Promise<string[]> {
-  try {
-    const res = await fetch('/api/ai/wizard', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        siteId: siteId || 'default_site',
-        businessName: 'My Store',
-        websiteUrl: window.location.hostname,
-        businessType: businessType || 'ecommerce',
-        goal: 'Understand visitor drop-offs'
-      })
-    });
-    if (!res.ok) throw new Error('Response error');
-    const data = await res.json();
-    if (data && data.suggestedQuestions && Array.isArray(data.suggestedQuestions)) {
-      return data.suggestedQuestions.map((q: any) => typeof q === 'string' ? q : (q.questionText || q.title || JSON.stringify(q)));
-    }
-    return [
-      "What was the main reason for your visit today?",
-      "Did you find everything you were looking for?",
-      "What almost stopped you from completing your purchase?"
-    ];
-  } catch (err) {
-    return [
-      "What was the main reason for your visit today?",
-      "Did you find everything you were looking for?",
-      "What almost stopped you from completing your purchase?"
-    ];
+  if (!siteId) {
+    throw new Error('A valid registered siteId is required to generate a survey.');
   }
+  const res = await fetch('/api/ai/wizard', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      siteId,
+      businessName: 'My Store',
+      websiteUrl: window.location.hostname,
+      businessType: businessType || 'ecommerce',
+      goal: 'Understand visitor drop-offs'
+    })
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.message || 'Failed to generate survey questions from OpenAI.');
+  }
+  const data = await res.json();
+  if (data && data.suggestedQuestions && Array.isArray(data.suggestedQuestions)) {
+    return data.suggestedQuestions.map((q: any) => typeof q === 'string' ? q : (q.questionText || q.title || JSON.stringify(q)));
+  }
+  return [];
 };
 
 window.sendChat = async function(): Promise<void> {

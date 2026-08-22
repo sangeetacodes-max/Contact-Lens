@@ -7,9 +7,6 @@ import { jsonResponse, ApiError } from '../utils/errors';
 import { corsHeaders } from '../middleware/cors';
 import { Logger } from '../utils/logger';
 
-// In-memory session tracking cache for instant trigger evaluation
-const sessionStateMap = new Map<string, { surveyShown: boolean; responsesCount: number; lastTriggerTime: number }>();
-
 export async function handleTrackingRoutes(request: Request, env: Env, pathname: string): Promise<Response> {
   const db = new DatabaseService(env);
   const storage = new StorageService(env);
@@ -480,8 +477,9 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
     await db.recordEvent(event);
     await storage.r2PutLog(`events/${siteId}/${event.id}.json`, event);
 
-    // 2. Rule-Based Trigger Check
-    const sessionState = sessionStateMap.get(sessionId);
+    // 2. Rule-Based Trigger Check (Using persistent KV session store)
+    const sessionStateKey = `session_trigger:${siteId}:${sessionId}`;
+    const sessionState = await storage.kvGet<{ surveyShown: boolean; responsesCount: number; lastTriggerTime: number }>(sessionStateKey);
     if (sessionState?.surveyShown) {
       return jsonResponse({
         recorded: true,
@@ -538,7 +536,7 @@ export async function handleTrackingRoutes(request: Request, env: Env, pathname:
     );
 
     if (aiDecision.decision === 'SHOW') {
-      sessionStateMap.set(sessionId, { surveyShown: true, responsesCount: 0, lastTriggerTime: Date.now() });
+      await storage.kvPut(sessionStateKey, { surveyShown: true, responsesCount: 0, lastTriggerTime: Date.now() }, 86400);
       return jsonResponse({
         recorded: true,
         action: 'SHOW_SURVEY',

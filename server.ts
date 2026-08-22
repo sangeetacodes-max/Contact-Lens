@@ -199,7 +199,6 @@ app.use(async (req, res, next) => {
       });
 
       const envBindings = {
-        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
         SHOPIFY_API_KEY: process.env.SHOPIFY_API_KEY,
         SHOPIFY_API_SECRET: process.env.SHOPIFY_API_SECRET,

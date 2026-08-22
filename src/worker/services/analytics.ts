@@ -8,6 +8,7 @@ import { Env } from '../types';
 import { DatabaseService } from './db';
 import { SiteAnalytics, ExitAnalysisResult } from './interfaces';
 import { OpenAIService } from './openai';
+import { ApiError } from '../utils/errors';
 
 export class RealAnalyticsService {
   private env: Env;
@@ -42,8 +43,8 @@ export class RealAnalyticsService {
           firstPingAt = deployRow.first_event_at;
           lastPingAt = deployRow.last_event_at;
         }
-      } catch (err) {
-        // ignore
+      } catch (err: any) {
+        throw new ApiError(`Database error checking deployment status: ${err?.message || 'D1 failure'}`, 500, 'DATABASE_ERROR');
       }
     }
 
@@ -92,9 +93,11 @@ export class RealAnalyticsService {
             timestamp: r.timestamp
           }));
         }
-      } catch (e) {
-        // fallback
+      } catch (e: any) {
+        throw new ApiError(`Database error querying responses: ${e?.message || 'D1 failure'}`, 500, 'DATABASE_ERROR');
       }
+    } else {
+      throw new ApiError('D1 Database not configured', 500, 'DATABASE_ERROR');
     }
 
     // Zero-State: When there are no responses yet
@@ -102,7 +105,7 @@ export class RealAnalyticsService {
       return {
         hasEnoughData: false,
         responseCount: 0,
-        message: 'Not enough customer data yet. AI insights will appear after visitors interact with your survey.',
+        message: 'No data yet. Waiting for installed website telemetry.',
         topExitReasons: [],
         mostCommonComplaints: [],
         sentiment: 'Awaiting customer feedback',

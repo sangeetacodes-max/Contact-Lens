@@ -230,7 +230,7 @@ export default function Dashboard({
   onUpdateWorkspace,
   onGoToLanding
 }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'home' | 'workspace' | 'install' | 'surveys' | 'simulator' | 'analytics' | 'ai-connect' | 'billing' | 'domain' | 'admin'>('workspace');
+  const [activeTab, setActiveTab] = useState<'home' | 'workspace' | 'install' | 'surveys' | 'analytics' | 'ai-connect' | 'billing' | 'domain' | 'admin'>('workspace');
   const [analyticsSubTab, setAnalyticsSubTab] = useState<'pain-points' | 'features' | 'barriers' | 'conversion'>('pain-points');
   const [isAiPublished, setIsAiPublished] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -577,29 +577,13 @@ export default function Dashboard({
   const [previewTextValue, setPreviewTextValue] = useState('');
   const [previewSubmitted, setPreviewSubmitted] = useState(false);
 
-  // --- AI ADVANCED TRIGGER SIMULATOR STATES ---
-  const [selectedScenarioIdx, setSelectedScenarioIdx] = useState<number>(0);
-  const [isSimulatingBehavior, setIsSimulatingBehavior] = useState<boolean>(false);
-  const [simulationLogs, setSimulationLogs] = useState<string[]>([]);
-  const [simulatedUserSegment, setSimulatedUserSegment] = useState<'new' | 'returning' | 'paid' | 'cancelled'>('new');
-  const [simulatedSurveyState, setSimulatedSurveyState] = useState<'trigger' | 'main' | 'followup' | 'success'>('trigger');
-  
-  // Custom Dynamic AI-generated survey questions
-  const [simulatedHeadline, setSimulatedHeadline] = useState('Wait! Before you leave...');
-  const [simulatedQuestion, setSimulatedQuestion] = useState('Why are you abandoning your checkout today?');
-  const [simulatedOptions, setSimulatedOptions] = useState<string[]>([]);
-  const [simulatedUserResponse, setSimulatedUserResponse] = useState('');
-  const [simulatedFollowUpQuestion, setSimulatedFollowUpQuestion] = useState('');
-  const [simulatedFollowUpAnswer, setSimulatedFollowUpAnswer] = useState('');
-
   // --- DAILY REPORT STATES ---
   const [selectedReportDate, setSelectedReportDate] = useState<'today' | 'yesterday' | 'july16' | 'july15'>('today');
   const [isDispatchingReport, setIsDispatchingReport] = useState(false);
   const [dispatchSuccess, setDispatchSuccess] = useState(false);
   const [dynamicReportData, setDynamicReportData] = useState<any>(null);
   const [isLoadingReportData, setIsLoadingReportData] = useState(false);
-  const [showSandboxData, setShowSandboxData] = useState(false);
-  const [analyticsDataSource, setAnalyticsDataSource] = useState<'none' | 'listening' | 'imported' | 'simulated'>('none');
+  const [analyticsDataSource, setAnalyticsDataSource] = useState<'none' | 'listening' | 'imported'>('none');
   const [isImportingData, setIsImportingData] = useState(false);
   const [importProvider, setImportProvider] = useState<'ga4' | 'shopify' | 'mixpanel'>('ga4');
   const [importProgress, setImportProgress] = useState(0);
@@ -1114,170 +1098,6 @@ export default function Dashboard({
     }, 1000);
   };
 
-  // --- BEHAVIORAL TRIGGERS SIMULATION CONFIGURATION ---
-  const BEHAVIORAL_SCENARIOS = [
-    {
-      title: "AI Triggered Survey (Cart Hesitation)",
-      badge: "AI Triggered Surveys",
-      icon: "ShoppingCart",
-      description: "User hesitates on payment details with $99 premium pack in checkout cart for 45 seconds.",
-      logs: [
-        "[CONNECT] Session #9415 initialized from San Francisco, CA.",
-        "[BROWSE] Visited /products/imperial-sour-pack.",
-        "[CART] Clicked 'Add to Cart'. Cart size updated: 1 item ($99.00).",
-        "[NAVIGATE] Entered /checkout flow.",
-        "[HESITATION] Idle on payment billing address input for 45s.",
-        "[AI COGNITIVE ENGINE] Triggering survey: High intent cost-hesitation detected.",
-        "[SURVEY] Tailored survey dispatched!"
-      ],
-      headline: "Wait! Before you leave...",
-      question: "We noticed you added the Premium Brew pack to your cart but hesitated on checkout. What is the main blocker?",
-      options: ["Shipping rates are too high", "Want a different brew style", "Just browsing, will purchase later", "Other"],
-      followUp: "I understand price or delivery can be tough! If we send a 15% discount code to your email, would you finish checkout?"
-    },
-    {
-      title: "Different Questions for Different Users",
-      badge: "Dynamic Segmentation",
-      icon: "Users",
-      description: "Auto-segments visitors in real-time. Returning visitors with high cart value get purchase blocker questions.",
-      logs: [
-        "[CONNECT] Session #1241 initialized from London, UK.",
-        "[SEGMENTATION] Analyzing visitor history databases...",
-        "[DETECTION] User matched group segment: 'RETURNING VISITOR'.",
-        "[NAVIGATE] Landed on main storefront pricing tab.",
-        "[AI COGNITIVE ENGINE] Dynamic segment question loaded.",
-        "[SURVEY] Targeted survey dispatched!"
-      ],
-      headline: "Welcome back!",
-      question: "What is currently stopping you from completing your purchase?",
-      options: ["Pricing is slightly high", "No free shipping option", "Looking for a sold-out release", "Just researching"],
-      followUp: "Understood. What competitor or alternative are you currently comparing us to?"
-    },
-    {
-      title: "AI Writes the Question (Pricing Comparison)",
-      badge: "AI Question Authoring",
-      icon: "Sparkles",
-      description: "User compares Pro and Business tiers 3 times, reading features back and forth.",
-      logs: [
-        "[CONNECT] Session #8832 initialized from Austin, TX.",
-        "[NAVIGATE] Visited /pricing page.",
-        "[COMPARE] Hovering over 'Pro Tier' features list for 15s.",
-        "[COMPARE] Switched to 'Business Tier' card, spent 20s.",
-        "[HESITATION] Repetitive plan comparison: 3 visits.",
-        "[AI COGNITIVE ENGINE] Bypassing templates: B2B plan hesitation detected.",
-        "[SURVEY] Dynamically-authored survey dispatched!"
-      ],
-      headline: "Let's find the perfect fit...",
-      question: "You spent some time comparing our Pro and Business plans today. Which information was missing before choosing?",
-      options: ["Detailed feature comparison table", "Custom API integration guides", "Enterprise SLA details", "Pricing customization"],
-      followUp: "Good to know! Which specific feature are you hoping to find in our Pro/Business tiers?"
-    },
-    {
-      title: "Behavioral Surveys (Path Tracking)",
-      badge: "Behavioral Triggers",
-      icon: "Sliders",
-      description: "User searches 'refund policy', visits pricing twice, then initiates exit velocity vectors.",
-      logs: [
-        "[CONNECT] Session #3019 initialized from Toronto, CA.",
-        "[SEARCH] Query: 'refund' entered into shop search bar.",
-        "[BROWSE] Visited /refund-policy page.",
-        "[BROWSE] Visited /pricing page.",
-        "[AI COGNITIVE ENGINE] Path signature matched: Risk of checkout cancellation.",
-        "[TRIGGER] Dispatched behavioral alignment survey."
-      ],
-      headline: "Wait! Let's clear any doubts...",
-      question: "You searched our refund policy and visited pricing twice today. Was something unclear?",
-      options: ["Yes, the refund policy was confusing", "Pricing tiers are slightly expensive", "Looking for refund terms on limited sales", "Just browsing"],
-      followUp: "Our customer success team is here for you. What is the main question you have about refunds or pricing?"
-    },
-    {
-      title: "Emotional Detection (Rage Clicks)",
-      badge: "Emotional Detection",
-      icon: "ShieldAlert",
-      description: "User clicks on disabled buttons or slow coupon fields rapidly (3+ clicks in 1.5s).",
-      logs: [
-        "[CONNECT] Session #5112 initialized from New York, NY.",
-        "[NAVIGATE] Checkout billing summary page.",
-        "[INPUT] Entered discount code 'LENS100'.",
-        "[RAGE] Rapidly clicked 'Apply' button 5 times in 1.2s.",
-        "[AI COGNITIVE ENGINE] Frustration signature detected! Emotional state: Frustrated.",
-        "[TRIGGER] Instantly popping empathetic support survey."
-      ],
-      headline: "Oops, looks like something wasn't working!",
-      question: "We noticed some frustration clicks on our checkout page. Can you tell us what happened?",
-      options: ["The coupon field wouldn't accept my code", "The checkout page was loading too slow", "A button appeared unresponsive", "Other"],
-      followUp: "We've logged this immediately for our engineers! Can you briefly describe what you clicked so we can resolve it?"
-    },
-    {
-      title: "AI Follow-up Questions Flow",
-      badge: "AI Follow-up",
-      icon: "MessageSquare",
-      description: "Instead of finishing on choice, the AI asks a smart conversational sub-question based on the selection.",
-      logs: [
-        "[CONNECT] Session #7721 initialized from Chicago, IL.",
-        "[BROWSE] spent 2 minutes reading /features.",
-        "[EXIT] Cursor velocity vector towards page close.",
-        "[TRIGGER] Feedback survey widget triggered.",
-        "[USER CHOICE] Clicked 'Pricing was too high'.",
-        "[AI COGNITIVE ENGINE] Analyzing choice context...",
-        "[FOLLOW-UP] Loaded conversational follow-up instantly."
-      ],
-      headline: "Quick feedback question...",
-      question: "What was the primary blocker for your purchase today?",
-      options: ["Pricing was too high", "Shipping was expensive", "Website loading was slow", "Other"],
-      followUp: "Our AI noticed you mentioned Pricing. If we gave you a custom coupon code 'LENS20' right now, would you try us?"
-    }
-  ];
-
-  const runScenarioSimulation = (scenarioIdx: number) => {
-    setSelectedScenarioIdx(scenarioIdx);
-    setIsSimulatingBehavior(true);
-    setSimulationLogs([]);
-    setSimulatedSurveyState('trigger');
-    setSimulatedUserResponse('');
-    setSimulatedFollowUpAnswer('');
-
-    const scenario = BEHAVIORAL_SCENARIOS[scenarioIdx];
-    setSimulatedHeadline(scenario.headline);
-    setSimulatedQuestion(scenario.question);
-    setSimulatedOptions(scenario.options);
-    setSimulatedFollowUpQuestion(scenario.followUp);
-
-    // Segment matching logic
-    if (scenarioIdx === 1) {
-      // Different Questions for Different Users
-      // Segment based question logic will render dynamically
-    } else {
-      setSimulatedUserSegment('new');
-    }
-
-    // Play logs sequentially
-    scenario.logs.forEach((logLine, idx) => {
-      setTimeout(() => {
-        setSimulationLogs(prev => [...prev, logLine]);
-        if (idx === scenario.logs.length - 1) {
-          setIsSimulatingBehavior(false);
-          setSimulatedSurveyState('main');
-          showNotification('🟢 AI triggers activated! Interactive survey deployed.', 'info');
-        }
-      }, (idx + 1) * 450);
-    });
-  };
-
-  const handleSimulatedSurveySubmit = () => {
-    if (!simulatedUserResponse) {
-      showNotification('Please select an option first', 'error');
-      return;
-    }
-    setSimulatedSurveyState('followup');
-  };
-
-  const handleSimulatedFollowUpSubmit = () => {
-    // Simulator feedback is kept strictly isolated from production analytics
-    setSimulatedSurveyState('success');
-    showNotification('Simulated feedback logged successfully! (Simulation/Preview Only — isolated from production analytics)', 'success');
-  };
-
   // Custom Domain Setup - Real DNS verification via backend
   const handleDomainVerify = async () => {
     if (!domainInput) {
@@ -1782,14 +1602,6 @@ export default function Dashboard({
                   className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${activeTab === 'surveys' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
                 >
                   <Sliders size={16} /> Survey Builder
-                </button>
-
-                <button 
-                  id="tab_nav_simulator"
-                  onClick={() => { setActiveTab('simulator'); setMobileMenuOpen(false); }}
-                  className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${activeTab === 'simulator' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'}`}
-                >
-                  <Eye size={16} /> Live Survey Simulator
                 </button>
 
                 <button 
@@ -3969,405 +3781,12 @@ async function makeSurvey() {
             </motion.div>
           )}
 
-          {/* TAB 4: INTERACTIVE AI BEHAVIORAL TRIGGER SIMULATOR (SIMULATION / PREVIEW ONLY) */}
-          {activeTab === 'simulator' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-              
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">AI Behavior-Based Trigger Simulator</h1>
-                    <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider font-mono">
-                      Simulation / Preview Only
-                    </span>
-                  </div>
-                  <p className="text-slate-500 text-xs mt-1">Test how CustomerLens tracks customer behavior patterns in real-time. Simulated events are isolated from production analytics.</p>
-                </div>
-                
-                <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] font-mono font-bold text-slate-600">AI Simulator Core: ACTIVE (Sandbox)</span>
-                </div>
-              </div>
-
-              {/* Advanced Playground Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                
-                {/* Left Column: Behavior Scenarios & Event Console */}
-                <div className="lg:col-span-5 space-y-6">
-                  
-                  {/* Scenario Cards */}
-                  <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">Select Customer Behavior</span>
-                      <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Scenarios</span>
-                    </div>
-
-                    <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1 custom-scrollbar">
-                      {BEHAVIORAL_SCENARIOS.map((sc, sIdx) => {
-                        const isSelected = selectedScenarioIdx === sIdx;
-                        return (
-                          <button
-                            key={sIdx}
-                            id={`btn_simulate_scenario_${sIdx}`}
-                            disabled={isSimulatingBehavior}
-                            onClick={() => runScenarioSimulation(sIdx)}
-                            className={`w-full text-left p-3.5 rounded-xl border transition-all flex items-start gap-3.5 ${
-                              isSelected 
-                                ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
-                                : 'bg-slate-50/50 border-slate-200 hover:bg-slate-50 text-slate-800'
-                            }`}
-                          >
-                            <div className={`p-2 rounded-lg mt-0.5 ${isSelected ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-250 text-slate-500'}`}>
-                              {sc.icon === 'ShoppingCart' ? <ShoppingCart size={15} /> :
-                               sc.icon === 'Users' ? <Users size={15} /> :
-                               sc.icon === 'Sparkles' ? <Sparkles size={15} /> :
-                               sc.icon === 'Sliders' ? <Sliders size={15} /> :
-                               sc.icon === 'ShieldAlert' ? <ShieldAlert size={15} /> :
-                               <MessageSquare size={15} />}
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="font-extrabold text-xs tracking-tight block leading-snug">{sc.title}</span>
-                                <span className={`text-[8px] px-1.5 py-0.2 rounded-full font-bold uppercase font-mono ${isSelected ? 'bg-indigo-950 text-indigo-300 border border-indigo-900' : 'bg-slate-200 text-slate-600'}`}>{sc.badge}</span>
-                              </div>
-                              <p className={`text-[10px] mt-1.5 leading-relaxed ${isSelected ? 'text-slate-400' : 'text-slate-500'}`}>
-                                {sc.description}
-                              </p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <button
-                      id="btn_run_active_simulation"
-                      disabled={isSimulatingBehavior}
-                      onClick={() => runScenarioSimulation(selectedScenarioIdx)}
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-xs py-3 rounded-xl shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-1.5"
-                    >
-                      {isSimulatingBehavior ? (
-                        <>
-                          <RefreshCw className="animate-spin" size={13} /> Simulating Client Activity...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={13} /> Run Behavioral Simulation
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Tech styled telemetry logs console */}
-                  <div className="bg-zinc-950 rounded-2xl border border-zinc-800 p-5 space-y-3.5 shadow-xl font-mono">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full ${isSimulatingBehavior ? 'bg-red-500 animate-pulse' : 'bg-zinc-700'}`} />
-                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">AI Event Telemetry Feed</span>
-                      </div>
-                      <span className="text-[9px] text-zinc-600">PID: {Math.floor(1000 + Math.random() * 9000)}</span>
-                    </div>
-
-                    <div className="h-[180px] overflow-y-auto space-y-2 text-[11px] leading-relaxed pr-1 custom-scrollbar">
-                      {simulationLogs.length === 0 ? (
-                        <div className="h-full flex items-center justify-center text-center text-zinc-600">
-                          <div>
-                            <span className="block text-lg mb-1">📟</span>
-                            <span>Ready. Select a behavior scenario above and start simulation.</span>
-                          </div>
-                        </div>
-                      ) : (
-                        simulationLogs.map((log, lIdx) => {
-                          let colorClass = 'text-zinc-400';
-                          if (log.includes('[CONNECT]') || log.includes('[BROWSE]')) colorClass = 'text-zinc-400';
-                          else if (log.includes('[CART]') || log.includes('[SEARCH]')) colorClass = 'text-emerald-400 font-bold';
-                          else if (log.includes('[HESITATION]') || log.includes('[RAGE]')) colorClass = 'text-amber-400 font-bold';
-                          else if (log.includes('[AI COGNITIVE ENGINE]') || log.includes('[SEGMENTATION]')) colorClass = 'text-indigo-400 font-bold';
-                          else if (log.includes('[TRIGGER]') || log.includes('[SURVEY]')) colorClass = 'text-pink-400 font-bold';
-                          return (
-                            <motion.div 
-                              key={lIdx} 
-                              initial={{ opacity: 0, x: -5 }} 
-                              animate={{ opacity: 1, x: 0 }} 
-                              className={`${colorClass}`}
-                            >
-                              <span className="text-zinc-600 mr-1.5">[{new Date().toLocaleTimeString()}]</span>
-                              {log}
-                            </motion.div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Right Column: Simulated Storefront Frame */}
-                <div className="lg:col-span-7">
-                  
-                  {/* Browser Mock Wrapper */}
-                  <div className="border-4 border-slate-200 bg-slate-50 rounded-3xl overflow-hidden shadow-xl flex flex-col min-h-[560px]">
-                    
-                    {/* Browser Address Bar */}
-                    <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center gap-3">
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                        <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                        <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                      </div>
-                      
-                      <div className="flex-grow bg-white border border-slate-200 rounded-lg py-1 px-3 flex items-center justify-between text-[11px] text-slate-500 select-none">
-                        <div className="flex items-center gap-1.5 truncate">
-                          <span className="text-emerald-600 font-bold">🔒</span>
-                          <span className="text-slate-400">https://</span>
-                          <span className="text-slate-800 font-semibold truncate">kansas-local-brews.com/checkout</span>
-                        </div>
-                        <span className="text-zinc-300">⚡</span>
-                      </div>
-                    </div>
-
-                    {/* Simulated Content Stage */}
-                    <div className="flex-grow p-6 flex flex-col justify-center items-center relative overflow-hidden bg-slate-100">
-                      
-                      {/* Scenario 1: Basic Site Interface Underlay (Low Opacity if survey active) */}
-                      <div className={`w-full max-w-md bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-300 ${
-                        simulatedSurveyState !== 'trigger' ? 'opacity-25 blur-[1px]' : 'opacity-100'
-                      }`}>
-                        <div className="flex items-center justify-between border-b pb-3 border-slate-100">
-                          <div className="flex items-center gap-1.5">
-                            <div className="h-6 w-6 bg-slate-900 rounded flex items-center justify-center text-[10px] text-white font-bold font-mono">B</div>
-                            <span className="font-extrabold text-xs text-slate-900">Brews Co. Storefront</span>
-                          </div>
-                          <span className="text-[10px] font-mono text-slate-400">Checkout Cart (1)</span>
-                        </div>
-
-                        {/* Product Mockup */}
-                        <div className="flex gap-4 items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                          <div className="h-14 w-14 bg-amber-500 rounded-lg flex items-center justify-center text-xl text-white font-bold flex-shrink-0">
-                            🍺
-                          </div>
-                          <div className="flex-grow">
-                            <span className="block text-xs font-bold text-slate-800 leading-tight">Kansas Wild Fermentation Barrel-Aged Special Pack</span>
-                            <span className="text-[10px] text-slate-500 block mt-1">Sours, Lambics & Wild Ales (Cold-Packed)</span>
-                            <span className="text-xs font-mono font-bold text-slate-800 block mt-1">$99.00</span>
-                          </div>
-                        </div>
-
-                        {/* Store Checkouts Mock Fields */}
-                        <div className="space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[8px] font-bold text-slate-400 uppercase">First Name</label>
-                              <div className="w-full h-7 bg-slate-50 border rounded-lg mt-1 px-2.5 py-1 text-[10px] text-slate-800 font-medium">Sangeeta</div>
-                            </div>
-                            <div>
-                              <label className="block text-[8px] font-bold text-slate-400 uppercase">Last Name</label>
-                              <div className="w-full h-7 bg-slate-50 border rounded-lg mt-1 px-2.5 py-1 text-[10px] text-slate-800 font-medium">Codes</div>
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-[8px] font-bold text-slate-400 uppercase">Shipping Address</label>
-                            <div className="w-full h-7 bg-slate-50 border rounded-lg mt-1 px-2.5 py-1 text-[10px] text-slate-800 font-medium truncate">Kansas Headquarters Blvd, Suite 240</div>
-                          </div>
-                        </div>
-
-                        {/* Action checkout buttons */}
-                        <button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 rounded-xl transition-all">
-                          Proceed to Payment Details ($99)
-                        </button>
-                      </div>
-
-                      {/* --- LIVE SURVEY POPUPS --- */}
-                      
-                      {/* STATE 1: RUNNING BEHAVIORAL LOGS IN THE BACKGROUND */}
-                      {simulatedSurveyState === 'trigger' && isSimulatingBehavior && (
-                        <div className="absolute inset-0 bg-slate-950/30 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center p-4">
-                          <div className="bg-white/95 border border-slate-200/50 p-5 rounded-2xl shadow-2xl text-center max-w-xs space-y-3.5">
-                            <RefreshCw className="animate-spin text-indigo-600 mx-auto" size={24} />
-                            <div>
-                              <p className="font-bold text-xs text-slate-800">Simulating User Behavior...</p>
-                              <p className="text-[10px] text-slate-500 mt-1 leading-normal">
-                                Watch the telemetry feed on the left compile event matrices!
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* STATE 2: PRIMARY CONVERSATIONAL QUESTION */}
-                      {simulatedSurveyState === 'main' && (
-                        <div className="absolute inset-0 bg-slate-950/40 z-20 flex items-center justify-center p-4">
-                          <motion.div 
-                            initial={{ y: 20, scale: 0.95, opacity: 0 }}
-                            animate={{ y: 0, scale: 1, opacity: 1 }}
-                            className="bg-white rounded-3xl p-6 max-w-sm w-full border border-slate-100 shadow-2xl relative overflow-hidden text-slate-900 space-y-4"
-                          >
-                            <div>
-                              <div className="flex justify-between items-center">
-                                <span className="text-[8px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
-                                  {selectedScenarioIdx === 1 ? `${simulatedUserSegment.toUpperCase()} CUSTOMER SEGMENT` : 'AI Context-Triggered'}
-                                </span>
-                                <span className="text-[9px] text-slate-400 font-mono">CustomerLens SDK</span>
-                              </div>
-                              <h3 className="text-base font-extrabold tracking-tight mt-2.5 text-slate-900">
-                                {simulatedHeadline}
-                              </h3>
-                              <p className="text-xs text-slate-600 mt-1">
-                                {simulatedQuestion}
-                              </p>
-                            </div>
-
-                            {/* Options buttons */}
-                            <div className="space-y-1.5 max-h-[190px] overflow-y-auto pr-0.5 custom-scrollbar">
-                              {simulatedOptions.map((opt, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => setSimulatedUserResponse(opt)}
-                                  className={`w-full text-left p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2.5 transition-all ${
-                                    simulatedUserResponse === opt 
-                                      ? 'bg-indigo-50/50 border-indigo-600 text-indigo-950' 
-                                      : 'border-slate-150 bg-white hover:bg-slate-50 text-slate-700'
-                                  }`}
-                                >
-                                  <div className={`h-4 w-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
-                                    simulatedUserResponse === opt ? 'border-indigo-600 text-indigo-600' : 'border-slate-300'
-                                  }`}>
-                                    {simulatedUserResponse === opt && <div className="h-1.5 w-1.5 rounded-full bg-indigo-600" />}
-                                  </div>
-                                  <span className="truncate">{opt}</span>
-                                </button>
-                              ))}
-                            </div>
-
-                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                              <button 
-                                onClick={() => setSimulatedSurveyState('trigger')}
-                                className="px-3.5 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
-                              >
-                                Cancel
-                              </button>
-                              <button 
-                                onClick={handleSimulatedSurveySubmit}
-                                disabled={!simulatedUserResponse}
-                                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-md shadow-indigo-100"
-                              >
-                                Continue
-                              </button>
-                            </div>
-                          </motion.div>
-                        </div>
-                      )}
-
-                      {/* STATE 3: SMART AI DYNAMIC FOLLOW-UP QUESTION */}
-                      {simulatedSurveyState === 'followup' && (
-                        <div className="absolute inset-0 bg-slate-950/40 z-20 flex items-center justify-center p-4">
-                          <motion.div 
-                            initial={{ y: 20, scale: 0.95, opacity: 0 }}
-                            animate={{ y: 0, scale: 1, opacity: 1 }}
-                            className="bg-white rounded-3xl p-6 max-w-sm w-full border border-slate-100 shadow-2xl text-slate-900 space-y-4"
-                          >
-                            <div>
-                              <div className="flex justify-between items-center">
-                                <span className="text-[8px] font-bold bg-pink-50 text-pink-700 px-2 py-0.5 rounded-full uppercase tracking-wider font-mono animate-pulse">
-                                  AI Dynamic Follow-Up Flow
-                                </span>
-                                <span className="text-[9px] text-slate-400 font-mono">Feature 9 Enabled</span>
-                              </div>
-                              <h3 className="text-base font-extrabold tracking-tight mt-2.5 text-slate-900">
-                                Let's get that solved!
-                              </h3>
-                              <p className="text-xs text-slate-600 mt-1">
-                                {simulatedFollowUpQuestion}
-                              </p>
-                            </div>
-
-                            {/* Chat interaction input area */}
-                            <div className="space-y-1.5">
-                              <textarea
-                                value={simulatedFollowUpAnswer}
-                                onChange={(e) => setSimulatedFollowUpAnswer(e.target.value)}
-                                placeholder="Type your response..."
-                                rows={3}
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
-                              />
-                            </div>
-
-                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                              <button 
-                                onClick={() => setSimulatedSurveyState('main')}
-                                className="px-3.5 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
-                              >
-                                Back
-                              </button>
-                              <button 
-                                onClick={handleSimulatedFollowUpSubmit}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-md shadow-indigo-100"
-                              >
-                                Submit & Log
-                              </button>
-                            </div>
-                          </motion.div>
-                        </div>
-                      )}
-
-                      {/* STATE 4: SUCCESS AND DATA STORAGE FEEDBACK */}
-                      {simulatedSurveyState === 'success' && (
-                        <div className="absolute inset-0 bg-slate-950/40 z-20 flex items-center justify-center p-4">
-                          <motion.div 
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="bg-white rounded-3xl p-6 max-w-sm w-full border border-slate-100 shadow-2xl text-center space-y-4"
-                          >
-                            <div className="mx-auto h-12 w-12 bg-emerald-50 rounded-full flex items-center justify-center text-2xl text-emerald-600">
-                              💝
-                            </div>
-                            <div className="space-y-1.5">
-                              <h3 className="font-extrabold text-base text-slate-900 tracking-tight">Simulated Response Logged!</h3>
-                              <p className="text-slate-500 text-[11px] leading-relaxed">
-                                Response has been parsed and compiled into your CustomerLens database. Visit the **CRO Analytics** tab to run OpenAI sweeps on this feedback logs.
-                              </p>
-                            </div>
-                            <div className="flex gap-2 pt-1">
-                              <button 
-                                onClick={() => {
-                                  setSimulatedSurveyState('trigger');
-                                  setSimulatedUserResponse('');
-                                  setSimulatedFollowUpAnswer('');
-                                }}
-                                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition-all"
-                              >
-                                Try Another
-                              </button>
-                              <button 
-                                onClick={() => {
-                                  setActiveTab('analytics');
-                                  triggerExitAnalysisLoad();
-                                }}
-                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl transition-all shadow-md"
-                              >
-                                View Analytics
-                              </button>
-                            </div>
-                          </motion.div>
-                        </div>
-                      )}
-
-                    </div>
-                  </div>
-
-                </div>
-
-              </div>
-
-            </motion.div>
-          )}
-
           {/* TAB 5: AI EXIT ANALYTICS & CRO REPORTS */}
           {activeTab === 'analytics' && (() => {
             const isInstalled = websites[0]?.status === 'Connected';
-            const effectiveSource = showSandboxData ? 'simulated' : analyticsDataSource;
+            const effectiveSource = analyticsDataSource;
 
-            if (!isInstalled && !showSandboxData) {
+            if (!isInstalled) {
               return (
                 <div className="space-y-6">
                   {/* Setup Required Banner */}
@@ -4386,40 +3805,31 @@ async function makeSurvey() {
                       {/* Action 1: Verify Script */}
                       <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4 flex flex-col justify-between">
                         <div className="space-y-2">
-                          <h4 className="font-extrabold text-xs text-white uppercase tracking-wider font-mono">1. Install & Verify Embed Tag</h4>
-                          <p className="text-slate-400 text-[11px] leading-relaxed">Copy the light JavaScript embed tag and place it on your web application header or footer templates. Once done, trigger the live verification check.</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            id="btn_analytics_go_install"
-                            onClick={() => setActiveTab('install')}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-all"
-                          >
-                            Go to Embed Center
-                          </button>
-                          <button
-                            id="btn_analytics_verify_now"
-                            onClick={handleTestInstallation}
-                            disabled={testingInstallation}
-                            className="bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-all flex items-center gap-1 disabled:opacity-50"
-                          >
-                            {testingInstallation ? <RefreshCw className="animate-spin" size={12} /> : <Check size={12} />} Verify Live
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Action 2: Demo Sandbox */}
-                      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4 flex flex-col justify-between">
-                        <div className="space-y-2">
-                          <h4 className="font-extrabold text-xs text-indigo-300 uppercase tracking-wider font-mono">2. Explore Sandbox Simulator</h4>
-                          <p className="text-slate-400 text-[11px] leading-relaxed">Don't have access to your codebase right now? Launch the demo sandbox mode to explore AI analytics, chart visualizations, and suggestions using customized mock traffic metrics.</p>
+                          <h4 className="font-extrabold text-xs text-white uppercase tracking-wider font-mono">1. Install Embed Script</h4>
+                          <p className="text-slate-400 text-[11px] leading-relaxed">Copy the light JavaScript embed tag and place it in your web application header or footer templates.</p>
                         </div>
                         <button
-                          id="btn_analytics_enable_sandbox"
-                          onClick={() => setShowSandboxData(true)}
-                          className="w-full bg-slate-100 hover:bg-slate-200 text-slate-900 font-extrabold text-xs px-4 py-2.5 rounded-lg transition-all text-center"
+                          id="btn_analytics_go_install"
+                          onClick={() => setActiveTab('install')}
+                          className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-all text-center"
                         >
-                          Enable Demo Sandbox Mode
+                          Go to Embed Center
+                        </button>
+                      </div>
+
+                      {/* Action 2: Verify live */}
+                      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4 flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <h4 className="font-extrabold text-xs text-indigo-300 uppercase tracking-wider font-mono">2. Verify Live Connection</h4>
+                          <p className="text-slate-400 text-[11px] leading-relaxed">Trigger live domain verification to check that your tracking script or DNS TXT records are active and transmitting telemetry.</p>
+                        </div>
+                        <button
+                          id="btn_analytics_verify_now"
+                          onClick={handleTestInstallation}
+                          disabled={testingInstallation}
+                          className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                        >
+                          {testingInstallation ? <RefreshCw className="animate-spin" size={12} /> : <Check size={12} />} Verify Live
                         </button>
                       </div>
                     </div>
@@ -4432,7 +3842,7 @@ async function makeSurvey() {
                     </div>
                     <div className="space-y-1 max-w-sm mx-auto">
                       <h4 className="text-slate-800 font-bold text-xs font-mono tracking-wider">AWAITING SYSTEM INTEGRATION</h4>
-                      <p className="text-slate-400 text-[11px]">Install the tracker or toggle Demo Sandbox Mode to unlock visitor quotes, revenue attribution charts, and behavioral AI recommendations.</p>
+                      <p className="text-slate-400 text-[11px]">Install the tracker on your website to unlock visitor feedback, drop-off reason analytics, and AI recommendations.</p>
                     </div>
                   </div>
                 </div>
@@ -4749,90 +4159,92 @@ async function makeSurvey() {
                       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
                           <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-                            <ShieldAlert className="text-rose-500 animate-pulse" size={22} />
+                            <ShieldAlert className="text-rose-500" size={22} />
                             Top Pain Points
                           </h2>
-                          <p className="text-slate-500 text-xs mt-1">The most common reasons customers don't convert.</p>
+                          <p className="text-slate-500 text-xs mt-1">Aggregated friction factors directly extracted from visitor survey responses.</p>
                         </div>
-                        <div className="bg-rose-50 text-rose-800 border border-rose-100 rounded-xl px-3.5 py-1.5 text-[11px] font-bold">
-                          🚨 Major Checkout Friction Detected
-                        </div>
+                        {totalResponsesCount > 0 && (
+                          <div className="bg-rose-50 text-rose-800 border border-rose-100 rounded-xl px-3.5 py-1.5 text-[11px] font-bold">
+                            {totalResponsesCount} Live Response{totalResponsesCount > 1 ? 's' : ''} Analyzed
+                          </div>
+                        )}
                       </div>
 
-                      {/* Stats Grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Primary Obstacle</span>
-                          <p className="text-2xl font-extrabold text-rose-600 mt-1">Price Friction</p>
-                          <p className="text-slate-500 text-[10px] mt-1">Found in 41% of abandonments</p>
+                      {totalResponsesCount === 0 ? (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3 shadow-sm">
+                          <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
+                            <ShieldAlert size={24} />
+                          </div>
+                          <h3 className="text-sm font-bold text-slate-800">No data yet</h3>
+                          <p className="text-xs text-slate-500 max-w-sm mx-auto">Waiting for installed website telemetry and visitor survey responses to analyze drop-off pain points.</p>
                         </div>
-                        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Checkout Hesitation Rate</span>
-                          <p className="text-2xl font-extrabold text-slate-900 mt-1 font-mono">68.4%</p>
-                          <p className="text-amber-600 text-[10px] font-semibold mt-1">⚠️ High user confusion detected</p>
-                        </div>
-                        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Estimated Revenue Blocked</span>
-                          <p className="text-2xl font-extrabold text-slate-900 mt-1 font-mono">$4,320.00</p>
-                          <p className="text-emerald-600 text-[10px] font-semibold mt-1">✨ Recoverable with price matching</p>
-                        </div>
-                      </div>
-
-                      {/* Interactive Chart */}
-                      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-                        <span className="text-[11px] font-bold uppercase text-slate-400 font-mono block">Abandonment Factor Breakdown</span>
-                        <div className="space-y-4">
-                          {[
-                            { name: 'Pricing Friction (Unclear total cost or coupon seeking)', value: 41, color: 'bg-rose-500' },
-                            { name: 'Just Browsing (Exploratory / comparison shopping)', value: 29, color: 'bg-slate-400' },
-                            { name: 'Unexpected Shipping Fee (Charged late in flow)', value: 20, color: 'bg-amber-500' },
-                            { name: 'Technical Checkout Usability (Form difficulties)', value: 10, color: 'bg-indigo-500' }
-                          ].map((item, i) => (
-                            <div key={i} className="space-y-1.5">
-                              <div className="flex justify-between text-xs font-bold text-slate-800">
-                                <span>{item.name}</span>
-                                <span>{item.value}%</span>
-                              </div>
-                              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                                <div className={`${item.color} h-full rounded-full transition-all duration-500`} style={{ width: `${item.value}%` }} />
-                              </div>
+                      ) : (
+                        <>
+                          {/* Stats Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Primary Obstacle</span>
+                              <p className="text-xl font-extrabold text-rose-600 mt-1 truncate">{dynamicReasons[0]?.reason || 'Feedback logged'}</p>
+                              <p className="text-slate-500 text-[10px] mt-1">{dynamicReasons[0]?.percentage || 0}% of recorded responses</p>
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                            <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Total Responses</span>
+                              <p className="text-2xl font-extrabold text-slate-900 mt-1 font-mono">{totalResponsesCount}</p>
+                              <p className="text-emerald-600 text-[10px] font-semibold mt-1">Real visitor submissions</p>
+                            </div>
+                            <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Response Rate</span>
+                              <p className="text-2xl font-extrabold text-slate-900 mt-1 font-mono">{calculatedRespRate}</p>
+                              <p className="text-indigo-600 text-[10px] font-semibold mt-1">Across verified sessions</p>
+                            </div>
+                          </div>
 
-                      {/* Customer Quotes */}
-                      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-                        <span className="text-[11px] font-bold uppercase text-slate-400 font-mono block">Real Customer Quotes & Feedback Logs</span>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs text-slate-700 min-w-[500px]">
-                            <thead>
-                              <tr className="border-b border-slate-100 text-slate-400 text-[10px] uppercase font-mono">
-                                <th className="pb-2">Quote</th>
-                                <th className="pb-2 text-center">Sentiment</th>
-                                <th className="pb-2 text-right">Context</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr className="border-b border-slate-50">
-                                <td className="py-3 font-medium text-slate-800">"The price is higher than standard shops; didn't see welcoming coupon."</td>
-                                <td className="py-3 text-center"><span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 font-bold text-[9px]">Negative</span></td>
-                                <td className="py-3 text-right text-slate-400 font-mono">Chrome / US</td>
-                              </tr>
-                              <tr className="border-b border-slate-50">
-                                <td className="py-3 font-medium text-slate-800">"$15 standard shipping cold pack is too costly."</td>
-                                <td className="py-3 text-center"><span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 font-bold text-[9px]">Negative</span></td>
-                                <td className="py-3 text-right text-slate-400 font-mono">Safari / CA</td>
-                              </tr>
-                              <tr>
-                                <td className="py-3 font-medium text-slate-800">"Mobile form required ZIP code twice, too slow."</td>
-                                <td className="py-3 text-center"><span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold text-[9px]">Neutral</span></td>
-                                <td className="py-3 text-right text-slate-400 font-mono">iOS / UK</td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                          {/* Factor Breakdown */}
+                          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                            <span className="text-[11px] font-bold uppercase text-slate-400 font-mono block">Feedback Factor Breakdown</span>
+                            <div className="space-y-4">
+                              {dynamicReasons.map((item, i) => (
+                                <div key={i} className="space-y-1.5">
+                                  <div className="flex justify-between text-xs font-bold text-slate-800">
+                                    <span>{item.reason}</span>
+                                    <span>{item.percentage}%</span>
+                                  </div>
+                                  <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                    <div className="bg-indigo-600 h-full rounded-full transition-all duration-500" style={{ width: `${item.percentage}%` }} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Customer Quotes */}
+                          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                            <span className="text-[11px] font-bold uppercase text-slate-400 font-mono block">Real Customer Quotes & Feedback Logs</span>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-xs text-slate-700 min-w-[500px]">
+                                <thead>
+                                  <tr className="border-b border-slate-100 text-slate-400 text-[10px] uppercase font-mono">
+                                    <th className="pb-2">Quote / Feedback</th>
+                                    <th className="pb-2 text-right">Timestamp</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {responses.map((resp, rIdx) => {
+                                    const text = typeof resp.answers === 'string' ? resp.answers : (resp.answers?.[0]?.answer || JSON.stringify(resp.answers || ''));
+                                    return (
+                                      <tr key={resp.id || rIdx} className="border-b border-slate-50">
+                                        <td className="py-3 font-medium text-slate-800">{text || 'Response received'}</td>
+                                        <td className="py-3 text-right text-slate-400 font-mono text-[10px]">{resp.createdAt ? new Date(resp.createdAt).toLocaleString() : 'Recent'}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -4844,40 +4256,45 @@ async function makeSurvey() {
                           <Sliders className="text-indigo-600" size={22} />
                           Feature Requests
                         </h2>
-                        <p className="text-slate-500 text-xs mt-1">Requested improvements ranked by demand.</p>
+                        <p className="text-slate-500 text-xs mt-1">Direct feedback and requested improvements submitted by site visitors.</p>
                       </div>
 
-                      {/* Upvote Board */}
-                      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-                        <span className="text-[11px] font-bold uppercase text-slate-400 font-mono block">Ranked Customer Feature Demand</span>
-                        <div className="space-y-3">
-                          {[
-                            { title: 'Apple Pay & Google Pay Express Integration', description: 'Enable one-click biometric authentication to purchase sour packs immediately.', votes: 124, status: 'Crucial Demand' },
-                            { title: 'Quantity-Based Tiered Discounts', description: 'Offer automatic bulk discounts (e.g. 10% off 4 packs, 15% off 12 packs).', votes: 84, status: 'Planned' },
-                            { title: 'Clear Estimated Shipping Times', description: 'Show estimated arrival date immediately on product page before checkout details.', votes: 59, status: 'Under Review' },
-                            { title: 'Reorder / Subscription Sub-services', description: 'Allow recurring bi-monthly shipments of local sour brewery items.', votes: 31, status: 'Evaluating' }
-                          ].map((feat, i) => (
-                            <div key={i} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 flex items-start justify-between gap-4">
-                              <div className="flex items-start gap-3">
-                                <div className="h-8 w-8 bg-indigo-50 text-indigo-700 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
-                                  #{i+1}
-                                </div>
-                                <div>
-                                  <h4 className="font-extrabold text-slate-900 text-xs">{feat.title}</h4>
-                                  <p className="text-slate-500 text-[11px] mt-1 leading-normal">{feat.description}</p>
-                                  <span className="inline-flex mt-2 px-2 py-0.5 rounded-full text-[8px] font-bold font-mono bg-indigo-100 text-indigo-800 uppercase">
-                                    {feat.status}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="text-right flex flex-col items-end">
-                                <span className="text-slate-900 text-sm font-extrabold font-mono">{feat.votes}</span>
-                                <span className="text-slate-400 text-[9px] font-mono uppercase">Request Upvotes</span>
-                              </div>
-                            </div>
-                          ))}
+                      {totalResponsesCount === 0 ? (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3 shadow-sm">
+                          <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
+                            <Sliders size={24} />
+                          </div>
+                          <h3 className="text-sm font-bold text-slate-800">No data yet</h3>
+                          <p className="text-xs text-slate-500 max-w-sm mx-auto">Waiting for installed website telemetry. Visitor feature requests will appear here once submitted.</p>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                          <span className="text-[11px] font-bold uppercase text-slate-400 font-mono block">Submitted Feedback Stream ({totalResponsesCount})</span>
+                          <div className="space-y-3">
+                            {responses.map((resp, i) => {
+                              const text = typeof resp.answers === 'string' ? resp.answers : (resp.answers?.[0]?.answer || JSON.stringify(resp.answers || ''));
+                              return (
+                                <div key={resp.id || i} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 flex items-start justify-between gap-4">
+                                  <div className="flex items-start gap-3">
+                                    <div className="h-8 w-8 bg-indigo-50 text-indigo-700 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
+                                      #{i+1}
+                                    </div>
+                                    <div>
+                                      <h4 className="font-extrabold text-slate-900 text-xs">{text || 'User Response'}</h4>
+                                      <span className="inline-flex mt-2 px-2 py-0.5 rounded-full text-[8px] font-bold font-mono bg-indigo-100 text-indigo-800 uppercase">
+                                        Verified Visitor
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="text-right flex flex-col items-end">
+                                    <span className="text-slate-400 text-[9px] font-mono">{resp.createdAt ? new Date(resp.createdAt).toLocaleDateString() : 'Recent'}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -4889,81 +4306,32 @@ async function makeSurvey() {
                           <ShoppingCart className="text-amber-500" size={22} />
                           Purchase Barriers
                         </h2>
-                        <p className="text-slate-500 text-xs mt-1">Pricing, trust, shipping, usability, or feature concerns.</p>
+                        <p className="text-slate-500 text-xs mt-1">Real obstacles identified from visitor hesitations and exit surveys.</p>
                       </div>
 
-                      {/* 4 Pillars bento grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-2">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">1. Pricing Concerns</span>
-                          <p className="text-sm font-bold text-slate-900">Hesitancy & Coupon Searching</p>
-                          <p className="text-slate-500 text-xs leading-relaxed">
-                            43% of bounces occur when visitors scroll down to input discount codes, indicating active price-hunting.
-                          </p>
-                          <span className="inline-flex px-2 py-0.5 bg-rose-50 text-rose-700 font-bold text-[9px] rounded-full uppercase">Impact: High</span>
+                      {totalResponsesCount === 0 ? (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3 shadow-sm">
+                          <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
+                            <ShoppingCart size={24} />
+                          </div>
+                          <h3 className="text-sm font-bold text-slate-800">No data yet</h3>
+                          <p className="text-xs text-slate-500 max-w-sm mx-auto">Waiting for installed website telemetry. Purchase barrier breakdowns will appear as visitors complete surveys.</p>
                         </div>
-                        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-2">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">2. Trust & Security Barriers</span>
-                          <p className="text-sm font-bold text-slate-900">Unclear Guarantees & Terms</p>
-                          <p className="text-slate-500 text-xs leading-relaxed">
-                            28% of first-time buyers exit on payment fields due to lack of standard security/SSL seals or money-back guarantees.
-                          </p>
-                          <span className="inline-flex px-2 py-0.5 bg-amber-50 text-amber-700 font-bold text-[9px] rounded-full uppercase">Impact: Medium</span>
+                      ) : (
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {dynamicReasons.map((item, idx) => (
+                              <div key={idx} className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-2">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Factor {idx + 1}</span>
+                                <p className="text-sm font-bold text-slate-900">{item.reason}</p>
+                                <p className="text-slate-500 text-xs leading-relaxed">
+                                  Accounted for {item.percentage}% of reported visitor friction.
+                                </p>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-2">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">3. Shipping & Postage Fees</span>
-                          <p className="text-sm font-bold text-slate-900">Unexpected Surcharges</p>
-                          <p className="text-slate-500 text-xs leading-relaxed">
-                            19% of abandonments complain that flat cold shipping packaging rates ($15) were not revealed upfront.
-                          </p>
-                          <span className="inline-flex px-2 py-0.5 bg-rose-50 text-rose-700 font-bold text-[9px] rounded-full uppercase">Impact: High</span>
-                        </div>
-                        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-2">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">4. Usability Obstacles</span>
-                          <p className="text-sm font-bold text-slate-900">Form Layout & Input Speeds</p>
-                          <p className="text-slate-500 text-xs leading-relaxed">
-                            10% of users rage-click or exit on iOS/mobile devices due to tight tap boundaries or too many typing fields.
-                          </p>
-                          <span className="inline-flex px-2 py-0.5 bg-blue-50 text-blue-700 font-bold text-[9px] rounded-full uppercase">Impact: Minor</span>
-                        </div>
-                      </div>
-
-                      {/* Traffic Channel Comparison Table */}
-                      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-                        <span className="text-[11px] font-bold uppercase text-slate-400 font-mono block">Barrier Breakdown by Traffic Channel</span>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs text-slate-700 min-w-[500px]">
-                            <thead>
-                              <tr className="border-b border-slate-100 text-slate-400 text-[10px] uppercase font-mono">
-                                <th className="pb-2">Traffic Channel</th>
-                                <th className="pb-2 text-center">Top Barrier</th>
-                                <th className="pb-2 text-center">Trigger Sensitivity</th>
-                                <th className="pb-2 text-right">Bounce Rate</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr className="border-b border-slate-50">
-                                <td className="py-3 font-bold text-slate-900">Google Paid Ads</td>
-                                <td className="py-3 text-center text-slate-600">Pricing Friction</td>
-                                <td className="py-3 text-center text-rose-600 font-bold">Extremely High</td>
-                                <td className="py-3 text-right font-mono font-bold text-slate-700">74.2%</td>
-                              </tr>
-                              <tr className="border-b border-slate-50">
-                                <td className="py-3 font-bold text-slate-900">Organic Search</td>
-                                <td className="py-3 text-center text-slate-600">Shipping Transparency</td>
-                                <td className="py-3 text-center text-slate-500 font-bold">Medium</td>
-                                <td className="py-3 text-right font-mono font-bold text-slate-700">41.8%</td>
-                              </tr>
-                              <tr>
-                                <td className="py-3 font-bold text-slate-900">Social Referrals</td>
-                                <td className="py-3 text-center text-slate-600">Trust Guarantee</td>
-                                <td className="py-3 text-center text-amber-600 font-bold">High</td>
-                                <td className="py-3 text-right font-mono font-bold text-slate-700">58.9%</td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )}
 
@@ -4976,21 +4344,20 @@ async function makeSurvey() {
 
              return (
                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                 {/* Sandbox Banner */}
                  {!isInstalled && (
-                   <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
+                   <div className="bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
                      <div className="flex items-center gap-3">
-                       <span className="text-xl">✨</span>
+                       <div className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
                        <div>
-                         <p className="font-extrabold text-slate-900">Viewing Demo Sandbox Mode</p>
-                         <p className="text-slate-600">Connect your live website tracking script to transition from simulated metrics to real visitor hesitation data.</p>
+                         <p className="font-extrabold text-slate-900">Awaiting Website Verification & Telemetry</p>
+                         <p className="text-slate-500 text-[11px]">Connect your website tracking script to record live customer sessions and feedback.</p>
                        </div>
                      </div>
                      <button
                        id="btn_sandbox_banner_verify_dev"
                        onClick={handleTestInstallation}
                        disabled={testingInstallation}
-                       className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-extrabold px-3 py-2 rounded-lg font-mono tracking-wide uppercase text-[10px] whitespace-nowrap cursor-pointer"
+                       className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold px-3 py-2 rounded-lg font-mono tracking-wide uppercase text-[10px] whitespace-nowrap cursor-pointer"
                      >
                        {testingInstallation ? 'Verifying...' : 'Verify Connection'}
                      </button>

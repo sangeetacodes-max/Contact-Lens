@@ -30,7 +30,9 @@ import {
   createUserWithEmailAndPassword, 
   sendPasswordResetEmail,
   signOut, 
-  signInWithPopup, 
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider 
 } from 'firebase/auth';
 import { 
@@ -300,6 +302,7 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [forgotEmailSent, setForgotEmailSent] = useState(false);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
 
   // Walkthrough state
   const [showWalkthrough, setShowWalkthrough] = useState(false);
@@ -403,32 +406,51 @@ export default function App() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !name) {
-      triggerToast('All fields are required', 'error');
+      triggerToast('Please fill in your name, email, and password', 'error');
+      return;
+    }
+    if (password.length < 6) {
+      triggerToast('Password must be at least 6 characters', 'error');
       return;
     }
 
     try {
       verifyFirebaseConfig();
+      setAuthSubmitting(true);
       triggerToast('Creating account...', 'info');
-      const result = await createUserWithEmailAndPassword(auth, email, password);
+      const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
 
       const firebaseUser = result.user;
+      const cleanEmail = firebaseUser.email || email.trim();
+      const cleanName = name.trim();
+      const wsId = `ws_${firebaseUser.uid.substring(0, 10)}`;
+
       const newUser: User = {
         id: firebaseUser.uid,
-        email,
-        name,
-        workspaceId: `ws_${firebaseUser.uid.substring(0, 10)}`,
-        isEmailVerified: firebaseUser.emailVerified || true,
+        email: cleanEmail,
+        name: cleanName,
+        workspaceId: wsId,
+        isEmailVerified: true,
         plan: 'Pro',
         billingPeriod: 'monthly',
         subscriptionActive: true,
         trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
       };
 
+      const newWorkspace: Workspace = {
+        id: wsId,
+        name: `${cleanName}'s Store`,
+        businessType: 'Ecommerce',
+        url: `https://${cleanEmail.split('@')[1] || 'mystore.com'}`,
+        goal: 'Conversion Optimization',
+        siteId: `cl_${firebaseUser.uid.substring(0, 8)}`
+      };
+
       try {
         await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+        await setDoc(doc(db, 'workspaces', wsId), newWorkspace);
       } catch (err) {
-        console.warn('[AUTH DEBUG] Firestore user write:', err);
+        console.warn('[AUTH DEBUG] Firestore initial record write:', err);
       }
 
       // Non-blocking backend token verify
@@ -441,11 +463,26 @@ export default function App() {
       } catch (e) {}
 
       setUser(newUser);
+      setWorkspace(newWorkspace);
+      localStorage.setItem('cl_user', JSON.stringify(newUser));
+      localStorage.setItem('cl_workspace', JSON.stringify(newWorkspace));
       setCurrentView('dashboard');
       triggerToast('🟢 Account created successfully! Welcome to CustomerLens.', 'success');
     } catch (err: any) {
       console.error('Registration error:', err);
-      triggerToast(err.message || 'Registration failed', 'error');
+      let msg = err.message || 'Registration failed.';
+      if (err.code === 'auth/email-already-in-use') {
+        msg = 'This email is already in use. Please switch to Sign In.';
+      } else if (err.code === 'auth/invalid-email') {
+        msg = 'Please enter a valid email address.';
+      } else if (err.code === 'auth/weak-password') {
+        msg = 'Password is too weak. Please use at least 6 characters.';
+      } else if (err.code === 'auth/operation-not-allowed') {
+        msg = 'Email/Password accounts are not enabled in Firebase Console.';
+      }
+      triggerToast(msg, 'error');
+    } finally {
+      setAuthSubmitting(false);
     }
   };
 
@@ -458,9 +495,64 @@ export default function App() {
 
     try {
       verifyFirebaseConfig();
+      setAuthSubmitting(true);
       triggerToast('Signing in...', 'info');
-      const result = await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(auth, email.trim(), password);
       const firebaseUser = result.user;
+
+      let appUser: User = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email || email.trim(),
+        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'CustomerLens User',
+        workspaceId: `ws_${firebaseUser.uid.substring(0, 10)}`,
+        isEmailVerified: true,
+        plan: 'Pro',
+        billingPeriod: 'monthly',
+        subscriptionActive: true,
+        trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
+      };
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          appUser = { ...appUser, ...(userDoc.data() as Partial<User>) };
+        }
+      } catch (dbErr) {
+        console.warn('[AUTH DEBUG] User doc lookup during sign in:', dbErr);
+      }
+
+      // Workspace resolution
+      let appWorkspace: Workspace | null = null;
+      try {
+        const savedWorkspace = localStorage.getItem('cl_workspace');
+        if (savedWorkspace) {
+          appWorkspace = JSON.parse(savedWorkspace);
+        } else if (appUser.workspaceId) {
+          const wsDoc = await getDoc(doc(db, 'workspaces', appUser.workspaceId));
+          if (wsDoc.exists()) {
+            appWorkspace = wsDoc.data() as Workspace;
+          }
+        }
+      } catch (wsErr) {
+        console.warn('[AUTH DEBUG] Workspace lookup during login:', wsErr);
+      }
+
+      if (!appWorkspace) {
+        const storeName = (appUser.name || 'My Store').replace(/User|Admin|Merchant/gi, '').trim() || 'My Online Store';
+        appWorkspace = {
+          id: appUser.workspaceId || `ws_${firebaseUser.uid.substring(0, 10)}`,
+          name: storeName,
+          businessType: 'Ecommerce',
+          url: 'https://mystore.com',
+          goal: 'Conversion Optimization',
+          siteId: `cl_${firebaseUser.uid.substring(0, 8)}`
+        };
+      }
+
+      setUser(appUser);
+      setWorkspace(appWorkspace);
+      localStorage.setItem('cl_user', JSON.stringify(appUser));
+      localStorage.setItem('cl_workspace', JSON.stringify(appWorkspace));
 
       // Non-blocking backend token verify
       try {
@@ -472,14 +564,20 @@ export default function App() {
       } catch (e) {}
 
       setCurrentView('dashboard');
-      triggerToast('🟢 Successfully signed in.', 'success');
+      triggerToast(`🟢 Welcome back, ${appUser.name}!`, 'success');
     } catch (err: any) {
       console.error('Sign-in error:', err);
       let msg = err.message || 'Sign in failed.';
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         msg = 'Invalid email or password.';
+      } else if (err.code === 'auth/invalid-email') {
+        msg = 'Please enter a valid email address.';
+      } else if (err.code === 'auth/too-many-requests') {
+        msg = 'Too many failed attempts. Please wait a moment and try again.';
       }
       triggerToast(msg, 'error');
+    } finally {
+      setAuthSubmitting(false);
     }
   };
 
@@ -490,7 +588,8 @@ export default function App() {
       return;
     }
     try {
-      await sendPasswordResetEmail(auth, email);
+      setAuthSubmitting(true);
+      await sendPasswordResetEmail(auth, email.trim());
       setForgotEmailSent(true);
       triggerToast('Password reset link sent to your email!', 'success');
     } catch (err: any) {
@@ -498,15 +597,20 @@ export default function App() {
       let msg = err.message || 'Failed to send password reset email.';
       if (err.code === 'auth/user-not-found') {
         msg = 'No account found with this email address.';
+      } else if (err.code === 'auth/invalid-email') {
+        msg = 'Please provide a valid email format.';
       }
       triggerToast(msg, 'error');
+    } finally {
+      setAuthSubmitting(false);
     }
   };
 
   const handleGoogleLogin = async () => {
     try {
       verifyFirebaseConfig();
-      triggerToast('Connecting to Google...', 'info');
+      setAuthSubmitting(true);
+      triggerToast('Connecting with Google...', 'info');
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({
         prompt: 'select_account'
@@ -515,6 +619,69 @@ export default function App() {
       const userCredential = await signInWithPopup(auth, provider);
       if (userCredential && userCredential.user) {
         const firebaseUser = userCredential.user;
+        const cleanEmail = firebaseUser.email || '';
+        const cleanName = firebaseUser.displayName || cleanEmail.split('@')[0] || 'CustomerLens User';
+        const wsId = `ws_${firebaseUser.uid.substring(0, 10)}`;
+
+        let appUser: User = {
+          id: firebaseUser.uid,
+          email: cleanEmail,
+          name: cleanName,
+          workspaceId: wsId,
+          isEmailVerified: true,
+          plan: 'Pro',
+          billingPeriod: 'monthly',
+          subscriptionActive: true,
+          trialEndsAt: new Date(Date.now() + 30 * 86400000).toISOString()
+        };
+
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            appUser = { ...appUser, ...(userDoc.data() as Partial<User>) };
+          } else {
+            await setDoc(doc(db, 'users', firebaseUser.uid), appUser);
+          }
+        } catch (dbErr) {
+          console.warn('[AUTH DEBUG] Firestore write during Google sign-in:', dbErr);
+        }
+
+        // Workspace resolution
+        let appWorkspace: Workspace | null = null;
+        try {
+          const savedWorkspace = localStorage.getItem('cl_workspace');
+          if (savedWorkspace) {
+            appWorkspace = JSON.parse(savedWorkspace);
+          } else if (appUser.workspaceId) {
+            const wsDoc = await getDoc(doc(db, 'workspaces', appUser.workspaceId));
+            if (wsDoc.exists()) {
+              appWorkspace = wsDoc.data() as Workspace;
+            }
+          }
+        } catch (wsErr) {
+          console.warn('[AUTH DEBUG] Workspace lookup during Google sign-in:', wsErr);
+        }
+
+        if (!appWorkspace) {
+          const storeName = (appUser.name || 'My Store').replace(/User|Admin|Merchant/gi, '').trim() || 'My Online Store';
+          appWorkspace = {
+            id: appUser.workspaceId || wsId,
+            name: storeName,
+            businessType: 'Ecommerce',
+            url: 'https://mystore.com',
+            goal: 'Conversion Optimization',
+            siteId: `cl_${firebaseUser.uid.substring(0, 8)}`
+          };
+          try {
+            await setDoc(doc(db, 'workspaces', appWorkspace.id), appWorkspace);
+          } catch (e) {}
+        }
+
+        setUser(appUser);
+        setWorkspace(appWorkspace);
+        localStorage.setItem('cl_user', JSON.stringify(appUser));
+        localStorage.setItem('cl_workspace', JSON.stringify(appWorkspace));
+
         try {
           const token = await firebaseUser.getIdToken();
           fetch('/api/auth/verify', {
@@ -524,11 +691,25 @@ export default function App() {
         } catch (e) {}
 
         setCurrentView('dashboard');
-        triggerToast('🟢 Signed in with Google securely.', 'success');
+        triggerToast(`🟢 Welcome, ${appUser.name}!`, 'success');
       }
     } catch (err: any) {
-      console.error('Google Login error:', err);
-      triggerToast(err.message || 'Google sign in failed.', 'error');
+      console.error('Google Sign In/Up error:', err);
+      let errorMsg = 'Google authentication could not be completed.';
+      if (err.code === 'auth/popup-blocked') {
+        errorMsg = 'Sign-in popup was blocked by your browser. Please allow popups for this site.';
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        errorMsg = 'Google sign-in popup was closed before completing.';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        errorMsg = 'This domain is not yet authorized in Firebase Auth Settings. Please add it to Authorized Domains.';
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        errorMsg = 'Sign-in was cancelled.';
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+      triggerToast(errorMsg, 'error');
+    } finally {
+      setAuthSubmitting(false);
     }
   };
 
@@ -595,8 +776,8 @@ export default function App() {
       triggerToast('🚀 Starting your CustomerLens setup process!', 'success');
     } else {
       pendingLaunchOnAuthRef.current = true;
-      setCurrentView('login');
-      triggerToast('Please sign in or use 1-Click Preview Sign In to continue!', 'info');
+      setCurrentView('register');
+      triggerToast('Please sign in or create an account to continue!', 'info');
     }
   };
 
@@ -608,8 +789,8 @@ export default function App() {
       triggerToast('🚀 Starting your Free Package setup!', 'success');
     } else {
       pendingLaunchOnAuthRef.current = true;
-      setCurrentView('login');
-      triggerToast('Please sign in or use 1-Click Preview Sign In to continue!', 'info');
+      setCurrentView('register');
+      triggerToast('Please sign in or create an account to continue!', 'info');
     }
   };
 
@@ -722,65 +903,6 @@ export default function App() {
               <p className="text-slate-400 text-xs mt-1">Advanced self-service CRO and exit-intent tracking</p>
             </div>
 
-            {/* 1-Click Preview Sign In Banner */}
-            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200/80 rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-900 font-mono flex items-center gap-1.5">
-                  <Sparkles size={14} className="text-indigo-600 animate-pulse" />
-                  Preview Quick Sign In
-                </span>
-                <span className="text-[10px] bg-indigo-600 text-white font-bold px-2 py-0.5 rounded-full">
-                  1-Click Ready
-                </span>
-              </div>
-              <p className="text-[11px] text-indigo-800/90 leading-tight">
-                Instantly access the live dashboard with full permissions in this preview.
-              </p>
-              
-              <button
-                id="btn_one_click_preview_signin"
-                type="button"
-                onClick={() => performDirectSessionSignIn('sangeeta.codes@gmail.com', 'Sangeeta Codes')}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-black py-2.5 px-4 rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <span>⚡ Sign In as sangeeta.codes@gmail.com</span>
-                <ArrowRight size={13} />
-              </button>
-
-              <div className="flex items-center gap-1.5 pt-1 text-[10px] text-slate-500 font-mono justify-center">
-                <span>Quick fill:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('sangeeta.codes@gmail.com');
-                    setPassword('password123');
-                    setName('Sangeeta Codes');
-                  }}
-                  className="text-indigo-600 hover:underline font-bold"
-                >
-                  sangeeta.codes
-                </button>
-                <span>•</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('merchant@mystore.com');
-                    setPassword('password123');
-                    setName('Store Merchant');
-                  }}
-                  className="text-indigo-600 hover:underline font-bold"
-                >
-                  merchant@mystore.com
-                </button>
-              </div>
-            </div>
-
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-slate-200"></div>
-              <span className="flex-shrink mx-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Or use credentials</span>
-              <div className="flex-grow border-t border-slate-200"></div>
-            </div>
-
             {/* FORGOT PASSWORD FORM */}
             {currentView === 'forgot' ? (
               <form onSubmit={handleForgotPassword} className="space-y-4">
@@ -811,7 +933,7 @@ export default function App() {
                 <button 
                   id="btn_submit_forgot"
                   type="submit" 
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-3 rounded-xl shadow-md transition-all"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-3 rounded-xl shadow-md transition-all cursor-pointer"
                 >
                   Send Recovery Link
                 </button>
@@ -820,7 +942,7 @@ export default function App() {
                   <button 
                     type="button" 
                     onClick={() => { setCurrentView('login'); setForgotEmailSent(false); }} 
-                    className="text-indigo-600 hover:underline font-semibold"
+                    className="text-indigo-600 hover:underline font-semibold cursor-pointer"
                   >
                     Back to Sign In
                   </button>
@@ -828,6 +950,34 @@ export default function App() {
               </form>
             ) : (
               <>
+                {/* Switcher Tabs */}
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    id="btn_tab_auth_signin"
+                    onClick={() => setCurrentView('login')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      currentView === 'login'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    id="btn_tab_auth_signup"
+                    onClick={() => setCurrentView('register')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      currentView === 'register'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Sign Up
+                  </button>
+                </div>
+
                 {/* Standard Email Auth Forms */}
                 <form onSubmit={currentView === 'register' ? handleRegister : handleLogin} className="space-y-4">
                   {currentView === 'register' && (
@@ -895,29 +1045,57 @@ export default function App() {
                   <button 
                     id={currentView === 'register' ? 'btn_submit_register' : 'btn_submit_login'}
                     type="submit" 
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1"
+                    disabled={authSubmitting}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    {currentView === 'register' ? 'Create Free Account' : 'Sign In'} <ArrowRight size={14} />
+                    {authSubmitting ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Please wait...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{currentView === 'register' ? 'Create Free Account' : 'Sign In'}</span>
+                        <ArrowRight size={14} />
+                      </>
+                    )}
                   </button>
                 </form>
 
                 {/* Third-party Sign In options */}
-                <div className="space-y-3.5 pt-4 border-t">
-                  <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 block text-center font-mono">Alternative Gateways</span>
+                <div className="space-y-3.5 pt-4 border-t border-slate-100">
+                  <div className="relative flex items-center justify-center">
+                    <div className="border-t border-slate-200 w-full" />
+                    <span className="bg-white px-3 text-[10px] uppercase font-bold tracking-wider text-slate-400 font-mono absolute">
+                      or continue with
+                    </span>
+                  </div>
                   
                   <button 
                     id="btn_google_login"
+                    type="button"
+                    disabled={authSubmitting}
                     onClick={handleGoogleLogin}
-                    className="w-full bg-slate-50 hover:bg-slate-100 border text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2.5 transition-all text-slate-800"
+                    className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2.5 transition-all text-slate-700 shadow-sm cursor-pointer disabled:opacity-50"
                   >
-                    <span className="text-sm">G</span> Continue with Google Login
+                    {authSubmitting ? (
+                      <div className="w-4 h-4 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                      </svg>
+                    )}
+                    <span>{currentView === 'register' ? 'Sign Up with Google' : 'Sign In with Google'}</span>
                   </button>
 
                   <div className="text-center text-xs text-slate-500 mt-2">
                     {currentView === 'register' ? (
-                      <p>Already have an account? <button onClick={() => setCurrentView('login')} className="text-indigo-600 hover:underline font-bold">Sign In</button></p>
+                      <p>Already have an account? <button type="button" onClick={() => setCurrentView('login')} className="text-indigo-600 hover:underline font-bold cursor-pointer">Sign In</button></p>
                     ) : (
-                      <p>New to CustomerLens? <button onClick={() => setCurrentView('register')} className="text-indigo-600 hover:underline font-bold">Register Free</button></p>
+                      <p>New to CustomerLens? <button type="button" onClick={() => setCurrentView('register')} className="text-indigo-600 hover:underline font-bold cursor-pointer">Register Free</button></p>
                     )}
                   </div>
                 </div>
