@@ -36,6 +36,25 @@ websitesRouter.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid domain format' });
     }
 
+    // Idempotent registration: return the existing record when this user
+    // has already registered the domain.
+    const existing = await store.getWebsite(cleanDomain);
+    if (existing) {
+      const isOwner =
+        existing.organization_id === authUser.organizationId ||
+        existing.user_id === authUser.userId ||
+        (existing.organization_id && authUser.organizationId && existing.organization_id.includes(authUser.userId));
+      if (!isOwner) {
+        return res.status(403).json({ error: 'Forbidden: This domain is registered to another account.' });
+      }
+      if (name && name !== existing.name) {
+        existing.name = name;
+        existing.updated_at = new Date().toISOString();
+        await store.saveWebsite(existing);
+      }
+      return res.json({ success: true, website: existing, existing: true });
+    }
+
     const siteId = `site_${cleanDomain.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
     const token = `cl_token_${Math.random().toString(36).substring(2, 12)}`;
 

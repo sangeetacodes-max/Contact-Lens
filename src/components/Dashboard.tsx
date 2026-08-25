@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   CheckCircle2, 
@@ -71,6 +71,56 @@ import {
 } from '../types';
 import CodeExporter from './CodeExporter';
 import { WebsiteVerification } from './WebsiteVerification';
+import { authenticatedFetch } from '../lib/firebase';
+
+// Maps a canonical server-side survey record into the dashboard Survey shape.
+function mapServerSurvey(s: any): Survey {
+  return {
+    id: s.id,
+    title: s.title || 'Survey',
+    displayOption: s.displayOption || s.design?.placement || 'In-Page Popup',
+    headline: s.headline || '',
+    questions: (Array.isArray(s.questions) ? s.questions : []).map((q: any, idx: number) => ({
+      id: q.id || `q${idx + 1}`,
+      type: q.type === 'rating' ? 'rating' : q.type === 'text' ? 'text' : 'multiple-choice',
+      questionText: q.questionText || q.question_text || '',
+      options: Array.isArray(q.options) ? q.options : []
+    })),
+    colors: s.design
+      ? {
+          background: s.design.background_color || '#ffffff',
+          text: s.design.text_color || '#0f172a',
+          accent: s.design.accent_color || '#4f46e5'
+        }
+      : (s.colors || { background: '#ffffff', text: '#0f172a', accent: '#4f46e5' }),
+    brandingEnabled: s.brandingEnabled !== false,
+    active: s.active !== undefined ? Boolean(s.active) : s.status === 'published',
+    createdAt: s.createdAt || s.created_at || new Date().toISOString()
+  };
+}
+
+// Maps a canonical server-side response record into the dashboard SurveyResponse shape.
+function mapServerResponse(r: any): SurveyResponse {
+  if (Array.isArray(r.answers)) {
+    return r as SurveyResponse;
+  }
+  return {
+    id: r.id,
+    surveyId: r.surveyId || r.survey_id || '',
+    timestamp: r.timestamp || r.created_at || new Date().toISOString(),
+    answers: [
+      {
+        questionId: r.question_id || 'q1',
+        answer: typeof r.answer === 'string' ? r.answer : JSON.stringify(r.answer ?? '')
+      }
+    ],
+    visitorMeta: r.visitorMeta || {
+      browser: 'Visitor',
+      country: '',
+      pageUrl: r.page_url || '/'
+    }
+  };
+}
 
 function ConversionOpportunitiesTab() {
   const [sessions, setSessions] = useState(10000);
@@ -266,29 +316,46 @@ export default function Dashboard({
     responsesCount?: number;
   }>>([]);
 
-  const handleTriggerManualBulletin = () => {
+  const mapNotificationRecordToLog = (record: any, fallbackType = 'AI Bulletin', responsesCount?: number) => {
+    const created = record.created_at ? new Date(record.created_at) : new Date();
+    return {
+      id: record.id || `notif-${Date.now()}`,
+      type: record.type === 'ai_insight' ? fallbackType : (record.type || fallbackType),
+      channel: 'Dashboard Bulletin & Email',
+      title: record.title || 'AI Insights Bulletin',
+      summary: record.message || '',
+      sentTime: created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      sentDate: created.toISOString().split('T')[0],
+      dayOfWeek: created.toLocaleDateString('en-US', { weekday: 'long' }),
+      recipient: user.email || 'store-admin@yourwebsite.com',
+      status: 'Delivered' as const,
+      responsesCount
+    };
+  };
+
+  const handleTriggerManualBulletin = async () => {
+    if (triggeringNewNotif) return;
     setTriggeringNewNotif(true);
-    setTimeout(() => {
-      const now = new Date();
-      const count = responses.length;
-      const newLog = {
-        id: `notif-${Date.now()}`,
-        type: 'On-Demand AI Bulletin',
-        channel: 'Dashboard Bulletin & Email',
-        title: 'Manual AI Insights Scan Bulletin',
-        summary: count === 0 
-          ? `Instant AI survey bulletin generated at ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Telemetry is listening on connected domain. 0 responses recorded so far.`
-          : `Instant AI survey bulletin generated at ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Scanned ${count} response(s) across active surveys.`,
-        sentTime: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        sentDate: now.toISOString().split('T')[0],
-        dayOfWeek: now.toLocaleDateString('en-US', { weekday: 'long' }),
-        recipient: user.email || 'store-admin@yourwebsite.com',
-        status: 'Delivered' as const,
-        responsesCount: count
-      };
-      setNotificationLogs(prev => [newLog, ...prev]);
+    try {
+      const res = await authenticatedFetch('/api/notifications/ai-bulletin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || `Bulletin service returned status ${res.status}`);
+      }
+      if (data.notification) {
+        setNotificationLogs(prev => [mapNotificationRecordToLog(data.notification, 'On-Demand AI Bulletin', data.responsesCount), ...prev]);
+      }
+      showNotification('🟢 AI insights bulletin generated from live telemetry and saved to your notification log.', 'success');
+    } catch (err: any) {
+      console.error('Manual bulletin generation failed:', err);
+      showNotification(err?.message || 'Could not generate AI bulletin right now. Please try again.', 'error');
+    } finally {
       setTriggeringNewNotif(false);
-    }, 800);
+    }
   };
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{ sender: 'user' | 'ai'; text: string; timestamp: Date }[]>(() => [
@@ -430,24 +497,31 @@ export default function Dashboard({
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Raw canonical response records from the backend (for real metric computation)
+  const rawResponsesRef = useRef<any[]>([]);
+
   // Sync real database telemetry from backend API
   useEffect(() => {
     let isMounted = true;
     const fetchTelemetry = async () => {
       try {
         const [surveysRes, respRes] = await Promise.all([
-          fetch('/api/surveys').then(r => r.ok ? r.json() : []).catch(() => []),
-          fetch('/api/surveys/responses').then(r => r.ok ? r.json() : { responses: [] }).catch(() => ({ responses: [] }))
+          authenticatedFetch('/api/surveys').then(r => r.ok ? r.json() : null).catch(() => null),
+          authenticatedFetch('/api/surveys/responses').then(r => r.ok ? r.json() : { responses: [] }).catch(() => ({ responses: [] }))
         ]);
 
         if (isMounted) {
-          if (Array.isArray(surveysRes) && surveysRes.length > 0) {
-            setSurveys(surveysRes);
-            localStorage.setItem('cl_surveys', JSON.stringify(surveysRes));
+          const serverSurveysRaw = Array.isArray(surveysRes) ? surveysRes : (surveysRes?.surveys || []);
+          if (serverSurveysRaw.length > 0) {
+            const mapped = serverSurveysRaw.map(mapServerSurvey);
+            setSurveys(mapped);
+            localStorage.setItem('cl_surveys', JSON.stringify(mapped));
           }
           if (respRes && Array.isArray(respRes.responses)) {
-            setResponses(respRes.responses);
-            localStorage.setItem('cl_responses', JSON.stringify(respRes.responses));
+            rawResponsesRef.current = respRes.responses;
+            const mappedResponses = respRes.responses.map(mapServerResponse);
+            setResponses(mappedResponses);
+            localStorage.setItem('cl_responses', JSON.stringify(mappedResponses));
           }
         }
       } catch (err) {
@@ -461,6 +535,70 @@ export default function Dashboard({
       isMounted = false;
       clearInterval(interval);
     };
+  }, []);
+
+  // Registered website record from the real backend database (used for data ingestion)
+  const registeredSiteRef = useRef<{ id: string; site_id: string; domain: string } | null>(null);
+
+  // Register the workspace website in the real database so tracking, survey
+  // publishing and response ingestion operate on real persisted records.
+  useEffect(() => {
+    let cancelled = false;
+    const registerWebsite = async () => {
+      const domain = (websites[0]?.url || workspace.url || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
+      if (!domain) return;
+      try {
+        const res = await authenticatedFetch('/api/websites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: workspace.name || domain, domain })
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data?.website?.id) {
+          registeredSiteRef.current = {
+            id: data.website.id,
+            site_id: data.website.site_id,
+            domain: data.website.domain || domain
+          };
+
+          // Align the install snippet's site ID with the real registered record
+          if (data.website.site_id && websites[0] && websites[0].siteId !== data.website.site_id) {
+            setWebsites(prev => {
+              if (prev.length === 0) return prev;
+              const updated = [{ ...prev[0], siteId: data.website.site_id }, ...prev.slice(1)];
+              localStorage.setItem('cl_websites', JSON.stringify(updated));
+              return updated;
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[WEBSITE REGISTRATION]', err);
+      }
+    };
+    registerWebsite();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.id, workspace.url]);
+
+  // Load the real persisted notification log from the backend
+  useEffect(() => {
+    let cancelled = false;
+    const loadNotifications = async () => {
+      try {
+        const res = await authenticatedFetch('/api/notifications');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data?.notifications) && data.notifications.length > 0) {
+          setNotificationLogs(data.notifications.map((n: any) => mapNotificationRecordToLog(n)));
+        }
+      } catch (err) {
+        console.warn('[NOTIFICATIONS SYNC]', err);
+      }
+    };
+    loadNotifications();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [recommendations, setRecommendations] = useState<AIRecommendation[]>([]);
@@ -654,12 +792,13 @@ export default function Dashboard({
     showNotification('🚀 Premium Dark Survey compiled & deployed live!', 'success');
 
     try {
-      const res = await fetch('/api/surveys/publish', {
+      const res = await authenticatedFetch('/api/surveys/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newSurveyObj,
-          siteId: targetSiteId,
+          siteId: registeredSiteRef.current?.site_id || targetSiteId,
+          domain: registeredSiteRef.current?.domain || websites[0]?.url || workspace.url,
           status: 'published'
         })
       });
@@ -722,12 +861,13 @@ export default function Dashboard({
       showNotification('AI Survey successfully synchronized & activated in builder!', 'success');
 
       // Publish to server backend for live tracking
-      fetch('/api/surveys/publish', {
+      authenticatedFetch('/api/surveys/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newSurvey,
           siteId: newConnectedWeb.siteId,
+          domain: cleanUrl,
           status: 'published'
         })
       }).catch(console.warn);
@@ -823,25 +963,27 @@ export default function Dashboard({
     fetchWorkspaceAnalytics();
 
     // Fetch surveys from server
-    fetch('/api/surveys')
+    authenticatedFetch('/api/surveys')
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data && data.surveys && Array.isArray(data.surveys) && data.surveys.length > 0) {
+        const serverSurveysRaw = Array.isArray(data) ? data : (data?.surveys || []);
+        if (serverSurveysRaw.length > 0) {
+          const mapped = serverSurveysRaw.map(mapServerSurvey);
           setSurveys(prev => {
-            const existingIds = new Set(prev.map(s => s.id));
-            const newSurveys = data.surveys.filter((s: any) => !existingIds.has(s.id));
-            return [...newSurveys, ...prev];
+            const existingIds = new Set(mapped.map((s: Survey) => s.id));
+            const localOnly = prev.filter(s => !existingIds.has(s.id) && !s.id.startsWith('survey-') && !s.id.startsWith('ai-survey-'));
+            return [...mapped, ...localOnly];
           });
         }
       })
       .catch(console.warn);
 
     // Fetch real survey responses from server
-    fetch('/api/surveys/responses')
+    authenticatedFetch('/api/surveys/responses')
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data && Array.isArray(data.responses)) {
-          setResponses(data.responses);
+          setResponses(data.responses.map(mapServerResponse));
         }
       })
       .catch(console.warn);
@@ -1064,6 +1206,23 @@ export default function Dashboard({
     setSelectedSurveyId(newSurvey.id);
     setNewSurveyTitle('');
     showNotification('🟢 New survey created with customizable default answers!', 'success');
+
+    // Persist the survey to the real backend database
+    authenticatedFetch('/api/surveys/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: newSurvey.id,
+        title: newSurvey.title,
+        headline: newSurvey.headline,
+        questions: newSurvey.questions,
+        colors: newSurvey.colors,
+        placement: newSurvey.displayOption,
+        siteId: registeredSiteRef.current?.site_id || websites[0]?.siteId,
+        domain: registeredSiteRef.current?.domain || websites[0]?.url || workspace.url,
+        status: 'published'
+      })
+    }).catch(err => console.warn('Survey persistence warning:', err));
   };
 
   // Simulator submit handler
@@ -1091,7 +1250,49 @@ export default function Dashboard({
     setSimulatorSelectedAnswer('');
     setSimulatorFeedbackText('');
     showNotification('Survey feedback received! Adding to analytics databases.', 'success');
-    
+
+    // Persist each answer to the real responses database
+    const persistSimulatedResponse = async () => {
+      const siteId = registeredSiteRef.current?.site_id
+        || registeredSiteRef.current?.domain
+        || (websites[0]?.url || workspace.url || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
+      if (!siteId) return;
+
+      const questionTextFor = (questionId: string, fallback: string) => {
+        const q = (activeSurvey.questions || []).find((x: any) => x.id === questionId) as any;
+        return q?.questionText || q?.question_text || fallback;
+      };
+
+      const answersPayload = [
+        { questionId: 'q1', questionText: questionTextFor('q1', 'What almost stopped you today?'), answer: newResp.answers[0].answer },
+        { questionId: 'q2', questionText: questionTextFor('q2', 'Rating'), answer: newResp.answers[1].answer },
+        { questionId: 'q3', questionText: questionTextFor('q3', 'Additional feedback'), answer: newResp.answers[2].answer }
+      ].filter(a => a.answer && a.answer.trim());
+
+      try {
+        await Promise.all(answersPayload.map(a =>
+          fetch('/api/responses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              site_id: siteId,
+              survey_id: activeSurvey.id,
+              session_id: newResp.id,
+              question_id: a.questionId,
+              question_text: a.questionText,
+              answer: a.answer,
+              page_url: '/simulated-exit'
+            })
+          }).then(r => {
+            if (!r.ok) throw new Error(`ingest failed: ${r.status}`);
+          })
+        ));
+      } catch (err) {
+        console.warn('Simulated response persistence warning:', err);
+      }
+    };
+    persistSimulatedResponse();
+
     // Automatically re-trigger analysis
     setTimeout(() => {
       triggerExitAnalysisLoad();
@@ -4074,9 +4275,26 @@ async function makeSurvey() {
 
             // Compute real report data strictly from stored responses
             const totalResponsesCount = responses.length;
-            const totalSessionsCount = totalResponsesCount > 0 ? totalResponsesCount * 2 : 0;
+            // Real session count: unique visitor sessions observed in the raw
+            // response records (falls back to response count for legacy records).
+            const rawRecs = rawResponsesRef.current;
+            const uniqueSessionIds = new Set(
+              rawRecs.map((r: any) => r.session_id).filter(Boolean)
+            );
+            const totalSessionsCount = uniqueSessionIds.size > 0 ? uniqueSessionIds.size : totalResponsesCount;
             const triggersCount = totalResponsesCount;
             const calculatedRespRate = totalSessionsCount > 0 ? `${Math.min(100, Math.round((totalResponsesCount / totalSessionsCount) * 100))}%` : '0%';
+
+            // Real sentiment score from AI-tagged response records
+            const sentimentCounts = { positive: 0, neutral: 0, negative: 0 };
+            rawRecs.forEach((r: any) => {
+              if (r.sentiment === 'positive') sentimentCounts.positive++;
+              else if (r.sentiment === 'negative') sentimentCounts.negative++;
+              else sentimentCounts.neutral++;
+            });
+            const realSentimentScore = totalResponsesCount > 0
+              ? Math.round(((sentimentCounts.positive * 100) + (sentimentCounts.neutral * 60)) / totalResponsesCount)
+              : 0;
 
             const reasonsMap: { [k: string]: number } = {};
             responses.forEach(r => {
@@ -4104,7 +4322,7 @@ async function makeSurvey() {
               reasons: dynamicReasons.length > 0 ? dynamicReasons : [{ reason: 'No responses yet', percentage: 0 }],
               complaints: dynamicComplaints.length > 0 ? dynamicComplaints : ["No responses yet."],
               sentiment: totalResponsesCount > 0 ? "Analyzing real feedback" : "Awaiting customer feedback",
-              sentimentScore: totalResponsesCount > 0 ? 80 : 0,
+              sentimentScore: realSentimentScore,
               suggestions: dynamicReasons.length > 0 
                 ? [{ issue: dynamicReasons[0].reason, recommendation: "Review visitor feedback and optimize friction point.", impact: "High Impact" }]
                 : [{ issue: "Awaiting visitor responses", recommendation: "Install tracking snippet on your website to start capturing real feedback.", impact: "Initial Setup" }]
@@ -4118,11 +4336,38 @@ async function makeSurvey() {
               setTimeout(() => showNotification('📊 Assembling customer behavior logs...', 'info'), 500);
               setTimeout(() => showNotification('💸 Extracting Revenue Attribution margins...', 'info'), 1300);
               setTimeout(() => showNotification('🤖 Compiling OpenAI CRO Insights summary...', 'info'), 2100);
-              setTimeout(() => {
-                setIsDispatchingReport(false);
-                setDispatchSuccess(true);
-                showNotification('📬 Daily Executive Digest successfully dispatched to sangeeta.codes@gmail.com!', 'success');
-              }, 3000);
+
+              // Real digest generation: AI compiles the digest from actual stored
+              // telemetry and it is persisted to the notification center.
+              const dispatchDigest = async () => {
+                try {
+                  const res = await authenticatedFetch('/api/notifications/digest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      businessName: workspace.name,
+                      goal: workspace.goal,
+                      recipientEmail: user.email
+                    })
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) {
+                    throw new Error(data.error || `Digest service returned status ${res.status}`);
+                  }
+                  if (data.notification) {
+                    setNotificationLogs(prev => [mapNotificationRecordToLog(data.notification, 'Daily Executive Digest'), ...prev]);
+                  }
+                  setIsDispatchingReport(false);
+                  setDispatchSuccess(true);
+                  showNotification(`📬 Daily Executive Digest successfully dispatched to ${user.email || 'sangeeta.codes@gmail.com'}!`, 'success');
+                } catch (err: any) {
+                  console.error('Digest dispatch failed:', err);
+                  setIsDispatchingReport(false);
+                  showNotification(err?.message || 'Could not compile the executive digest right now. Please try again.', 'error');
+                }
+              };
+
+              setTimeout(dispatchDigest, 3000);
             };
 
             if (isAiPublished) {

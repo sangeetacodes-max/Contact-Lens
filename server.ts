@@ -200,6 +200,7 @@ app.use(async (req, res, next) => {
 
       const envBindings = {
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
         SHOPIFY_API_KEY: process.env.SHOPIFY_API_KEY,
         SHOPIFY_API_SECRET: process.env.SHOPIFY_API_SECRET,
         PAYPAL_CLIENT_ID: process.env.PAYPAL_CLIENT_ID,

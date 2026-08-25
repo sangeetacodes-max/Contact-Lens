@@ -1,3 +1,4 @@
+import { GoogleGenAI } from '@google/genai';
 import { SurveyResponseRecord, AiInsight, NotificationRecord, store, SurveyQuestion, SurveyDesign, SurveyTriggers } from '../db/schema';
 
 function cleanJsonText(raw: string): string {
@@ -30,23 +31,50 @@ function parseJsonStrict<T = any>(raw: string): T {
 }
 
 export class OpenAIService {
-  private getApiKey(): string {
+  private geminiClient: GoogleGenAI | null = null;
+
+  private getOpenAIKey(): string | null {
     const key = process.env.OPENAI_API_KEY;
     if (!key || key.includes('****') || !key.trim()) {
-      throw new Error('OPENAI_KEY_NOT_CONFIGURED');
+      return null;
+    }
+    return key.trim();
+  }
+
+  private getGeminiKey(): string | null {
+    const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (!key || key.includes('****') || !key.trim()) {
+      return null;
     }
     return key.trim();
   }
 
   /**
-   * Internal Completion (Strictly OpenAI Only)
+   * Real AI Completion. Uses OpenAI when OPENAI_API_KEY is configured,
+   * otherwise falls back to the Gemini key injected by the host environment.
    */
   async createCompletion(
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
     jsonMode = false
   ): Promise<string> {
-    const apiKey = this.getApiKey();
+    const openAiKey = this.getOpenAIKey();
+    if (openAiKey) {
+      return this.createOpenAICompletion(openAiKey, messages, jsonMode);
+    }
 
+    const geminiKey = this.getGeminiKey();
+    if (geminiKey) {
+      return this.createGeminiCompletion(geminiKey, messages, jsonMode);
+    }
+
+    throw new Error('OPENAI_KEY_NOT_CONFIGURED');
+  }
+
+  private async createOpenAICompletion(
+    apiKey: string,
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    jsonMode: boolean
+  ): Promise<string> {
     const body: any = {
       model: 'gpt-4o-mini',
       messages,
@@ -74,6 +102,49 @@ export class OpenAIService {
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
       throw new Error('Empty response from OpenAI');
+    }
+    return cleanJsonText(content.trim());
+  }
+
+  private async createGeminiCompletion(
+    apiKey: string,
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    jsonMode: boolean
+  ): Promise<string> {
+    if (!this.geminiClient) {
+      this.geminiClient = new GoogleGenAI({ apiKey });
+    }
+
+    const systemInstruction = messages
+      .filter(m => m.role === 'system')
+      .map(m => m.content)
+      .join('\n\n')
+      .trim();
+
+    const contents = messages
+      .filter(m => m.role !== 'system')
+      .map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+
+    if (contents.length === 0) {
+      contents.push({ role: 'user', parts: [{ text: systemInstruction || 'Hello' }] });
+    }
+
+    const response = await this.geminiClient.models.generateContent({
+      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      contents,
+      config: {
+        ...(systemInstruction ? { systemInstruction } : {}),
+        ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
+        temperature: 0.7
+      }
+    });
+
+    const content = response.text;
+    if (!content) {
+      throw new Error('Empty response from Gemini');
     }
     return cleanJsonText(content.trim());
   }
@@ -369,6 +440,99 @@ Be concise, helpful, and professional.`;
     ];
 
     return await this.createCompletion(fullMessages, false);
+  }
+
+  /**
+   * Generates a real AI insights bulletin from the merchant's actual stored survey responses.
+   */
+  async generateInsightsBulletin(params: {
+    businessName: string;
+    domain: string;
+    responses: SurveyResponseRecord[];
+    surveysCount: number;
+  }): Promise<{ title: string; summary: string }> {
+    const sampleText = params.responses
+      .slice(0, 25)
+      .map(r => `[Q: ${r.question_text}] Ans: ${r.answer} (Page: ${r.page_url || '/'})`)
+      .join('\n');
+
+    const prompt = params.responses.length > 0
+      ? `Business: "${params.businessName}" (${params.domain}).
+Here are ${params.responses.length} real customer survey responses collected by the live tracker:
+${sampleText}
+
+Write a short on-demand AI insights bulletin for the merchant.
+Return JSON:
+{
+  "title": "Short bulletin headline (max 8 words)",
+  "summary": "2-3 sentence synthesis of what real visitors are saying, the top friction point, and one concrete action to take."
+}`
+      : `Business: "${params.businessName}" (${params.domain}).
+The live tracker is installed but 0 survey responses have been recorded so far across ${params.surveysCount} survey(s).
+
+Write a short on-demand AI insights bulletin for the merchant.
+Return JSON:
+{
+  "title": "Short bulletin headline (max 8 words)",
+  "summary": "2-3 sentences confirming telemetry is listening, that no responses are recorded yet, and one concrete action to get the first responses (e.g. test the exit survey as a visitor)."
+}`;
+
+    const raw = await this.createCompletion(
+      [
+        { role: 'system', content: 'You are CustomerLens AI, an executive customer-intelligence analyst. Never invent visitor data; only use what is provided.' },
+        { role: 'user', content: prompt }
+      ],
+      true
+    );
+
+    const parsed = parseJsonStrict<{ title?: string; summary?: string }>(raw);
+    return {
+      title: parsed.title || 'AI Insights Bulletin',
+      summary: parsed.summary || 'Bulletin generated from live telemetry.'
+    };
+  }
+
+  /**
+   * Generates a real executive digest email body from actual stored telemetry.
+   */
+  async generateExecutiveDigest(params: {
+    businessName: string;
+    domain: string;
+    goal?: string;
+    recipientEmail?: string;
+    responses: SurveyResponseRecord[];
+    eventsCount: number;
+    surveysCount: number;
+  }): Promise<{ subject: string; body: string }> {
+    const sampleText = params.responses
+      .slice(0, 30)
+      .map(r => `[Q: ${r.question_text}] Ans: ${r.answer}`)
+      .join('\n');
+
+    const prompt = `Business: "${params.businessName}" (${params.domain}) — goal: "${params.goal || 'Increase conversion'}".
+Real telemetry so far: ${params.eventsCount} tracked visitor event(s), ${params.responses.length} survey response(s), ${params.surveysCount} survey(s).
+${sampleText ? `Customer responses:\n${sampleText}` : 'No customer responses collected yet.'}
+
+Write the daily executive digest for the merchant.
+Return JSON:
+{
+  "subject": "Email subject line",
+  "body": "Plain-text digest body: key metrics, top customer pain points (only from the real responses above), sentiment read, and 1-3 prioritized recommendations. Do not fabricate numbers."
+}`;
+
+    const raw = await this.createCompletion(
+      [
+        { role: 'system', content: 'You are CustomerLens AI Analytics Engine writing a factual daily executive digest. Never fabricate metrics.' },
+        { role: 'user', content: prompt }
+      ],
+      true
+    );
+
+    const parsed = parseJsonStrict<{ subject?: string; body?: string }>(raw);
+    return {
+      subject: parsed.subject || `Daily Executive Digest — ${params.businessName}`,
+      body: parsed.body || 'Digest generated from live telemetry.'
+    };
   }
 }
 

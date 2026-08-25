@@ -37,28 +37,55 @@ function safeJsonParse<T = any>(raw: string): T {
 
 export class OpenAIService {
   private apiKey?: string;
+  private geminiKey?: string;
 
   constructor(env?: Partial<Env>) {
     this.apiKey = env?.OPENAI_API_KEY || (typeof process !== 'undefined' ? process.env?.OPENAI_API_KEY : undefined);
+    this.geminiKey = env?.GEMINI_API_KEY || (typeof process !== 'undefined' ? (process.env?.GEMINI_API_KEY || process.env?.GOOGLE_API_KEY) : undefined);
   }
 
-  private getApiKey(): string {
+  private getApiKey(): string | null {
     const key = this.apiKey;
     if (!key || key.includes('****') || !key.trim()) {
-      throw new ApiError('OpenAI API key not configured or unavailable', 503, 'AI_UNAVAILABLE');
+      return null;
+    }
+    return key.trim();
+  }
+
+  private getGeminiKey(): string | null {
+    const key = this.geminiKey;
+    if (!key || key.includes('****') || !key.trim()) {
+      return null;
     }
     return key.trim();
   }
 
   /**
-   * Universal AI Completion (Strictly OpenAI Only)
+   * Universal AI Completion. Uses OpenAI when configured, otherwise the
+   * Gemini key provided by the host environment.
    */
   async createCompletion(
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
     jsonMode = false
   ): Promise<string> {
     const apiKey = this.getApiKey();
+    if (apiKey) {
+      return this.createOpenAICompletion(apiKey, messages, jsonMode);
+    }
 
+    const geminiKey = this.getGeminiKey();
+    if (geminiKey) {
+      return this.createGeminiCompletion(geminiKey, messages, jsonMode);
+    }
+
+    throw new ApiError('AI API key not configured or unavailable', 503, 'AI_UNAVAILABLE');
+  }
+
+  private async createOpenAICompletion(
+    apiKey: string,
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    jsonMode: boolean
+  ): Promise<string> {
     const body: any = {
       model: 'gpt-4o-mini',
       messages,
@@ -92,6 +119,65 @@ export class OpenAIService {
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
       throw new ApiError('Empty response from OpenAI', 503, 'AI_UNAVAILABLE');
+    }
+    return cleanJsonText(content.trim());
+  }
+
+  private async createGeminiCompletion(
+    apiKey: string,
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    jsonMode: boolean
+  ): Promise<string> {
+    const systemInstruction = messages
+      .filter(m => m.role === 'system')
+      .map(m => m.content)
+      .join('\n\n')
+      .trim();
+
+    const contents = messages
+      .filter(m => m.role !== 'system')
+      .map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+
+    if (contents.length === 0) {
+      contents.push({ role: 'user', parts: [{ text: systemInstruction || 'Hello' }] });
+    }
+
+    const model = (typeof process !== 'undefined' && process.env?.GEMINI_MODEL) || 'gemini-2.5-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
+        body: JSON.stringify({
+          contents,
+          ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
+          generationConfig: {
+            temperature: 0.7,
+            ...(jsonMode ? { responseMimeType: 'application/json' } : {})
+          }
+        })
+      });
+    } catch (err: any) {
+      throw new ApiError(`Gemini network error: ${err?.message || 'Connection failed'}`, 503, 'AI_UNAVAILABLE');
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new ApiError(`Gemini API error (${response.status}): ${errText}`, 503, 'AI_UNAVAILABLE');
+    }
+
+    const data = (await response.json()) as any;
+    const content = data.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || '').join('') || '';
+    if (!content) {
+      throw new ApiError('Empty response from Gemini', 503, 'AI_UNAVAILABLE');
     }
     return cleanJsonText(content.trim());
   }
