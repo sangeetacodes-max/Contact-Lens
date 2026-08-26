@@ -428,11 +428,17 @@ Output JSON array:
   }
 
   /**
-   * AI Chat Assistant
+   * AI Chat Assistant — sharp, to the point, grounded.
    */
   async chatAssistant(messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) {
-    const systemPrompt = `You are CustomerLens AI Assistant. You help e-commerce and SaaS founders optimize conversion rates, reduce churn, and edit surveys.
-Be concise, helpful, and professional.`;
+    const systemPrompt = `You are CustomerLens AI — a razor-sharp conversion and customer-intelligence copilot for e-commerce and SaaS founders.
+
+Communication style:
+- Direct and to the point. No filler, no fluff, no generic advice.
+- Clever: spot the real issue behind the question and name it.
+- Answer in 1-3 short sentences or up to 3 tight bullet points.
+- Every recommendation must be concrete and actionable (what to change, where, and why it lifts conversion).
+- When asked about surveys, suggest exact question wording and trigger logic.`;
 
     const fullMessages = [
       { role: 'system' as const, content: systemPrompt },
@@ -440,6 +446,239 @@ Be concise, helpful, and professional.`;
     ];
 
     return await this.createCompletion(fullMessages, false);
+  }
+
+  /**
+   * Chatbot insights chat — grounded in the merchant's REAL stored telemetry,
+   * concise and clever by design.
+   */
+  async chatBotInsights(params: {
+    message: string;
+    history?: Array<{ sender?: string; role?: string; text?: string; content?: string }>;
+    context: {
+      businessName: string;
+      domain: string;
+      responsesCount: number;
+      eventsCount: number;
+      activeSurveys: number;
+      sentiment: { positive: number; neutral: number; negative: number };
+      topCategories: string[];
+      recentAnswers: string[];
+    };
+  }): Promise<string> {
+    const { context } = params;
+    const historyText = (params.history || [])
+      .slice(-10)
+      .map(m => `${(m.sender === 'ai' || m.role === 'assistant') ? 'AI' : 'User'}: ${m.text || m.content || ''}`)
+      .join('\n');
+
+    const systemPrompt = `You are CustomerLens Core Analytics AI for the business "${context.businessName}" (${context.domain}).
+
+LIVE DATA (real, from their tracking snippet — never invent other numbers):
+- Survey responses collected: ${context.responsesCount}
+- Visitor events tracked: ${context.eventsCount}
+- Active published surveys: ${context.activeSurveys}
+- Sentiment split: ${context.sentiment.positive} positive / ${context.sentiment.neutral} neutral / ${context.sentiment.negative} negative
+- Top feedback categories: ${context.topCategories.length > 0 ? context.topCategories.join(', ') : 'none yet'}
+- Recent real visitor answers: ${context.recentAnswers.length > 0 ? context.recentAnswers.map(a => `"${a}"`).join(' | ') : 'none yet'}
+
+CRITICAL COMMUNICATION DIRECTIVES:
+- Keep answers short, punchy, and to the point — 1-3 sentences or up to 3 tight bullets.
+- Be clever: connect the dots in their real data and say something insightful, not generic.
+- Ground every claim in the live data above. If there is no data yet, say so plainly and tell them the single fastest way to get some.
+- Be persuasive, diplomatic, and friendly. A touch of wit is welcome.
+- End with one clear, actionable next step when relevant.
+
+${historyText ? `Conversation so far:\n${historyText}` : ''}`;
+
+    return await this.createCompletion([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: params.message }
+    ], false);
+  }
+
+  /**
+   * Real website scan: fetches the site's HTML and produces a tailored survey
+   * configuration in the exact shape the dashboard renders.
+   */
+  async scanWebsiteForSurvey(params: { websiteUrl: string; businessType?: string }): Promise<{
+    headline: string;
+    suggestedQuestions: Array<{ id: string; type: string; questionText: string; options?: string[] }>;
+    behavioralInsights: Array<{ title: string; description: string }>;
+    overallStrategy: string;
+  }> {
+    const targetUrl = params.websiteUrl.startsWith('http') ? params.websiteUrl : `https://${params.websiteUrl}`;
+
+    let scrapedText = '';
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const fetchRes = await fetch(targetUrl, {
+        headers: { 'User-Agent': 'CustomerLens-Scanner/1.0', 'Accept': 'text/html' },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (fetchRes.ok) {
+        const html = await fetchRes.text();
+        scrapedText = html
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .substring(0, 3500);
+      }
+    } catch {
+      scrapedText = '';
+    }
+
+    const prompt = `Website URL: ${targetUrl}
+Business Type: "${params.businessType || 'General Business'}"
+${scrapedText ? `Real scraped page content:\n${scrapedText}` : 'The site could not be scraped; infer from the URL and business type only.'}
+
+Perform a UX/CRO audit and design the perfect micro-survey for this exact website.
+Output strictly valid JSON:
+{
+  "headline": "Persuasive visitor-facing survey headline tailored to this brand",
+  "suggestedQuestions": [
+    { "id": "q1", "type": "multiple-choice", "questionText": "Sharply targeted question", "options": ["Option A", "Option B", "Option C", "Option D"] },
+    { "id": "q2", "type": "rating", "questionText": "Short rating question" },
+    { "id": "q3", "type": "text", "questionText": "Open-ended follow-up question" }
+  ],
+  "behavioralInsights": [
+    { "title": "Specific friction point on this site", "description": "Why visitors drop off here and what the survey will reveal" }
+  ],
+  "overallStrategy": "2-sentence conversion strategy for this exact website."
+}`;
+
+    const raw = await this.createCompletion(
+      [
+        { role: 'system', content: 'You are CustomerLens Core AI, a senior CRO auditor. Base insights on the real scraped content when provided; never fabricate site-specific facts.' },
+        { role: 'user', content: prompt }
+      ],
+      true
+    );
+
+    const parsed = parseJsonStrict<any>(raw);
+    return {
+      headline: parsed.headline || 'Wait! Before you go...',
+      suggestedQuestions: Array.isArray(parsed.suggestedQuestions) ? parsed.suggestedQuestions : [],
+      behavioralInsights: Array.isArray(parsed.behavioralInsights) ? parsed.behavioralInsights : [],
+      overallStrategy: parsed.overallStrategy || 'Collect targeted exit feedback to uncover and fix conversion friction.'
+    };
+  }
+
+  /**
+   * Custom survey generator from a free-form merchant prompt — returns the exact
+   * shape the dashboard wizard consumes.
+   */
+  async generateCustomSurveySpec(params: { prompt: string; domain?: string; businessName?: string; businessType?: string }): Promise<{
+    surveyName: string;
+    headline: string;
+    description?: string;
+    goal: string;
+    bestTrigger: string;
+    thankYouMessage?: string;
+    questions: Array<{ id: string; type: string; questionText: string; options?: string[] }>;
+    design?: { backgroundColor?: string; textColor?: string; accentColor?: string };
+    estimatedCompletionTime: string;
+    deliveryMethod: string;
+    recommendedSurveyType: string;
+  }> {
+    const prompt = `Merchant's request: "${params.prompt}"
+Business: "${params.businessName || params.domain || 'My Website'}" (${params.domain || 'mywebsite.com'})
+Business type: "${params.businessType || 'e-commerce / SaaS'}"
+
+Design the single best micro-survey for this exact situation.
+Rules:
+- 1-3 questions maximum, each one razor-targeted at the merchant's stated problem.
+- Use "multiple-choice" (with 3-4 realistic options), "rating", or "text" question types.
+- Choose the trigger and delivery method that actually fits the request.
+
+Output strictly valid JSON:
+{
+  "surveyName": "Concise internal survey title",
+  "headline": "Engaging visitor-facing headline",
+  "description": "One-sentence visitor-facing explanation",
+  "goal": "The measurable objective",
+  "bestTrigger": "When and why to trigger (e.g. 'Exit intent when cursor leaves viewport')",
+  "thankYouMessage": "Short warm thank-you",
+  "questions": [
+    { "id": "q1", "type": "multiple-choice", "questionText": "Question text", "options": ["A", "B", "C"] }
+  ],
+  "estimatedCompletionTime": "30 seconds",
+  "deliveryMethod": "Exit Intent Popup | In-Page Popup | Embedded Widget | Slide In | Bottom Bar",
+  "recommendedSurveyType": "Exit Intent Survey | Cart Abandonment Survey | Post Purchase Survey | Customer Satisfaction Survey | Pricing Feedback Survey | NPS Survey | Feature Feedback Survey"
+}`;
+
+    const raw = await this.createCompletion(
+      [
+        { role: 'system', content: 'You are CustomerLens, an elite CRO survey architect. Your surveys are famous for high completion rates because every question earns its place.' },
+        { role: 'user', content: prompt }
+      ],
+      true
+    );
+
+    return parseJsonStrict<any>(raw);
+  }
+
+  /**
+   * Workspace analytics summary: AI narrates REAL metrics (never fabricates them).
+   */
+  async summarizeWorkspaceAnalytics(params: {
+    businessName: string;
+    websiteUrl: string;
+    businessType?: string;
+    goal?: string;
+    metrics: {
+      totalVisitors: number;
+      totalResponses: number;
+      activeSurveys: number;
+      responseRate: string;
+      triggersFired: number;
+      rageClickEvents: number;
+    };
+    sentiment: { positive: number; neutral: number; negative: number; score: number };
+    objections: Array<{ reason: string; count: number; percentage: number }>;
+  }) {
+    const prompt = `Business: "${params.businessName}" (${params.websiteUrl}) — type: "${params.businessType || 'General'}", goal: "${params.goal || 'Increase conversion'}".
+
+REAL metrics (do not invent any others):
+- Unique visitor sessions: ${params.metrics.totalVisitors}
+- Survey responses: ${params.metrics.totalResponses}
+- Active surveys: ${params.metrics.activeSurveys}
+- Response rate: ${params.metrics.responseRate}
+- Behavioral triggers fired: ${params.metrics.triggersFired}
+- Rage-click events: ${params.metrics.rageClickEvents}
+- Sentiment: ${params.sentiment.positive} pos / ${params.sentiment.neutral} neutral / ${params.sentiment.negative} neg (score ${params.sentiment.score}/100)
+- Top objections: ${params.objections.length > 0 ? params.objections.map(o => `${o.reason} (${o.percentage}%)`).join(', ') : 'none yet'}
+
+Narrate today's analytics snapshot for the merchant.
+Output strictly valid JSON:
+{
+  "today": {
+    "sessions": ${params.metrics.totalVisitors},
+    "responses": ${params.metrics.totalResponses},
+    "responseRate": "${params.metrics.responseRate}",
+    "insight": "1-2 sentence sharp reading of the real numbers",
+    "topObjection": "${params.objections[0]?.reason || 'No objections recorded yet'}",
+    "action": "Single highest-leverage next step"
+  }
+}`;
+
+    const raw = await this.createCompletion(
+      [
+        { role: 'system', content: 'You are CustomerLens AI Analytics Engine. You narrate real metrics precisely and never fabricate data.' },
+        { role: 'user', content: prompt }
+      ],
+      true
+    );
+
+    const parsed = parseJsonStrict<any>(raw);
+    return {
+      today: parsed.today || {},
+      insightsSummary: parsed.today?.insight || `Live telemetry summary for ${params.businessName}.`
+    };
   }
 
   /**

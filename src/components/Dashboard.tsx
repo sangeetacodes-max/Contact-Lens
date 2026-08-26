@@ -581,23 +581,58 @@ export default function Dashboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace.id, workspace.url]);
 
-  // Load the real persisted notification log from the backend
+  // Load the real persisted notification log from the backend, then poll for
+  // new notifications and deliver them as live toasts + browser notifications.
+  const seenNotificationIdsRef = useRef<Set<string>>(new Set());
+  const notificationsPrimedRef = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
+
+    const deliverNotification = (n: any) => {
+      showNotification(`🔔 ${n.title}: ${(n.message || '').substring(0, 90)}${(n.message || '').length > 90 ? '…' : ''}`, 'info');
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (window.Notification.permission === 'granted') {
+          try {
+            new window.Notification(n.title || 'CustomerLens', { body: n.message || '' });
+          } catch {}
+        } else if (window.Notification.permission === 'default') {
+          window.Notification.requestPermission().catch(() => {});
+        }
+      }
+    };
+
     const loadNotifications = async () => {
       try {
         const res = await authenticatedFetch('/api/notifications');
         if (!res.ok) return;
         const data = await res.json();
-        if (!cancelled && Array.isArray(data?.notifications) && data.notifications.length > 0) {
+        if (cancelled || !Array.isArray(data?.notifications)) return;
+
+        const fresh = data.notifications.filter((n: any) => !seenNotificationIdsRef.current.has(n.id));
+        data.notifications.forEach((n: any) => seenNotificationIdsRef.current.add(n.id));
+
+        if (data.notifications.length > 0) {
           setNotificationLogs(data.notifications.map((n: any) => mapNotificationRecordToLog(n)));
+        }
+
+        // Deliver genuinely new notifications (skip the initial bulk load)
+        if (notificationsPrimedRef.current) {
+          fresh.filter((n: any) => !n.read).slice(0, 3).forEach(deliverNotification);
+        } else {
+          notificationsPrimedRef.current = true;
         }
       } catch (err) {
         console.warn('[NOTIFICATIONS SYNC]', err);
       }
     };
+
     loadNotifications();
-    return () => { cancelled = true; };
+    const interval = setInterval(loadNotifications, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -890,7 +925,12 @@ export default function Dashboard({
       const response = await fetch('/api/ai/generate-custom-survey', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: aiSurveyPrompt })
+        body: JSON.stringify({
+          prompt: aiSurveyPrompt,
+          domain: (workspace.url || '').replace(/^https?:\/\//, '').replace(/\/.*$/, ''),
+          businessName: workspace.name,
+          businessType: workspace.businessType
+        })
       });
       if (!response.ok) {
         throw new Error('AI service returned an error status.');

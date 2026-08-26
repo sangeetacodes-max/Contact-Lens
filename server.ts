@@ -98,13 +98,147 @@ app.post('/api/ai/analyze-website', async (req, res) => {
     return res.status(400).json({ error: 'websiteUrl is required' });
   }
   try {
-    const result = await openAIService.analyzeWebsite({ websiteUrl, businessType });
+    const result = await openAIService.scanWebsiteForSurvey({ websiteUrl, businessType });
     return res.json(result);
   } catch (err: any) {
     if (err.message === 'OPENAI_KEY_NOT_CONFIGURED' || err.message === 'OPENAI_NOT_CONFIGURED') {
       return res.status(503).json({ error: 'AI unavailable: OpenAI API key not configured.' });
     }
     return res.status(503).json({ error: 'AI unavailable: Failed to analyze website with OpenAI.' });
+  }
+});
+
+// Real data-grounded chatbot insights: the assistant sees the merchant's actual telemetry
+app.post('/api/ai/chatbot-insights', async (req, res) => {
+  const { message, history } = req.body;
+  if (!message) {
+    return res.status(400).json({ error: 'message is required' });
+  }
+  try {
+    const [responses, events, surveys, websites] = await Promise.all([
+      store.getResponses().catch(() => []),
+      store.getEvents().catch(() => []),
+      store.getAllSurveys().catch(() => []),
+      store.getAllWebsites().catch(() => [])
+    ]);
+
+    const sentiment = { positive: 0, neutral: 0, negative: 0 };
+    responses.forEach(r => {
+      if (r.sentiment === 'positive') sentiment.positive++;
+      else if (r.sentiment === 'negative') sentiment.negative++;
+      else sentiment.neutral++;
+    });
+
+    const categoryCounts = new Map<string, number>();
+    responses.forEach(r => {
+      const key = r.category || 'General';
+      categoryCounts.set(key, (categoryCounts.get(key) || 0) + 1);
+    });
+    const topCategories = Array.from(categoryCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name]) => name);
+
+    const reply = await openAIService.chatBotInsights({
+      message,
+      history,
+      context: {
+        businessName: websites[0]?.name || websites[0]?.domain || 'your website',
+        domain: websites[0]?.domain || '',
+        responsesCount: responses.length,
+        eventsCount: events.length,
+        activeSurveys: surveys.filter(s => s.status === 'published').length,
+        sentiment,
+        topCategories,
+        recentAnswers: responses.slice(0, 8).map(r => r.answer)
+      }
+    });
+    return res.json({ reply });
+  } catch (err: any) {
+    if (err.message === 'OPENAI_KEY_NOT_CONFIGURED' || err.message === 'OPENAI_NOT_CONFIGURED') {
+      return res.status(503).json({ error: 'AI unavailable: AI API key not configured.' });
+    }
+    return res.status(503).json({ error: 'AI unavailable: Failed to query analytical assistant.' });
+  }
+});
+
+// Real workspace analytics: compute genuine metrics, AI narrates them
+app.post('/api/ai/workspace-analytics', async (req, res) => {
+  const { businessName, websiteUrl, businessType, goal } = req.body;
+  try {
+    const [responses, events, surveys] = await Promise.all([
+      store.getResponses().catch(() => []),
+      store.getEvents().catch(() => []),
+      store.getAllSurveys().catch(() => [])
+    ]);
+
+    const totalSessions = new Set(events.map(e => e.session_id)).size;
+    const totalResponses = responses.length;
+    const sentimentCounts = { positive: 0, neutral: 0, negative: 0 };
+    responses.forEach(r => {
+      if (r.sentiment === 'positive') sentimentCounts.positive++;
+      else if (r.sentiment === 'negative') sentimentCounts.negative++;
+      else sentimentCounts.neutral++;
+    });
+
+    const objectionsMap = new Map<string, number>();
+    responses.forEach(r => {
+      const key = r.category || 'General';
+      objectionsMap.set(key, (objectionsMap.get(key) || 0) + 1);
+    });
+    const objections = Array.from(objectionsMap.entries()).map(([reason, count]) => ({
+      reason,
+      count,
+      percentage: totalResponses > 0 ? Math.round((count / totalResponses) * 100) : 0
+    }));
+
+    const responseRate = totalSessions > 0 ? Math.min(100, Math.round((totalResponses / totalSessions) * 100)) : 0;
+    const metrics = {
+      totalVisitors: totalSessions,
+      totalResponses,
+      activeSurveys: surveys.filter(s => s.status === 'published').length,
+      responseRate: `${responseRate}%`,
+      triggersFired: events.filter(e => e.event_type === 'exit_intent' || e.event_type === 'rage_click' || e.payload?.exitIntent).length,
+      rageClickEvents: events.filter(e => e.event_type === 'rage_click').length
+    };
+    const sentiment = {
+      ...sentimentCounts,
+      score: totalResponses > 0 ? Math.round(((sentimentCounts.positive * 100) + (sentimentCounts.neutral * 60)) / totalResponses) : 0
+    };
+
+    try {
+      const narrated = await openAIService.summarizeWorkspaceAnalytics({
+        businessName: businessName || 'My Workspace',
+        websiteUrl: websiteUrl || '',
+        businessType,
+        goal,
+        metrics,
+        sentiment,
+        objections
+      });
+      return res.json({ ...narrated, metrics, sentiment, objections });
+    } catch (aiErr: any) {
+      // AI narration unavailable — still return the real metrics
+      return res.json({
+        today: {
+          sessions: metrics.totalVisitors,
+          responses: metrics.totalResponses,
+          responseRate: metrics.responseRate,
+          insight: `${metrics.totalResponses} real response(s) from ${metrics.totalVisitors} tracked session(s).`,
+          topObjection: objections[0]?.reason || 'No objections recorded yet',
+          action: 'Review recent responses in the analytics tab.'
+        },
+        insightsSummary: `Live telemetry summary for ${businessName || 'your workspace'}.`,
+        metrics,
+        sentiment,
+        objections
+      });
+    }
+  } catch (err: any) {
+    if (err.message === 'DATABASE_NOT_CONFIGURED') {
+      return res.status(503).json({ error: 'Database error: Database unavailable' });
+    }
+    return res.status(500).json({ error: err.message || 'Internal Server Error' });
   }
 });
 
@@ -166,7 +300,7 @@ app.post('/api/ai/generate-custom-survey', async (req, res) => {
     return res.status(400).json({ error: 'prompt or domain is required' });
   }
   try {
-    const result = await openAIService.generateSurveyWithAi({ prompt, domain, businessName, businessType });
+    const result = await openAIService.generateCustomSurveySpec({ prompt, domain, businessName, businessType });
     return res.json(result);
   } catch (err: any) {
     if (err.message === 'OPENAI_KEY_NOT_CONFIGURED' || err.message === 'OPENAI_NOT_CONFIGURED') {

@@ -117,6 +117,8 @@
     styleTag.textContent = '@keyframes clFadeIn { from { opacity: 0; transform: ' + (placement.includes('Popup') ? 'translate(-50%, -46%) scale(0.96)' : 'translateY(12px)') + '; } to { opacity: 1; transform: ' + (placement.includes('Popup') ? 'translate(-50%, -50%) scale(1)' : 'translateY(0)') + '; } }' +
       '.cl-btn-opt { display: block; width: 100%; text-align: left; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: inherit; padding: 10px 14px; border-radius: 10px; margin-bottom: 8px; font-size: 14px; cursor: pointer; transition: all 0.15s ease; outline: none; }' +
       '.cl-btn-opt:hover { background: rgba(255,255,255,0.14); border-color: ' + accentCol + '; }' +
+      '.cl-btn-rate { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: inherit; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; outline: none; }' +
+      '.cl-btn-rate:hover { background: rgba(255,255,255,0.14); border-color: ' + accentCol + '; }' +
       '.cl-input-txt { width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.15); color: inherit; padding: 10px 14px; border-radius: 10px; font-size: 14px; margin-bottom: 12px; outline: none; }' +
       '.cl-input-txt:focus { border-color: ' + accentCol + '; }' +
       '.cl-submit-btn { width: 100%; padding: 12px; border-radius: 10px; background: ' + accentCol + '; color: #ffffff; font-weight: 600; font-size: 14px; border: none; cursor: pointer; transition: filter 0.15s ease; }' +
@@ -125,34 +127,14 @@
       '.cl-close-btn:hover { opacity: 1; }';
     document.head.appendChild(styleTag);
 
-    var questions = survey.questions || [];
-    var q = questions[0] || {
+    // The full survey the merchant configured — every question, in order.
+    var questions = (survey.questions && survey.questions.length > 0) ? survey.questions : [{
       id: 'q1',
       question_text: 'What almost stopped you from completing your purchase today?',
       type: 'multiple-choice',
       options: ['Pricing', 'Missing a feature', 'Need more info', 'Just browsing']
-    };
-
-    var contentHtml = [
-      '<button class="cl-close-btn" id="cl-close">&times;</button>',
-      '<div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.65; font-weight: 700; margin-bottom: 6px;">CustomerLens Feedback</div>',
-      '<h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; line-height: 1.3;">' + (survey.headline || 'Quick question before you go...') + '</h3>',
-      '<p style="margin: 0 0 16px 0; font-size: 14px; opacity: 0.85; line-height: 1.4;">' + (q.question_text || '') + '</p>',
-      '<div id="cl-question-body">'
-    ];
-
-    if (q.type === 'multiple-choice' && q.options && q.options.length > 0) {
-      q.options.forEach(function(opt) {
-        contentHtml.push('<button class="cl-btn-opt" data-ans="' + opt.replace(/"/g, '&quot;') + '">' + opt + '</button>');
-      });
-    } else {
-      contentHtml.push('<textarea class="cl-input-txt" id="cl-text-answer" rows="3" placeholder="Type your answer here..."></textarea>');
-      contentHtml.push('<button class="cl-submit-btn" id="cl-submit">Submit Feedback</button>');
-    }
-
-    contentHtml.push('</div>');
-    container.innerHTML = contentHtml.join('');
-    document.body.appendChild(container);
+    }];
+    var questionIndex = 0;
 
     function closeSurvey() {
       if (container && container.parentNode) {
@@ -162,14 +144,8 @@
       answeredSurveyIds.push(survey.id);
     }
 
-    // Close handler
-    var closeBtn = container.querySelector('#cl-close');
-    if (closeBtn) closeBtn.onclick = closeSurvey;
-
-    // Submit handler
-    function handleAnswer(ansText) {
-      if (!ansText || !ansText.trim()) return;
-
+    function submitAnswer(question, ansText) {
+      if (!ansText || !String(ansText).trim()) return;
       fetch(endpoint + '/api/responses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -177,15 +153,87 @@
           site_id: siteId,
           survey_id: survey.id,
           session_id: sessionId,
-          question_id: q.id,
-          question_text: q.question_text,
-          answer: ansText.trim(),
+          question_id: question.id,
+          question_text: question.question_text || question.questionText,
+          answer: String(ansText).trim(),
           page_url: window.location.href,
           time_to_answer: Math.round((Date.now() - pageStartTime) / 1000)
         })
       }).catch(function() {});
+    }
 
-      // Show Thank You
+    function renderQuestion() {
+      var q = questions[questionIndex];
+      var qType = q.type || 'text';
+      var isLast = questionIndex === questions.length - 1;
+
+      var contentHtml = [
+        '<button class="cl-close-btn" id="cl-close">&times;</button>',
+        '<div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.65; font-weight: 700; margin-bottom: 6px;">CustomerLens Feedback' + (questions.length > 1 ? ' · ' + (questionIndex + 1) + '/' + questions.length : '') + '</div>'
+      ];
+
+      if (questionIndex === 0) {
+        contentHtml.push('<h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; line-height: 1.3;">' + (survey.headline || 'Quick question before you go...') + '</h3>');
+      }
+      contentHtml.push('<p style="margin: 0 0 16px 0; font-size: 14px; opacity: 0.85; line-height: 1.4;">' + (q.question_text || q.questionText || '') + '</p>');
+      contentHtml.push('<div id="cl-question-body">');
+
+      if ((qType === 'multiple-choice' || qType === 'yes-no') && q.options && q.options.length > 0) {
+        q.options.forEach(function(opt) {
+          contentHtml.push('<button class="cl-btn-opt" data-ans="' + String(opt).replace(/"/g, '&quot;') + '">' + opt + '</button>');
+        });
+      } else if (qType === 'yes-no') {
+        contentHtml.push('<button class="cl-btn-opt" data-ans="Yes">Yes</button>');
+        contentHtml.push('<button class="cl-btn-opt" data-ans="No">No</button>');
+      } else if (qType === 'rating' || qType === 'nps') {
+        var maxVal = qType === 'nps' ? 10 : 5;
+        contentHtml.push('<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">');
+        for (var r = 1; r <= maxVal; r++) {
+          contentHtml.push('<button class="cl-btn-rate" data-ans="' + r + '">' + r + '</button>');
+        }
+        contentHtml.push('</div>');
+      } else {
+        contentHtml.push('<textarea class="cl-input-txt" id="cl-text-answer" rows="3" placeholder="Type your answer here..."></textarea>');
+        contentHtml.push('<button class="cl-submit-btn" id="cl-submit">' + (isLast ? 'Submit Feedback' : 'Next') + '</button>');
+      }
+
+      contentHtml.push('</div>');
+      container.innerHTML = contentHtml.join('');
+
+      var closeBtn = container.querySelector('#cl-close');
+      if (closeBtn) closeBtn.onclick = closeSurvey;
+
+      function advance(ansText) {
+        submitAnswer(q, ansText);
+        if (isLast) {
+          showThankYou();
+        } else {
+          questionIndex++;
+          renderQuestion();
+        }
+      }
+
+      var optionBtns = container.querySelectorAll('.cl-btn-opt, .cl-btn-rate');
+      for (var i = 0; i < optionBtns.length; i++) {
+        (function(btn) {
+          btn.onclick = function() {
+            advance(btn.getAttribute('data-ans'));
+          };
+        })(optionBtns[i]);
+      }
+
+      var submitBtn = container.querySelector('#cl-submit');
+      if (submitBtn) {
+        submitBtn.onclick = function() {
+          var textarea = container.querySelector('#cl-text-answer');
+          if (textarea && textarea.value) {
+            advance(textarea.value);
+          }
+        };
+      }
+    }
+
+    function showThankYou() {
       container.innerHTML = [
         '<div style="text-align: center; padding: 12px 0;">',
         '<div style="width: 44px; height: 44px; border-radius: 50%; background: ' + accentCol + '20; color: ' + accentCol + '; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 12px;">✓</div>',
@@ -193,28 +241,11 @@
         '<p style="margin: 0; font-size: 13px; opacity: 0.75;">Your feedback helps us improve.</p>',
         '</div>'
       ].join('');
-
       setTimeout(closeSurvey, 2200);
     }
 
-    // Attach button listeners
-    var optionBtns = container.querySelectorAll('.cl-btn-opt');
-    optionBtns.forEach(function(btn) {
-      btn.onclick = function() {
-        var ans = btn.getAttribute('data-ans');
-        handleAnswer(ans);
-      };
-    });
-
-    var submitBtn = container.querySelector('#cl-submit');
-    if (submitBtn) {
-      submitBtn.onclick = function() {
-        var textarea = container.querySelector('#cl-text-answer');
-        if (textarea && textarea.value) {
-          handleAnswer(textarea.value);
-        }
-      };
-    }
+    document.body.appendChild(container);
+    renderQuestion();
   }
 
   // 4. Behavioral Sensors & Listeners

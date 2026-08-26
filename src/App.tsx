@@ -727,13 +727,13 @@ export default function App() {
 
   const handleOnboardingComplete = async (newWorkspace: Workspace, firstSurvey: Survey) => {
     if (!user) return;
-    
+
     setWorkspace(newWorkspace);
     setInitialSurvey(firstSurvey);
-    
+
     const updatedUser = { ...user, workspaceId: newWorkspace.id };
     setUser(updatedUser);
-    
+
     if (auth.currentUser) {
       try {
         await setDoc(doc(db, 'workspaces', newWorkspace.id), newWorkspace);
@@ -743,11 +743,49 @@ export default function App() {
         handleFirestoreError(err, OperationType.WRITE, `workspaces/${newWorkspace.id}`);
       }
     }
-    
+
+    // Persist the website + first survey to the real tracking backend so the
+    // installed snippet immediately serves the survey the user just set up.
+    try {
+      const token = await getFirebaseIdToken();
+      const authHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+      const domain = (newWorkspace.url || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
+      if (domain) {
+        const regRes = await fetch('/api/websites', {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({ name: newWorkspace.name || domain, domain })
+        });
+        const regData = await regRes.json().catch(() => ({}));
+        if (regRes.ok && regData?.website) {
+          await fetch('/api/surveys/publish', {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              id: firstSurvey.id,
+              title: firstSurvey.title,
+              headline: firstSurvey.headline,
+              questions: firstSurvey.questions,
+              colors: firstSurvey.colors,
+              placement: firstSurvey.displayOption,
+              siteId: regData.website.site_id,
+              domain: regData.website.domain,
+              status: 'published'
+            })
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Backend onboarding sync warning:', err);
+    }
+
     // Trigger walkthrough
     setShowWalkthrough(true);
     setWalkthroughStep(1);
-    
+
     triggerToast('Onboarding finished. Workspace initialized with AI Survey!', 'success');
   };
 
