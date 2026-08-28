@@ -574,34 +574,30 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       
-      {/* 1. HERO HEADER SEGMENT (Dark Premium Geometric Grid Background) */}
-      <section className="bg-slate-950 text-white relative overflow-hidden pt-10 pb-44 md:pt-14 md:pb-60 min-h-[85vh] flex flex-col justify-between border-b border-slate-900">
-        
-        {/* Geometric Grid Background */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:24px_24px] opacity-40 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none" />
-        
-        {/* Glowing Ambient Radial Spotlight */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.15),transparent_60%)] pointer-events-none" />
+      {/* 1. HERO HEADER SEGMENT (Midnight Ink · Aurora Backdrop) */}
+      <section className="bg-[#070B14] text-white relative overflow-hidden pt-6 pb-40 md:pt-8 md:pb-56 min-h-[92vh] flex flex-col justify-between">
 
-        {/* Abstract CSS Starry Field on Grid */}
-        <div className="absolute inset-0 opacity-40 pointer-events-none">
-          <div className="absolute top-12 left-1/4 w-1 h-1 bg-indigo-400 rounded-full animate-pulse" />
-          <div className="absolute top-24 left-3/4 w-1.5 h-1.5 bg-sky-300 rounded-full animate-ping [animation-duration:4s]" />
-          <div className="absolute top-48 left-1/3 w-0.5 h-0.5 bg-indigo-100 rounded-full" />
-          <div className="absolute top-72 left-2/3 w-1 h-1 bg-white rounded-full animate-pulse [animation-duration:3s]" />
-          <div className="absolute top-1/2 left-10 w-1.5 h-1.5 bg-blue-300 rounded-full" />
-          <div className="absolute top-2/3 left-4/5 w-0.5 h-0.5 bg-white rounded-full" />
-          <div className="absolute top-10 right-20 w-1 h-1 bg-indigo-200 rounded-full" />
-        </div>
+        {/* Fine blueprint grid, masked to center */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.05)_1px,transparent_1px)] bg-[size:38px_38px] [mask-image:radial-gradient(ellipse_75%_65%_at_50%_38%,#000_55%,transparent_100%)] pointer-events-none" />
 
-        {/* Top Navbar */}
-        <div className="w-full max-w-6xl mx-auto px-6 flex items-center justify-between relative z-10 flex-shrink-0">
+        {/* Drifting aurora fields */}
+        <div className="absolute -top-44 -left-44 h-[30rem] w-[30rem] rounded-full bg-emerald-500/[0.09] blur-[130px] animate-aurora pointer-events-none" />
+        <div className="absolute top-1/3 -right-48 h-[34rem] w-[34rem] rounded-full bg-cyan-500/[0.08] blur-[140px] animate-aurora [animation-delay:4s] pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 h-[22rem] w-[22rem] rounded-full bg-teal-400/[0.06] blur-[110px] animate-aurora [animation-delay:8s] pointer-events-none" />
+
+        {/* Cinematic vignette */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,transparent_45%,rgba(7,11,20,0.85))] pointer-events-none" />
+
+        {/* Top Navbar — floating glass bar */}
+        <div className="w-full max-w-7xl mx-auto px-5 md:px-8 relative z-10 flex-shrink-0">
+          <div className="flex items-center justify-between rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-xl px-4 md:px-5 py-3 shadow-[0_10px_50px_-14px_rgba(0,0,0,0.8)]">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white text-[#111e35] flex items-center justify-center font-extrabold text-xl shadow-lg border border-white/20">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-300 via-teal-400 to-cyan-500 text-slate-950 flex items-center justify-center font-extrabold text-base shadow-[0_0_24px_-4px_rgba(52,211,153,0.5)]">
               CL
             </div>
-            <div>
-              <span className="font-extrabold text-sm tracking-widest block text-white font-mono">CUSTOMERLENS</span>
+            <div className="leading-tight">
+              <span className="font-extrabold text-[13px] tracking-[0.18em] block text-white">CUSTOMERLENS</span>
+              <span className="text-[9px] font-bold tracking-[0.24em] text-emerald-300/80 uppercase">AI Engine</span>
             </div>
           </div>
 
@@ -671,83 +667,192 @@ Native trees are critical buffers against heavy soil erosion and act as essentia
                 >
                   SIGN IN
                 </button>
-                <button 
+                <button
                   id="btn_landing_nav_preview_login"
                   onClick={() => onNavigate('register')}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-indigo-900/30 flex items-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                  className="bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-[0_0_20px_-6px_rgba(52,211,153,0.6)] flex items-center gap-1.5 cursor-pointer uppercase tracking-wider"
                 >
                   SIGN UP
                 </button>
               </>
             )}
           </div>
+          </div>
         </div>
 
-        {/* Hero Content */}
-        <div className="w-full max-w-5xl mx-auto px-6 text-center mt-16 md:mt-24 mb-16 md:mb-24 relative z-10 space-y-8 my-auto flex-grow flex flex-col justify-center">
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="space-y-4"
-          >
-            <span className="inline-block bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase mb-2">
-              ✨ ENGINEERED FOR ENTREPRENEURS TO MAKE SMART DECISIONS
-            </span>
-            <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-extrabold tracking-tight text-white leading-none">
-              CUSTOMER <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-sky-200 to-indigo-300">LENS</span>
-            </h1>
-          </motion.div>
+        {/* Hero Content — editorial split with live product preview */}
+        <div className="w-full max-w-7xl mx-auto px-5 md:px-8 relative z-10 my-auto flex-grow flex items-center mt-14 md:mt-20 mb-20">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-14 lg:gap-8 items-center w-full">
 
-          <motion.p 
+            {/* Left: editorial copy */}
+            <div className="lg:col-span-7 text-left">
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/[0.08] px-3.5 py-1.5 text-[10px] font-bold tracking-[0.18em] uppercase text-emerald-300">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                  </span>
+                  AI Customer-Intelligence Engine
+                </span>
+              </motion.div>
+
+              <motion.h1
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+                className="mt-6 text-[2.6rem] sm:text-6xl lg:text-[4.6rem] font-extrabold tracking-[-0.03em] text-white leading-[1.02]"
+              >
+                Know exactly <span className="font-display italic font-normal text-transparent bg-clip-text bg-gradient-to-r from-emerald-200 via-teal-100 to-cyan-200">why</span> visitors buy, hesitate, or leave.
+              </motion.h1>
+
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                className="mt-6 text-slate-300/90 text-base md:text-lg max-w-xl leading-relaxed font-medium"
+              >
+                CustomerLens AI watches real behavior on your website — exit intent, hesitation, rage clicks — and asks the right question at the perfect moment. Then it turns every answer into decisions you can act on.
+              </motion.p>
+
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, delay: 0.36, ease: [0.22, 1, 0.36, 1] }}
+                className="mt-9 flex flex-col sm:flex-row items-start sm:items-center gap-4"
+              >
+                <button
+                  onClick={onLaunchDemo}
+                  className="group inline-flex items-center gap-2.5 rounded-full bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-extrabold text-xs tracking-wider uppercase px-7 py-4 transition-all shadow-[0_0_36px_-8px_rgba(52,211,153,0.55)] hover:shadow-[0_0_44px_-6px_rgba(52,211,153,0.7)] cursor-pointer"
+                >
+                  Launch Live Demo
+                  <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+                </button>
+                <a
+                  href="#about-lens"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/15 hover:border-white/30 hover:bg-white/[0.04] text-slate-200 font-bold text-xs tracking-wider uppercase px-7 py-4 transition-all"
+                >
+                  What is CustomerLens?
+                </a>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.5 }}
+                className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] font-bold tracking-[0.16em] uppercase text-slate-400"
+              >
+                <span className="inline-flex items-center gap-1.5"><Check size={13} className="text-emerald-400" /> Free to start</span>
+                <span className="inline-flex items-center gap-1.5"><Clock size={13} className="text-emerald-400" /> 2-minute snippet install</span>
+                <span className="inline-flex items-center gap-1.5"><ShieldCheck size={13} className="text-emerald-400" /> No credit card</span>
+              </motion.div>
+            </div>
+
+            {/* Right: live product preview */}
+            <motion.div
+              initial={{ opacity: 0, y: 28, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.9, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className="lg:col-span-5 relative hidden sm:block"
+            >
+              <div className="relative animate-float">
+                {/* Floating signal chips */}
+                <div className="absolute -top-5 -left-6 z-20 rounded-xl border border-emerald-400/30 bg-[#0B1220]/90 backdrop-blur-md px-3.5 py-2 shadow-xl">
+                  <p className="text-[9px] font-bold tracking-widest uppercase text-slate-400">Trigger fired</p>
+                  <p className="text-[11px] font-extrabold text-emerald-300">Exit intent · 0.8s</p>
+                </div>
+                <div className="absolute -bottom-5 -right-4 z-20 rounded-xl border border-cyan-400/30 bg-[#0B1220]/90 backdrop-blur-md px-3.5 py-2 shadow-xl">
+                  <p className="text-[9px] font-bold tracking-widest uppercase text-slate-400">AI read</p>
+                  <p className="text-[11px] font-extrabold text-cyan-300">Pricing objection</p>
+                </div>
+
+                {/* Live widget preview card */}
+                <div className="relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] backdrop-blur-2xl p-6 shadow-[0_40px_80px_-24px_rgba(0,0,0,0.8)]">
+                  <div className="flex items-center justify-between pb-4 border-b border-white/[0.07]">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                      </span>
+                      <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-slate-300">Live on yourstore.com</span>
+                    </div>
+                    <span className="text-[9px] font-mono text-slate-500">customerlens.js</span>
+                  </div>
+
+                  {/* Visitor survey bubble */}
+                  <div className="mt-5 rounded-2xl bg-[#0F172A] border border-white/[0.07] p-4">
+                    <p className="text-[9px] font-bold tracking-[0.18em] uppercase text-slate-400 mb-2">CustomerLens Feedback</p>
+                    <p className="text-sm font-bold text-white leading-snug">Wait! Before you go — what almost stopped you today?</p>
+                    <div className="mt-3 space-y-2">
+                      <div className="rounded-lg border border-emerald-400/50 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-200 flex items-center justify-between">
+                        Shipping cost was unclear
+                        <Check size={13} className="text-emerald-300" />
+                      </div>
+                      <div className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-slate-400">Just comparing options</div>
+                    </div>
+                  </div>
+
+                  {/* AI follow-up bubble */}
+                  <div className="mt-3 flex gap-2.5 items-start">
+                    <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-emerald-300 to-cyan-500 flex items-center justify-center shrink-0">
+                      <Sparkles size={13} className="text-slate-950" />
+                    </div>
+                    <div className="rounded-2xl rounded-tl-md bg-white/[0.05] border border-white/[0.07] px-3.5 py-2.5">
+                      <p className="text-xs text-slate-200 leading-relaxed">Got it — was it the shipping cost itself, or the delivery time?</p>
+                      <div className="mt-1.5 flex gap-1">
+                        <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse [animation-delay:0.2s]" />
+                        <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse [animation-delay:0.4s]" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mini insight bar */}
+                  <div className="mt-5 rounded-xl bg-gradient-to-r from-emerald-400/[0.08] to-cyan-400/[0.08] border border-white/[0.07] px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-[9px] font-bold tracking-widest uppercase text-slate-400">Sentiment trend</p>
+                      <p className="text-xs font-extrabold text-white">Improving after fix</p>
+                    </div>
+                    <div className="flex items-end gap-1 h-7">
+                      <span className="w-1.5 h-2 rounded-sm bg-slate-600" />
+                      <span className="w-1.5 h-3 rounded-sm bg-slate-500" />
+                      <span className="w-1.5 h-4 rounded-sm bg-teal-500/70" />
+                      <span className="w-1.5 h-5 rounded-sm bg-emerald-400/80" />
+                      <span className="w-1.5 h-7 rounded-sm bg-emerald-300" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+
+        {/* Capability strip */}
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-5 md:px-8 pb-24">
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-            className="text-slate-200 text-base md:text-xl max-w-3xl mx-auto leading-relaxed space-y-2 font-medium"
+            transition={{ duration: 1, delay: 0.7 }}
+            className="border-t border-white/[0.07] pt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-[10px] font-bold tracking-[0.22em] uppercase text-slate-500"
           >
-            <span className="block font-bold text-white text-lg md:text-2xl tracking-tight">
-              Every successful startup is built on understanding its customers.
-            </span>
-            <span className="block text-slate-300 text-sm md:text-base leading-relaxed pt-1">
-              CustomerLens AI reveals the hidden emotions, frustrations, and motivations behind every decision—so you know why customers buy, switch, stay, or leave.
-            </span>
-          </motion.p>
-
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-            className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-10"
-          >
-            <a 
-              href="#about-lens"
-              className="w-full sm:w-auto bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs px-7 py-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
-            >
-              WHAT IS CUSTOMERLENS?
-            </a>
-            
-            <button 
-              onClick={onLaunchDemo}
-              className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white font-extrabold text-xs px-7 py-4 rounded-xl transition-all shadow-xl shadow-indigo-950/50 flex items-center justify-center gap-2 border border-indigo-400/20"
-            >
-              LAUNCH DEMO
-            </button>
+            <span>Real-time behavior triggers</span>
+            <span className="hidden sm:inline text-slate-700">·</span>
+            <span>Conversational AI follow-ups</span>
+            <span className="hidden sm:inline text-slate-700">·</span>
+            <span>No-code snippet install</span>
+            <span className="hidden sm:inline text-slate-700">·</span>
+            <span>Live analytics & digests</span>
           </motion.div>
         </div>
 
-
-
-        {/* whismical hills & tiny trees illustration at the bottom of hero - matches screenshot */}
-        <div className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none overflow-hidden">
-          <svg className="absolute bottom-0 w-full h-12 text-[#e2ebf6]" viewBox="0 0 1440 74" fill="currentColor" preserveAspectRatio="none">
-            <path d="M0,32L120,42.7C240,53,480,75,720,74.7C960,75,1200,53,1320,42.7L1440,32L1440,74L1320,74C1200,74,960,74,720,74C480,74,240,74,120,74L0,74Z"></path>
+        {/* Smooth curve transition into the light section */}
+        <div className="absolute bottom-0 left-0 right-0 pointer-events-none overflow-hidden leading-none">
+          <svg viewBox="0 0 1440 90" preserveAspectRatio="none" className="w-full h-[72px] block">
+            <path fill="#f8fafc" d="M0,58 C240,20 480,10 720,26 C960,42 1200,72 1440,44 L1440,90 L0,90 Z" />
           </svg>
-          {/* Small green vector trees spaced along the hill line */}
-          <div className="absolute bottom-6 left-[15%] w-3 h-5 bg-emerald-800 rounded-t-full" />
-          <div className="absolute bottom-5 left-[16%] w-2 h-4 bg-emerald-700 rounded-t-full" />
-          <div className="absolute bottom-6 left-[48%] w-4 h-6 bg-emerald-800 rounded-t-full" />
-          <div className="absolute bottom-6 left-[50%] w-3 h-4 bg-teal-800 rounded-t-full" />
-          <div className="absolute bottom-5 left-[78%] w-3.5 h-5.5 bg-emerald-700 rounded-t-full" />
         </div>
       </section>
 

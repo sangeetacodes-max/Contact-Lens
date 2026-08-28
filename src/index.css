@@ -1,7 +1,14 @@
 @import "tailwindcss";
 
 @theme {
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+
   --animate-scan: scan 4s ease-in-out infinite;
+  --animate-aurora: aurora 14s ease-in-out infinite alternate;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-shimmer: shimmer 2.4s linear infinite;
 
   @keyframes scan {
     0%, 100% {
@@ -13,4 +20,35 @@
       opacity: 0.8;
     }
   }
+
+  @keyframes aurora {
+    0% {
+      transform: translate(0, 0) scale(1);
+    }
+    100% {
+      transform: translate(70px, 50px) scale(1.18);
+    }
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0) rotate(-1.4deg);
+    }
+    50% {
+      transform: translateY(-14px) rotate(-0.4deg);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
 }
