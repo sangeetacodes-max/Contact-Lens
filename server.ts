@@ -17,7 +17,63 @@ import { websitesRouter } from './server/routes/websites';
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+
+// Trust reverse proxy headers (AI Studio deploys behind Cloud Run / load balancer)
+app.set('trust proxy', 1);
+
+app.use(express.json({ limit: '512kb' }));
+
+// Security headers for the public API & tracker
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (req.path.startsWith('/api')) {
+    res.setHeader('Cache-Control', 'no-store');
+  }
+  next();
+});
+
+// ----------------------------------------------------
+// BUILT-IN RATE LIMITING (no external dependencies)
+// ----------------------------------------------------
+const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimit(name: string, maxPerMinute: number) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const key = `${name}:${ip}`;
+    const now = Date.now();
+    const bucket = rateLimitBuckets.get(key);
+    if (!bucket || now > bucket.resetAt) {
+      rateLimitBuckets.set(key, { count: 1, resetAt: now + 60000 });
+    } else {
+      bucket.count++;
+      if (bucket.count > maxPerMinute) {
+        return res.status(429).json({ error: 'Too many requests. Please slow down.' });
+      }
+    }
+    next();
+  };
+}
+
+// Clean expired buckets periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateLimitBuckets.entries()) {
+    if (now > bucket.resetAt) rateLimitBuckets.delete(key);
+  }
+}, 60000);
+
+// Public ingestion: lenient (per site visitor traffic)
+const publicIngestLimit = rateLimit('ingest', 600);
+// AI endpoints: stricter (per dashboard user)
+const aiLimit = rateLimit('ai', 30);
+
+function sanitizeString(input: unknown, maxLength = 500): string {
+  if (typeof input !== 'string') return '';
+  return input.replace(/[\u0000-\u001F\u007F]/g, '').trim().substring(0, maxLength);
+}
 
 // ----------------------------------------------------
 // SERVE TRACKING JAVASCRIPT SDK DIRECTLY
@@ -42,9 +98,9 @@ app.use('/api/analytics', analyticsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/websites', websitesRouter);
 
-// Public Tracking Ingestion Aliases (No Default Site Fallback)
-app.use('/api/events/track', eventsRouter);
-app.use('/api/survey-response', responsesRouter);
+// Public Tracking Ingestion Aliases (No Default Site Fallback, rate-limited)
+app.use('/api/events/track', publicIngestLimit, eventsRouter);
+app.use('/api/survey-response', publicIngestLimit, responsesRouter);
 
 // GET /api/public/survey - Fetch active published survey for a verified website
 app.get('/api/public/survey', async (req, res) => {
@@ -92,7 +148,7 @@ function isCustomFeatureRequest(msg: string): boolean {
   );
 }
 
-app.post('/api/ai/analyze-website', async (req, res) => {
+app.post('/api/ai/analyze-website', aiLimit, async (req, res) => {
   const { websiteUrl, businessType } = req.body;
   if (!websiteUrl) {
     return res.status(400).json({ error: 'websiteUrl is required' });
@@ -109,7 +165,7 @@ app.post('/api/ai/analyze-website', async (req, res) => {
 });
 
 // Real data-grounded chatbot insights: the assistant sees the merchant's actual telemetry
-app.post('/api/ai/chatbot-insights', async (req, res) => {
+app.post('/api/ai/chatbot-insights', aiLimit, async (req, res) => {
   const { message, history } = req.body;
   if (!message) {
     return res.status(400).json({ error: 'message is required' });
@@ -163,7 +219,7 @@ app.post('/api/ai/chatbot-insights', async (req, res) => {
 });
 
 // Real workspace analytics: compute genuine metrics, AI narrates them
-app.post('/api/ai/workspace-analytics', async (req, res) => {
+app.post('/api/ai/workspace-analytics', aiLimit, async (req, res) => {
   const { businessName, websiteUrl, businessType, goal } = req.body;
   try {
     const [responses, events, surveys] = await Promise.all([
@@ -242,7 +298,7 @@ app.post('/api/ai/workspace-analytics', async (req, res) => {
   }
 });
 
-app.post('/api/ai/daily-exit-analysis', async (req, res) => {
+app.post('/api/ai/daily-exit-analysis', aiLimit, async (req, res) => {
   const { date, goal, businessName } = req.body;
   try {
     const result = await openAIService.generateDailyReport(date, goal, businessName);
@@ -255,7 +311,7 @@ app.post('/api/ai/daily-exit-analysis', async (req, res) => {
   }
 });
 
-app.post('/api/ai/recommendations', async (req, res) => {
+app.post('/api/ai/recommendations', aiLimit, async (req, res) => {
   const { businessType, goal } = req.body;
   try {
     const result = await openAIService.generateRecommendations(businessType, goal);
@@ -268,7 +324,7 @@ app.post('/api/ai/recommendations', async (req, res) => {
   }
 });
 
-app.post('/api/ai/chat', async (req, res) => {
+app.post('/api/ai/chat', aiLimit, async (req, res) => {
   const { message, messages } = req.body;
   const userText = message || (Array.isArray(messages) && messages.length > 0 ? messages[messages.length - 1].content : '');
 
@@ -294,7 +350,7 @@ app.post('/api/ai/chat', async (req, res) => {
   }
 });
 
-app.post('/api/ai/generate-custom-survey', async (req, res) => {
+app.post('/api/ai/generate-custom-survey', aiLimit, async (req, res) => {
   const { prompt, domain, businessName, businessType } = req.body;
   if (!prompt && !domain) {
     return res.status(400).json({ error: 'prompt or domain is required' });
@@ -374,9 +430,25 @@ app.all('/api/*', (req, res) => {
 });
 
 // ----------------------------------------------------
+// GLOBAL ERROR HANDLER (no stack leaks in production)
+// ----------------------------------------------------
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status = err.status || 500;
+
+  if (status >= 500) {
+    console.error('[Server Error]', err?.message || err);
+  }
+
+  res.status(status).json({
+    error: status >= 500 ? 'Internal server error' : (err.message || 'Request failed'),
+    ...(process.env.NODE_ENV !== 'production' && status >= 500 ? { detail: err?.message } : {})
+  });
+});
+
+// ----------------------------------------------------
 // VITE DEV SERVER & PRODUCTION STATIC SERVING
 // ----------------------------------------------------
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
@@ -387,15 +459,25 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, { maxAge: '1y', immutable: true, index: false }));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`CustomerLens Server running on http://0.0.0.0:${PORT}`);
+  });
+
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 10000);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});

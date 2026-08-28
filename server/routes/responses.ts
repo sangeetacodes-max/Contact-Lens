@@ -3,6 +3,11 @@ import { store, SurveyResponseRecord, NotificationRecord } from '../db/schema';
 import { openAIService } from '../services/openai';
 import { requireAuth, requireWebsiteOwnership } from '../middleware/auth';
 
+function sanitizeForPublic(input: unknown, maxLength = 200): string {
+  if (typeof input !== 'string') return '';
+  return input.replace(/[\u0000-\u001F\u007F]/g, '').trim().substring(0, maxLength);
+}
+
 export const responsesRouter = Router();
 
 // POST /api/responses (or /api/survey-response) - Ingest real customer answers
@@ -39,11 +44,12 @@ responsesRouter.post('/', async (req, res) => {
     }
     const websiteId = website.id;
     const resolvedSiteId = website.site_id;
-    const resolvedSurveyId = survey_id || surveyId || 'srv_default';
-    const resolvedSessionId = session_id || sessionId || `sess_${Date.now()}`;
-    const resolvedQuestionText = question_text || questionText || 'Visitor Feedback';
-    const resolvedAnswer = typeof answer === 'string' ? answer : JSON.stringify(answer || '');
-    const resolvedPageUrl = page_url || pageUrl || '/';
+    const resolvedSurveyId = sanitizeForPublic(survey_id || surveyId || 'srv_default', 64);
+    const resolvedSessionId = sanitizeForPublic(session_id || sessionId || `sess_${Date.now()}`, 64);
+    const resolvedQuestionText = sanitizeForPublic(question_text || questionText || 'Visitor Feedback', 300);
+    const resolvedAnswerRaw = typeof answer === 'string' ? answer : JSON.stringify(answer || '');
+    const resolvedAnswer = sanitizeForPublic(resolvedAnswerRaw, 2000);
+    const resolvedPageUrl = sanitizeForPublic(page_url || pageUrl || '/', 300);
 
     if (!resolvedAnswer || !resolvedAnswer.trim()) {
       return res.status(400).json({ error: 'Missing answer' });
